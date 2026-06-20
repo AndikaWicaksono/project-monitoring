@@ -4,7 +4,7 @@ import { useMonitoringReportStore } from '../../store/useMonitoringReportStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { Button } from '../../components/ui/Button'
-import { classNames, downloadCsv, formatDateShort } from '../../utils/helpers'
+import { downloadCsv, formatDateShort } from '../../utils/helpers'
 
 export function MonitoringReportPage() {
   const { projects, documents, deleteProject } = useMonitoringReportStore()

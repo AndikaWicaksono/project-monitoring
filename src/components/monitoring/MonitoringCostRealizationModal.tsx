@@ -4,7 +4,6 @@ import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
 import { useMonitoringCostStore } from '../../store/useMonitoringCostStore'
-import { useAuthStore } from '../../store/useAuthStore'
 import type { MonitoringCostRealizationStatus } from '../../types/monitoring'
 
 interface Props {
@@ -17,9 +16,6 @@ interface Props {
 
 export function MonitoringCostRealizationModal({ open, onClose, mode, costId, realizationId }: Props) {
   const store = useMonitoringCostStore()
-  const session = useAuthStore((s) => s.session)
-  const users = useAuthStore((s) => s.users)
-  const currentUser = users.find((u) => u.id === session?.userId)
 
   const cost = store.getCostById(costId)
   const existing = realizationId ? store.realizations.find((r) => r.id === realizationId) : undefined

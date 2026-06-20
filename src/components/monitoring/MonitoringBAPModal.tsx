@@ -6,7 +6,7 @@ import { Input, Textarea } from '../ui/Input'
 import { Select } from '../ui/Select'
 import { useMonitoringBAPStore } from '../../store/useMonitoringBAPStore'
 import { useAuthStore } from '../../store/useAuthStore'
-import { classNames, formatDateShort } from '../../utils/helpers'
+import { classNames } from '../../utils/helpers'
 import {
   bapChecklistProgress,
   type MonitoringBAPDocumentType,

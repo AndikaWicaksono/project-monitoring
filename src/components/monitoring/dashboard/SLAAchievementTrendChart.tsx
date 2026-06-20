@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from 'recharts'
 import { useMonitoringSLAStore } from '../../../store/useMonitoringSLAStore'
-import { SLA_MONTHS, slaMonthLabel, computeProjectMonthAvg } from '../../../types/monitoring'
+import { SLA_MONTHS, slaMonthLabel } from '../../../types/monitoring'
 
 const TOOLTIP_STYLE = { background: '#ffffff', border: '1px solid rgba(15,23,42,0.1)', borderRadius: 8, fontSize: 12, boxShadow: '0 8px 24px rgba(15,23,42,0.12)' }
 const LABEL_STYLE = { color: '#475569' }

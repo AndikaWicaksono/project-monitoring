@@ -28,7 +28,7 @@ export function MonitoringSLADetailPage() {
   const [year, setYear] = useState(new Date().getFullYear())
   const [confirmDeleteCompId, setConfirmDeleteCompId] = useState<string | null>(null)
   const [confirmDeleteRecId, setConfirmDeleteRecId] = useState<string | null>(null)
-  const [expandedComp, setExpandedComp] = useState<string | null>(null)
+  const [expandedComp] = useState<string | null>(null)
 
   const yearOptions = [2023, 2024, 2025, 2026]
 

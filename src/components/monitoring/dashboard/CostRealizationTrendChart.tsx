@@ -44,7 +44,7 @@ export function CostRealizationTrendChart() {
                 contentStyle={TOOLTIP_STYLE}
                 labelStyle={LABEL_STYLE}
                 cursor={{ fill: 'rgba(227,30,36,0.04)' }}
-                formatter={(v: number) => [formatM(v)]}
+                formatter={(v) => [formatM(typeof v === 'number' ? v : 0)]}
               />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Bar dataKey="Nilai Kontrak" fill="#002F6C" radius={[4, 4, 0, 0]} />
