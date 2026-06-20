@@ -14,6 +14,8 @@ interface AuthState {
   logout: () => void
   currentUser: () => User | null
 
+  ensureSeedUsers: () => void
+
   createUser: (data: {
     name: string
     email: string
@@ -59,6 +61,14 @@ export const useAuthStore = create<AuthState>()(
           users: get().users.map((x) => (x.id === u.id ? { ...x, lastLoginAt: nowIso() } : x)),
         })
         return true
+      },
+
+      ensureSeedUsers: () => {
+        const existingIds = new Set(get().users.map((u) => u.id))
+        const missing = SEED_USERS.filter((u) => !existingIds.has(u.id))
+        if (missing.length > 0) {
+          set((s) => ({ users: [...s.users, ...missing] }))
+        }
       },
 
       logout: () => set({ session: null }),
@@ -126,6 +136,11 @@ export const useAuthStore = create<AuthState>()(
         set({ users: get().users.map((u) => (u.id === id ? { ...u, active: !u.active } : u)) })
       },
     }),
-    { name: 'flowdesk:auth' },
+    {
+      name: 'flowdesk:auth',
+      onRehydrateStorage: () => (state) => {
+        state?.ensureSeedUsers()
+      },
+    },
   ),
 )

@@ -19,7 +19,9 @@ const VIEW_META: Record<string, { title: string; subtitle: string }> = {
   dashboard: { title: 'Dashboard Analytics', subtitle: 'Insight metrik dan progres tim' },
   'monitoring-dashboard': { title: 'Dashboard Monitoring', subtitle: 'Ringkasan eksekutif seluruh modul monitoring' },
   'monitoring-report': { title: 'Report Project Monitoring', subtitle: 'CRUD laporan project — workflow CREATE → APPROVAL' },
+  'monitoring-report-detail': { title: 'Report Project — Detail', subtitle: 'Dokumen laporan customer & vendor per project' },
   'monitoring-sla': { title: 'SLA Monitoring', subtitle: 'Pencapaian SLA bulanan per kontrak dan departemen' },
+  'monitoring-sla-detail': { title: 'SLA Monitoring — Detail', subtitle: 'Komponen SLA dan pencapaian bulanan per project' },
   'monitoring-cost': { title: 'Cost Monitoring', subtitle: 'Monitoring biaya project dan realisasi bulanan' },
   'monitoring-bap': { title: 'BAP / BAPP / BAST Monitoring', subtitle: 'Tracking dokumen serah terima untuk kesiapan penagihan' },
 }
@@ -134,8 +136,8 @@ export function Header() {
               <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-pertamina-red shadow-glow" />
             )}
           </button>
-          {/* Sembunyikan tombol create di Project Board — project dibuat lewat Board Divisi */}
-          {!isProjectBoard && (
+          {/* Sembunyikan tombol create di Project Board dan seluruh halaman Monitoring */}
+          {!isProjectBoard && !view.startsWith('monitoring-') && (
             createPerm.allowed ? (
               <Button
                 onClick={() => openModal({ type: 'add-task' })}

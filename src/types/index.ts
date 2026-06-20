@@ -410,7 +410,9 @@ export type PageView =
   | 'dashboard'
   | 'monitoring-dashboard'
   | 'monitoring-report'
+  | 'monitoring-report-detail'
   | 'monitoring-sla'
+  | 'monitoring-sla-detail'
   | 'monitoring-cost'
   | 'monitoring-bap'
 

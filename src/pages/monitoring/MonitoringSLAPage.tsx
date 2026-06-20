@@ -2,59 +2,68 @@ import { useMemo, useState } from 'react'
 import { Plus, Search, Download, Eye, Pencil, Trash2, Filter } from 'lucide-react'
 import { useMonitoringSLAStore } from '../../store/useMonitoringSLAStore'
 import { useUIStore } from '../../store/useUIStore'
+import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { Button } from '../../components/ui/Button'
 import { classNames, downloadCsv } from '../../utils/helpers'
-import { slaMonthKeys, slaMonthLabel, slaAverageAchievement, slaOverallStatus, type SLAStatus } from '../../types/monitoring'
+import {
+  SLA_MONTHS, slaMonthLabel, computeProjectMonthAvg, computeProjectGrandAvg, slaStatusCalc,
+  type SLAStatus,
+} from '../../types/monitoring'
 
 const SLA_STATUS_CLS: Record<SLAStatus, string> = {
-  GREEN:  'bg-emerald-100 text-emerald-700',
-  YELLOW: 'bg-amber-100 text-amber-700',
-  RED:    'bg-red-100 text-red-700',
+  TERCAPAI:      'bg-emerald-100 text-emerald-700',
+  TIDAK_TERCAPAI: 'bg-red-100 text-red-700',
 }
 
-const SLA_STATUS_LABEL: Record<SLAStatus, string> = {
-  GREEN: 'Tercapai', YELLOW: 'Waspada', RED: 'Tidak Tercapai',
-}
-
-const MONTHS = slaMonthKeys()
+const YEAR = new Date().getFullYear()
 
 export function MonitoringSLAPage() {
-  const slaRecords = useMonitoringSLAStore((s) => s.slaRecords)
-  const deleteSLA = useMonitoringSLAStore((s) => s.deleteSLA)
+  const { projects, components, monthlyRecords, deleteProject } = useMonitoringSLAStore()
   const openModal = useUIStore((s) => s.openModal)
+  const setView = useUIStore((s) => s.setView)
+  const setSlaDetailProjectId = useUIStore((s) => s.setSlaDetailProjectId)
+  const { canDeleteMonitoring } = useMonitoringRole()
 
   const [search, setSearch] = useState('')
   const [deptFilter, setDeptFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<SLAStatus | ''>('')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
-  const departments = useMemo(() => [...new Set(slaRecords.map((r) => r.departemen).filter(Boolean))].sort(), [slaRecords])
+  const departments = useMemo(() => [...new Set(projects.map((p) => p.department).filter(Boolean))].sort(), [projects])
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    return slaRecords.filter((r) => {
-      if (deptFilter && r.departemen !== deptFilter) return false
-      if (statusFilter && slaOverallStatus(r) !== statusFilter) return false
-      if (q && !r.kontrak.toLowerCase().includes(q) && !r.pekerjaan.toLowerCase().includes(q) && !r.departemen.toLowerCase().includes(q)) return false
+    return projects.filter((p) => {
+      if (deptFilter && p.department !== deptFilter) return false
+      const avg = computeProjectGrandAvg(components, monthlyRecords, p.id, YEAR)
+      if (statusFilter && slaStatusCalc(avg, p.targetSLA) !== statusFilter) return false
+      if (q && !p.kodeProject.toLowerCase().includes(q) && !p.namaProject.toLowerCase().includes(q) && !p.department.toLowerCase().includes(q)) return false
       return true
     })
-  }, [slaRecords, search, deptFilter, statusFilter])
+  }, [projects, components, monthlyRecords, search, deptFilter, statusFilter])
+
+  function openDetail(projectId: string) {
+    setSlaDetailProjectId(projectId)
+    setView('monitoring-sla-detail')
+  }
 
   function handleExport() {
     downloadCsv(
-      filtered.map((r) => {
-        const avg = slaAverageAchievement(r)
+      filtered.map((p) => {
         const row: Record<string, string | number> = {
-          Kontrak: r.kontrak,
-          Pekerjaan: r.pekerjaan,
-          SOM: r.som,
-          Departemen: r.departemen,
-          'PIC Docon': r.picDocon,
-          'Batas SLA (%)': r.batas,
+          'Kode Project': p.kodeProject,
+          'Nama Project': p.namaProject,
+          Department: p.department,
+          PIC: p.pic,
+          'Target SLA (%)': p.targetSLA,
         }
-        MONTHS.forEach((m) => { row[slaMonthLabel(m)] = r[m] ?? '-' })
-        row['Rata-rata (%)'] = avg !== null ? Math.round(avg * 10) / 10 : '-'
-        row['Status'] = SLA_STATUS_LABEL[slaOverallStatus(r)]
+        SLA_MONTHS.forEach((m) => {
+          const avg = computeProjectMonthAvg(components, monthlyRecords, p.id, m, YEAR)
+          row[slaMonthLabel(m)] = avg !== null ? Math.round(avg * 10) / 10 : '-'
+        })
+        const grand = computeProjectGrandAvg(components, monthlyRecords, p.id, YEAR)
+        row['Rata-rata (%)'] = grand !== null ? Math.round(grand * 10) / 10 : '-'
+        row['Status'] = slaStatusCalc(grand, p.targetSLA)
         return row
       }),
       'monitoring-sla.csv',
@@ -71,7 +80,7 @@ export function MonitoringSLAPage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cari kontrak, pekerjaan…"
+              placeholder="Cari kode, nama project…"
               className="input-base pl-9 text-xs"
             />
           </div>
@@ -87,14 +96,13 @@ export function MonitoringSLAPage() {
 
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as SLAStatus | '')} className="input-base text-xs w-auto py-1.5 pr-7">
             <option value="">Semua Status</option>
-            <option value="GREEN">Tercapai</option>
-            <option value="YELLOW">Waspada</option>
-            <option value="RED">Tidak Tercapai</option>
+            <option value="TERCAPAI">Tercapai</option>
+            <option value="TIDAK_TERCAPAI">Tidak Tercapai</option>
           </select>
 
-          <span className="text-[11px] text-ink-tertiary ml-auto">{filtered.length} data</span>
+          <span className="text-[11px] text-ink-tertiary ml-auto">{filtered.length} project</span>
           <Button variant="ghost" size="sm" onClick={handleExport} leftIcon={<Download size={13} />}>Export</Button>
-          <Button size="sm" onClick={() => openModal({ type: 'monitoring-sla-create' })} leftIcon={<Plus size={13} />}>Tambah</Button>
+          <Button size="sm" onClick={() => openModal({ type: 'monitoring-sla-project-create' })} leftIcon={<Plus size={13} />}>Tambah</Button>
         </div>
 
         {/* Table */}
@@ -102,50 +110,50 @@ export function MonitoringSLAPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border-subtle bg-black/[0.02]">
-                <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">Kontrak</th>
-                <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">Pekerjaan</th>
+                <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">Kode</th>
+                <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">Nama Project</th>
                 <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">Dept</th>
-                <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">Batas%</th>
-                {MONTHS.map((m) => (
+                <th className="text-center px-3 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">Target%</th>
+                {SLA_MONTHS.map((m) => (
                   <th key={m} className="text-center px-2 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">
                     {slaMonthLabel(m)}
                   </th>
                 ))}
-                <th className="text-center px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">Rata-rata</th>
+                <th className="text-center px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">Avg</th>
                 <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">Status</th>
                 <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {filtered.map((r) => {
-                const avg = slaAverageAchievement(r)
-                const overall = slaOverallStatus(r)
+              {filtered.map((p) => {
+                const grand = computeProjectGrandAvg(components, monthlyRecords, p.id, YEAR)
+                const status = slaStatusCalc(grand, p.targetSLA)
                 return (
-                  <tr key={r.id} className="hover:bg-black/[0.02] transition-colors">
-                    <td className="px-4 py-3 text-xs font-medium text-ink-primary whitespace-nowrap max-w-[140px] truncate" title={r.kontrak}>{r.kontrak}</td>
-                    <td className="px-4 py-3 text-xs text-ink-secondary whitespace-nowrap max-w-[140px] truncate" title={r.pekerjaan}>{r.pekerjaan}</td>
-                    <td className="px-4 py-3 text-xs text-ink-secondary whitespace-nowrap">{r.departemen}</td>
-                    <td className="px-4 py-3 text-xs text-ink-secondary text-center">{r.batas}%</td>
-                    {MONTHS.map((m) => {
-                      const val = r[m]
-                      const ok = val !== null && val >= r.batas
+                  <tr key={p.id} className="hover:bg-black/[0.02] transition-colors">
+                    <td className="px-4 py-3 text-xs font-medium text-ink-primary whitespace-nowrap">{p.kodeProject}</td>
+                    <td className="px-4 py-3 text-xs text-ink-secondary max-w-[160px] truncate" title={p.namaProject}>{p.namaProject}</td>
+                    <td className="px-4 py-3 text-xs text-ink-secondary whitespace-nowrap">{p.department}</td>
+                    <td className="px-3 py-3 text-xs text-center text-ink-secondary">{p.targetSLA}%</td>
+                    {SLA_MONTHS.map((m) => {
+                      const avg = computeProjectMonthAvg(components, monthlyRecords, p.id, m, YEAR)
+                      const ok = avg !== null && avg >= p.targetSLA
                       return (
-                        <td key={m} className={classNames('px-2 py-3 text-xs text-center tabular-nums whitespace-nowrap', val === null ? 'text-ink-muted' : ok ? 'text-emerald-700' : 'text-red-600')}>
-                          {val !== null ? `${val}%` : '—'}
+                        <td key={m} className={classNames('px-2 py-3 text-xs text-center tabular-nums whitespace-nowrap', avg === null ? 'text-ink-muted' : ok ? 'text-emerald-700' : 'text-red-600')}>
+                          {avg !== null ? `${Math.round(avg * 10) / 10}%` : '—'}
                         </td>
                       )
                     })}
                     <td className="px-4 py-3 text-xs text-center font-semibold text-ink-primary tabular-nums">
-                      {avg !== null ? `${Math.round(avg * 10) / 10}%` : '—'}
+                      {grand !== null ? `${Math.round(grand * 10) / 10}%` : '—'}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <span className={classNames('chip', SLA_STATUS_CLS[overall])}>{SLA_STATUS_LABEL[overall]}</span>
+                      <span className={classNames('chip', SLA_STATUS_CLS[status])}>{status === 'TERCAPAI' ? 'Tercapai' : 'Tidak Tercapai'}</span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
-                        <button onClick={() => openModal({ type: 'monitoring-sla-detail', slaId: r.id })} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Detail"><Eye size={13} /></button>
-                        <button onClick={() => openModal({ type: 'monitoring-sla-edit', slaId: r.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>
-                        <button onClick={() => setConfirmDeleteId(r.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>
+                        <button onClick={() => openDetail(p.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Lihat Detail"><Eye size={13} /></button>
+                        <button onClick={() => openModal({ type: 'monitoring-sla-project-edit', projectId: p.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>
+                        {canDeleteMonitoring && <button onClick={() => setConfirmDeleteId(p.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>}
                       </div>
                     </td>
                   </tr>
@@ -158,7 +166,7 @@ export function MonitoringSLAPage() {
         {filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-ink-tertiary">
             <TrendingUpIcon />
-            <p className="text-sm mt-2">{slaRecords.length === 0 ? 'Belum ada data SLA. Klik "Tambah" untuk membuat.' : 'Tidak ada data yang cocok.'}</p>
+            <p className="text-sm mt-2">{projects.length === 0 ? 'Belum ada data SLA. Klik "Tambah" untuk membuat.' : 'Tidak ada data yang cocok.'}</p>
           </div>
         )}
       </div>
@@ -166,11 +174,12 @@ export function MonitoringSLAPage() {
       {confirmDeleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="glass rounded-2xl shadow-modal p-6 w-full max-w-sm mx-4">
-            <h3 className="text-base font-semibold text-ink-primary mb-2">Hapus Data SLA?</h3>
+            <h3 className="text-base font-semibold text-ink-primary mb-2">Hapus Project SLA?</h3>
+            <p className="text-sm text-ink-secondary mb-1">Semua komponen dan data bulanan project ini akan ikut terhapus.</p>
             <p className="text-sm text-ink-secondary mb-6">Tindakan ini tidak dapat dibatalkan.</p>
             <div className="flex gap-2 justify-end">
               <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>Batal</Button>
-              <Button variant="danger" size="sm" onClick={() => { deleteSLA(confirmDeleteId); setConfirmDeleteId(null) }}>Hapus</Button>
+              <Button variant="danger" size="sm" onClick={() => { deleteProject(confirmDeleteId); setConfirmDeleteId(null) }}>Hapus</Button>
             </div>
           </div>
         </div>

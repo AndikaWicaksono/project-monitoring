@@ -29,6 +29,10 @@ const REAL_STATUS_META: Record<MonitoringCostRealizationStatus, { label: string;
   READY_TO_RELEASE: { label: 'Ready to Release', cls: 'bg-amber-100 text-amber-700' },
 }
 
+function fmtIDR(n: number): string {
+  return new Intl.NumberFormat('id-ID').format(n)
+}
+
 export function MonitoringCostModal({ open, onClose, mode, costId }: Props) {
   const store = useMonitoringCostStore()
   const session = useAuthStore((s) => s.session)
@@ -46,6 +50,8 @@ export function MonitoringCostModal({ open, onClose, mode, costId }: Props) {
     projectValue: 0, costBased: 0, actualCost: 0,
     amandemen: '', tkdn: 0, description: '',
   })
+  // Separate display strings for numeric fields to avoid leading-zero and enable IDR formatting
+  const [displayNums, setDisplayNums] = useState({ projectValue: '', costBased: '', actualCost: '', tkdn: '' })
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
@@ -69,6 +75,12 @@ export function MonitoringCostModal({ open, onClose, mode, costId }: Props) {
         tkdn: existing.tkdn,
         description: existing.description,
       })
+      setDisplayNums({
+        projectValue: fmtIDR(existing.projectValue),
+        costBased: fmtIDR(existing.costBased),
+        actualCost: fmtIDR(existing.actualCost),
+        tkdn: existing.tkdn === 0 ? '' : String(existing.tkdn),
+      })
     } else if (mode === 'create') {
       setForm({
         projectId: '', projectCode: '', year: new Date().getFullYear(),
@@ -76,6 +88,7 @@ export function MonitoringCostModal({ open, onClose, mode, costId }: Props) {
         categoryContract: '', dateOfContract: '', startDate: '', endDate: '',
         projectValue: 0, costBased: 0, actualCost: 0, amandemen: '', tkdn: 0, description: '',
       })
+      setDisplayNums({ projectValue: '', costBased: '', actualCost: '', tkdn: '' })
     }
     setErrors({})
   }, [open, mode, costId])
@@ -83,6 +96,22 @@ export function MonitoringCostModal({ open, onClose, mode, costId }: Props) {
   function setField<K extends keyof typeof form>(key: K, val: typeof form[K]) {
     setForm((f) => ({ ...f, [key]: val }))
     if (errors[key]) setErrors((e) => ({ ...e, [key]: '' }))
+  }
+
+  function handleIDRChange(key: 'projectValue' | 'costBased' | 'actualCost', raw: string) {
+    const digits = raw.replace(/[^0-9]/g, '')
+    const numVal = digits === '' ? 0 : parseInt(digits, 10)
+    const formatted = digits === '' ? '' : fmtIDR(numVal)
+    setDisplayNums((d) => ({ ...d, [key]: formatted }))
+    setField(key, numVal)
+  }
+
+  function handleTKDNChange(raw: string) {
+    const cleaned = raw.replace(',', '.').replace(/[^0-9.]/g, '')
+    const parts = cleaned.split('.')
+    const sanitized = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : cleaned
+    setDisplayNums((d) => ({ ...d, tkdn: sanitized }))
+    setField('tkdn', parseFloat(sanitized) || 0)
   }
 
   function validate() {
@@ -257,18 +286,18 @@ export function MonitoringCostModal({ open, onClose, mode, costId }: Props) {
             <div>
               <label className="block">
                 <span className="mb-1.5 block text-xs font-medium text-ink-secondary">Nilai Kontrak (IDR) *</span>
-                <input type="number" value={form.projectValue} onChange={(e) => setField('projectValue', Number(e.target.value))} className="input-base" min={0} readOnly={isReadonly} />
+                <input type="text" inputMode="numeric" value={displayNums.projectValue} onChange={(e) => handleIDRChange('projectValue', e.target.value)} className="input-base" placeholder="0" readOnly={isReadonly} />
               </label>
               {errors.projectValue && <p className="text-[11px] text-pertamina-red mt-1">{errors.projectValue}</p>}
             </div>
             <label className="block">
               <span className="mb-1.5 block text-xs font-medium text-ink-secondary">Cost Based (IDR)</span>
-              <input type="number" value={form.costBased} onChange={(e) => setField('costBased', Number(e.target.value))} className="input-base" min={0} readOnly={isReadonly} />
+              <input type="text" inputMode="numeric" value={displayNums.costBased} onChange={(e) => handleIDRChange('costBased', e.target.value)} className="input-base" placeholder="0" readOnly={isReadonly} />
             </label>
             <div>
               <label className="block">
                 <span className="mb-1.5 block text-xs font-medium text-ink-secondary">Biaya Aktual (IDR) *</span>
-                <input type="number" value={form.actualCost} onChange={(e) => setField('actualCost', Number(e.target.value))} className="input-base" min={0} readOnly={isReadonly} />
+                <input type="text" inputMode="numeric" value={displayNums.actualCost} onChange={(e) => handleIDRChange('actualCost', e.target.value)} className="input-base" placeholder="0" readOnly={isReadonly} />
               </label>
               {errors.actualCost && <p className="text-[11px] text-pertamina-red mt-1">{errors.actualCost}</p>}
             </div>
@@ -278,7 +307,7 @@ export function MonitoringCostModal({ open, onClose, mode, costId }: Props) {
             <div>
               <label className="block">
                 <span className="mb-1.5 block text-xs font-medium text-ink-secondary">TKDN (%)</span>
-                <input type="number" value={form.tkdn} onChange={(e) => setField('tkdn', Number(e.target.value))} className="input-base" min={0} max={100} readOnly={isReadonly} />
+                <input type="text" inputMode="decimal" value={displayNums.tkdn} onChange={(e) => handleTKDNChange(e.target.value)} className="input-base" placeholder="0" readOnly={isReadonly} />
               </label>
               {errors.tkdn && <p className="text-[11px] text-pertamina-red mt-1">{errors.tkdn}</p>}
             </div>

@@ -7,19 +7,19 @@ import { useMonitoringCostStore } from '../../../store/useMonitoringCostStore'
 import { useMonitoringBAPStore } from '../../../store/useMonitoringBAPStore'
 
 export function MonitoringStatsOverview() {
-  const reports = useMonitoringReportStore((s) => s.reports)
-  const slaRecords = useMonitoringSLAStore((s) => s.slaRecords)
+  const reportProjects = useMonitoringReportStore((s) => s.projects)
+  const slaProjects = useMonitoringSLAStore((s) => s.projects)
   const costs = useMonitoringCostStore((s) => s.costs)
   const bapRecords = useMonitoringBAPStore((s) => s.bapRecords)
 
   const stats = useMemo(() => ({
     activeProjects: costs.filter((c) => c.status === 'active').length,
     closedProjects: costs.filter((c) => c.status === 'closed').length,
-    totalReports: reports.length,
-    totalSLA: slaRecords.length,
+    totalReports: reportProjects.length,
+    totalSLA: slaProjects.length,
     totalCostProjects: costs.length,
     totalBAPDocs: bapRecords.length,
-  }), [reports, slaRecords, costs, bapRecords])
+  }), [reportProjects, slaProjects, costs, bapRecords])
 
   const cards = [
     {

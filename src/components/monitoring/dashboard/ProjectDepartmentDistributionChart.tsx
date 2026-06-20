@@ -6,11 +6,11 @@ const TOOLTIP_STYLE = { background: '#ffffff', border: '1px solid rgba(15,23,42,
 const LABEL_STYLE = { color: '#475569' }
 
 export function ProjectDepartmentDistributionChart() {
-  const reports = useMonitoringReportStore((s) => s.reports)
+  const projects = useMonitoringReportStore((s) => s.projects)
 
   const data = useMemo(() => {
     const map: Record<string, number> = {}
-    reports.forEach((r) => {
+    projects.forEach((r) => {
       const dept = r.department || 'Lainnya'
       map[dept] = (map[dept] ?? 0) + 1
     })
@@ -18,7 +18,7 @@ export function ProjectDepartmentDistributionChart() {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8)
       .map(([dept, count]) => ({ dept, Laporan: count }))
-  }, [reports])
+  }, [projects])
 
   return (
     <div className="surface rounded-xl p-3 sm:p-4 h-[320px]">

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { GitBranch, LogOut, Shield, ShieldCheck, ChevronUp, UserCog, Briefcase, Eraser } from 'lucide-react'
+import { GitBranch, LogOut, Shield, ShieldCheck, ChevronUp, UserCog, Briefcase, Eraser, User } from 'lucide-react'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useTeamStore } from '../../store/useTeamStore'
 import { useUIStore } from '../../store/useUIStore'
@@ -42,6 +42,7 @@ export function UserMenu({ collapsed }: Props) {
   const manageAllowed = can('user.manage').allowed
   const canRoles = can('role.manage').allowed
   const canWorkflow = can('workflow.configure').allowed
+  const isOSMRole = role?.id === 'admin_osm' || role?.id === 'doccon_osm'
 
   const handleLogout = () => {
     logout()
@@ -122,48 +123,61 @@ export function UserMenu({ collapsed }: Props) {
             )}
           </div>
 
-          <MenuItem
-            allowed={manageAllowed}
-            icon={<UserCog size={13} />}
-            label="Kelola User"
-            onClick={() => {
-              setOpen(false)
-              openModal({ type: 'user-management' })
-            }}
-          />
-          <MenuItem
-            allowed={canRoles}
-            icon={<Shield size={13} />}
-            label="Master Role"
-            onClick={() => {
-              setOpen(false)
-              openModal({ type: 'role-management' })
-            }}
-          />
-          <MenuItem
-            allowed={canWorkflow}
-            icon={<Briefcase size={13} />}
-            label="Stage Owners"
-            onClick={() => {
-              setOpen(false)
-              openModal({ type: 'stage-owners' })
-            }}
-          />
-          <MenuItem
-            allowed={canWorkflow}
-            icon={<GitBranch size={13} />}
-            label="Workflow Approval"
-            onClick={() => {
-              setOpen(false)
-              openModal({ type: 'workflow-config' })
-            }}
-          />
-          <MenuItem
-            allowed={canWorkflow}
-            icon={<Eraser size={13} />}
-            label="Reset Data Demo"
-            onClick={handleResetDemo}
-          />
+          {isOSMRole && (
+            <MenuItem
+              allowed={true}
+              icon={<User size={13} />}
+              label="Profil Saya"
+              onClick={() => setOpen(false)}
+            />
+          )}
+
+          {!isOSMRole && (
+            <>
+              <MenuItem
+                allowed={manageAllowed}
+                icon={<UserCog size={13} />}
+                label="Kelola User"
+                onClick={() => {
+                  setOpen(false)
+                  openModal({ type: 'user-management' })
+                }}
+              />
+              <MenuItem
+                allowed={canRoles}
+                icon={<Shield size={13} />}
+                label="Master Role"
+                onClick={() => {
+                  setOpen(false)
+                  openModal({ type: 'role-management' })
+                }}
+              />
+              <MenuItem
+                allowed={canWorkflow}
+                icon={<Briefcase size={13} />}
+                label="Stage Owners"
+                onClick={() => {
+                  setOpen(false)
+                  openModal({ type: 'stage-owners' })
+                }}
+              />
+              <MenuItem
+                allowed={canWorkflow}
+                icon={<GitBranch size={13} />}
+                label="Workflow Approval"
+                onClick={() => {
+                  setOpen(false)
+                  openModal({ type: 'workflow-config' })
+                }}
+              />
+              <MenuItem
+                allowed={canWorkflow}
+                icon={<Eraser size={13} />}
+                label="Reset Data Demo"
+                onClick={handleResetDemo}
+              />
+            </>
+          )}
 
           <div className="my-1 border-t border-border-subtle" />
           <button

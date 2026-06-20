@@ -1,6 +1,9 @@
 import { useUIStore } from '../../store/useUIStore'
-import { MonitoringReportModal } from '../monitoring/MonitoringReportModal'
-import { MonitoringSLAModal } from '../monitoring/MonitoringSLAModal'
+import { MonitoringReportProjectModal } from '../monitoring/MonitoringReportProjectModal'
+import { MonitoringReportDocumentModal } from '../monitoring/MonitoringReportDocumentModal'
+import { MonitoringSLAProjectModal } from '../monitoring/MonitoringSLAProjectModal'
+import { MonitoringSLAComponentModal } from '../monitoring/MonitoringSLAComponentModal'
+import { MonitoringSLAMonthlyModal } from '../monitoring/MonitoringSLAMonthlyModal'
 import { MonitoringCostModal } from '../monitoring/MonitoringCostModal'
 import { MonitoringCostRealizationModal } from '../monitoring/MonitoringCostRealizationModal'
 import { MonitoringBAPModal } from '../monitoring/MonitoringBAPModal'
@@ -110,20 +113,30 @@ export function ModalsRoot() {
       return <DivisionWorkflowModal open onClose={close} teamId={modal.teamId} />
 
     // ── Monitoring — Report ──────────────────────────────────────
-    case 'monitoring-report-create':
-      return <MonitoringReportModal open onClose={close} mode="create" />
-    case 'monitoring-report-edit':
-      return <MonitoringReportModal open onClose={close} mode="edit" reportId={modal.reportId} />
-    case 'monitoring-report-detail':
-      return <MonitoringReportModal open onClose={close} mode="detail" reportId={modal.reportId} />
+    case 'monitoring-report-project-create':
+      return <MonitoringReportProjectModal open onClose={close} mode="create" />
+    case 'monitoring-report-project-edit':
+      return <MonitoringReportProjectModal open onClose={close} mode="edit" projectId={modal.projectId} />
+    case 'monitoring-report-document-create':
+      return <MonitoringReportDocumentModal open onClose={close} mode="create" projectId={modal.projectId} docType={modal.docType} />
+    case 'monitoring-report-document-edit':
+      return <MonitoringReportDocumentModal open onClose={close} mode="edit" documentId={modal.documentId} />
+    case 'monitoring-report-document-detail':
+      return <MonitoringReportDocumentModal open onClose={close} mode="detail" documentId={modal.documentId} />
 
     // ── Monitoring — SLA ─────────────────────────────────────────
-    case 'monitoring-sla-create':
-      return <MonitoringSLAModal open onClose={close} mode="create" />
-    case 'monitoring-sla-edit':
-      return <MonitoringSLAModal open onClose={close} mode="edit" slaId={modal.slaId} />
-    case 'monitoring-sla-detail':
-      return <MonitoringSLAModal open onClose={close} mode="detail" slaId={modal.slaId} />
+    case 'monitoring-sla-project-create':
+      return <MonitoringSLAProjectModal open onClose={close} mode="create" />
+    case 'monitoring-sla-project-edit':
+      return <MonitoringSLAProjectModal open onClose={close} mode="edit" projectId={modal.projectId} />
+    case 'monitoring-sla-component-add':
+      return <MonitoringSLAComponentModal open onClose={close} mode="create" projectId={modal.projectId} />
+    case 'monitoring-sla-component-edit':
+      return <MonitoringSLAComponentModal open onClose={close} mode="edit" componentId={modal.componentId} />
+    case 'monitoring-sla-monthly-add':
+      return <MonitoringSLAMonthlyModal open onClose={close} mode="create" componentId={modal.componentId} projectId={modal.projectId} />
+    case 'monitoring-sla-monthly-edit':
+      return <MonitoringSLAMonthlyModal open onClose={close} mode="edit" recordId={modal.recordId} />
 
     // ── Monitoring — Cost ─────────────────────────────────────────
     case 'monitoring-cost-create':

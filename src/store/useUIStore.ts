@@ -31,13 +31,18 @@ export type ModalType =
   | { type: 'promote-stage'; taskId: string }
   | { type: 'division-workflow'; teamId: string }
   // Monitoring — Report Project
-  | { type: 'monitoring-report-create' }
-  | { type: 'monitoring-report-edit'; reportId: string }
-  | { type: 'monitoring-report-detail'; reportId: string }
+  | { type: 'monitoring-report-project-create' }
+  | { type: 'monitoring-report-project-edit'; projectId: string }
+  | { type: 'monitoring-report-document-create'; projectId: string; docType: 'customer' | 'vendor' }
+  | { type: 'monitoring-report-document-edit'; documentId: string }
+  | { type: 'monitoring-report-document-detail'; documentId: string }
   // Monitoring — SLA
-  | { type: 'monitoring-sla-create' }
-  | { type: 'monitoring-sla-edit'; slaId: string }
-  | { type: 'monitoring-sla-detail'; slaId: string }
+  | { type: 'monitoring-sla-project-create' }
+  | { type: 'monitoring-sla-project-edit'; projectId: string }
+  | { type: 'monitoring-sla-component-add'; projectId: string }
+  | { type: 'monitoring-sla-component-edit'; componentId: string }
+  | { type: 'monitoring-sla-monthly-add'; componentId: string; projectId: string }
+  | { type: 'monitoring-sla-monthly-edit'; recordId: string }
   // Monitoring — Cost
   | { type: 'monitoring-cost-create' }
   | { type: 'monitoring-cost-edit'; costId: string }
@@ -74,6 +79,12 @@ interface UIState {
   /** Stage L0 yang dipilih saat masuk Board Divisi via klik stage column. */
   boardStageContext: import('../types').BusinessStage | null
   setBoardStageContext: (s: import('../types').BusinessStage | null) => void
+
+  slaDetailProjectId: string | null
+  setSlaDetailProjectId: (id: string | null) => void
+
+  reportDetailProjectId: string | null
+  setReportDetailProjectId: (id: string | null) => void
 
   sidebarTeamFilter: string | null
   setSidebarTeamFilter: (id: string | null) => void
@@ -137,6 +148,12 @@ export const useUIStore = create<UIState>((set) => ({
 
   boardStageContext: null,
   setBoardStageContext: (s) => set({ boardStageContext: s }),
+
+  slaDetailProjectId: null,
+  setSlaDetailProjectId: (id) => set({ slaDetailProjectId: id }),
+
+  reportDetailProjectId: null,
+  setReportDetailProjectId: (id) => set({ reportDetailProjectId: id }),
 
   modal: null,
   openModal: (m) => set({ modal: m }),

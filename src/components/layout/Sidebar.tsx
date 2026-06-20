@@ -28,6 +28,7 @@ import { Tooltip } from '../ui/Tooltip'
 import { classNames } from '../../utils/helpers'
 import { UserMenu } from '../auth/UserMenu'
 import { usePermissions } from '../../hooks/usePermissions'
+import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 
 export function Sidebar() {
   const collapsed = useUIStore((s) => s.sidebarCollapsed)
@@ -38,6 +39,7 @@ export function Sidebar() {
   const setView = useUIStore((s) => s.setView)
   const openModal = useUIStore((s) => s.openModal)
   const { can } = usePermissions()
+  const { isMonitoringOnly } = useMonitoringRole()
   const teamCreatePerm = can('team.create')
 
   return (
@@ -104,58 +106,64 @@ export function Sidebar() {
         </button>
       </div>
 
-      <nav className="px-3 py-2 space-y-1">
-        <NavItem
-          collapsed={collapsed}
-          active={view === 'project-board'}
-          icon={<Briefcase size={16} />}
-          label="Board Utama (L0)"
-          onClick={() => {
-            setView('project-board')
-            setMobileOpen(false)
-          }}
-        />
-        <NavItem
-          collapsed={collapsed}
-          active={view === 'dashboard'}
-          icon={<LayoutDashboard size={16} />}
-          label="Dashboard"
-          onClick={() => {
-            setView('dashboard')
-            setMobileOpen(false)
-          }}
-        />
-      </nav>
+      {!isMonitoringOnly && (
+        <nav className="px-3 py-2 space-y-1">
+          <NavItem
+            collapsed={collapsed}
+            active={view === 'project-board'}
+            icon={<Briefcase size={16} />}
+            label="Board Utama (L0)"
+            onClick={() => {
+              setView('project-board')
+              setMobileOpen(false)
+            }}
+          />
+          <NavItem
+            collapsed={collapsed}
+            active={view === 'dashboard'}
+            icon={<LayoutDashboard size={16} />}
+            label="Dashboard"
+            onClick={() => {
+              setView('dashboard')
+              setMobileOpen(false)
+            }}
+          />
+        </nav>
+      )}
 
       <div className="mt-2 flex-1 overflow-y-auto px-3 pb-4">
         {/* Monitoring Section */}
         <MonitoringNavSection collapsed={collapsed} />
 
-        {!collapsed && (
-          <div className="mt-4 mb-2 flex items-center justify-between px-1">
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-ink-tertiary">Divisi</span>
-            {teamCreatePerm.allowed ? (
-              <button
-                onClick={() => openModal({ type: 'add-team' })}
-                className="rounded-md p-1 text-ink-tertiary hover:bg-black/[0.04] hover:text-ink-primary transition"
-                aria-label="Tambah divisi"
-              >
-                <Plus size={14} />
-              </button>
-            ) : (
-              <Tooltip content={teamCreatePerm.reason ?? 'Tidak diizinkan'}>
-                <button disabled className="rounded-md p-1 text-ink-tertiary opacity-40 cursor-not-allowed" aria-label="Tambah divisi">
-                  <Plus size={14} />
-                </button>
-              </Tooltip>
+        {!isMonitoringOnly && (
+          <>
+            {!collapsed && (
+              <div className="mt-4 mb-2 flex items-center justify-between px-1">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-ink-tertiary">Divisi</span>
+                {teamCreatePerm.allowed ? (
+                  <button
+                    onClick={() => openModal({ type: 'add-team' })}
+                    className="rounded-md p-1 text-ink-tertiary hover:bg-black/[0.04] hover:text-ink-primary transition"
+                    aria-label="Tambah divisi"
+                  >
+                    <Plus size={14} />
+                  </button>
+                ) : (
+                  <Tooltip content={teamCreatePerm.reason ?? 'Tidak diizinkan'}>
+                    <button disabled className="rounded-md p-1 text-ink-tertiary opacity-40 cursor-not-allowed" aria-label="Tambah divisi">
+                      <Plus size={14} />
+                    </button>
+                  </Tooltip>
+                )}
+              </div>
             )}
-          </div>
+            <TeamList collapsed={collapsed} />
+          </>
         )}
-        <TeamList collapsed={collapsed} />
       </div>
 
       <div className="border-t border-border-subtle p-3">
-        {!collapsed && (
+        {!isMonitoringOnly && !collapsed && (
           teamCreatePerm.allowed ? (
             <button
               onClick={() => openModal({ type: 'add-team' })}

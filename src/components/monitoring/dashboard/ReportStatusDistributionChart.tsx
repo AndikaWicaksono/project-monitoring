@@ -13,26 +13,26 @@ const STATUS_META = [
 ]
 
 export function ReportStatusDistributionChart() {
-  const reports = useMonitoringReportStore((s) => s.reports)
+  const documents = useMonitoringReportStore((s) => s.documents)
 
   const data = useMemo(() => {
     return STATUS_META.map((s) => ({
       name: s.label,
-      value: reports.filter((r) => r.status === s.key).length,
+      value: documents.filter((d) => d.status === s.key).length,
       color: s.color,
     })).filter((d) => d.value > 0)
-  }, [reports])
+  }, [documents])
 
   return (
     <div className="surface rounded-xl p-3 sm:p-4 h-[320px]">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-semibold text-ink-primary">Distribusi Status Report</h3>
-        <span className="text-[11px] text-ink-tertiary">Semua laporan</span>
+        <span className="text-[11px] text-ink-tertiary">Semua dokumen</span>
       </div>
       <div className="h-[250px]">
         {data.length === 0 ? (
           <div className="flex h-full items-center justify-center text-[11px] text-ink-tertiary">
-            Belum ada data laporan
+            Belum ada data dokumen
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">

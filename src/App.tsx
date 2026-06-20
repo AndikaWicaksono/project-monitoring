@@ -11,7 +11,9 @@ import { AuthGate } from './components/auth/AuthGate'
 import { PendingApprovalNotifier } from './components/auth/PendingApprovalNotifier'
 import { MonitoringDashboardPage } from './pages/monitoring/MonitoringDashboardPage'
 import { MonitoringReportPage } from './pages/monitoring/MonitoringReportPage'
+import { MonitoringReportDetailPage } from './pages/monitoring/MonitoringReportDetailPage'
 import { MonitoringSLAPage } from './pages/monitoring/MonitoringSLAPage'
+import { MonitoringSLADetailPage } from './pages/monitoring/MonitoringSLADetailPage'
 import { MonitoringCostPage } from './pages/monitoring/MonitoringCostPage'
 import { MonitoringBAPPage } from './pages/monitoring/MonitoringBAPPage'
 
@@ -24,7 +26,9 @@ function App() {
     if (view === 'board') return <BoardPage />
     if (view === 'monitoring-dashboard') return <MonitoringDashboardPage />
     if (view === 'monitoring-report') return <MonitoringReportPage />
+    if (view === 'monitoring-report-detail') return <MonitoringReportDetailPage />
     if (view === 'monitoring-sla') return <MonitoringSLAPage />
+    if (view === 'monitoring-sla-detail') return <MonitoringSLADetailPage />
     if (view === 'monitoring-cost') return <MonitoringCostPage />
     if (view === 'monitoring-bap') return <MonitoringBAPPage />
     return <DashboardPage />

@@ -163,4 +163,31 @@ export const SEED_ROLES: MasterRole[] = [
     scopeRestriction: 'any',
     permissions: none(),
   },
+  {
+    id: 'admin_osm',
+    name: 'Admin OSM',
+    description: 'Admin operasional Monitoring OSM. Akses penuh modul Monitoring (SLA, Report, Cost, BAP). Tidak dapat mengakses Board Management.',
+    color: '#0EA5E9',
+    rank: 45,
+    isSystem: true,
+    scopeRestriction: 'any',
+    permissions: {
+      ...none(),
+      canEditTask: true,       // workflow submit/resubmit di monitoring dokumen
+      canApproveHandoff: true, // workflow approve di monitoring dokumen
+    },
+  },
+  {
+    id: 'doccon_osm',
+    name: 'Doccon OSM',
+    description: 'Document controller Monitoring OSM. Dapat membuat dan mengedit data monitoring. Tidak dapat menghapus atau approve. Tidak dapat mengakses Board Management.',
+    color: '#8B5CF6',
+    rank: 25,
+    isSystem: true,
+    scopeRestriction: 'any',
+    permissions: {
+      ...none(),
+      canEditTask: true, // workflow submit/resubmit di monitoring dokumen
+    },
+  },
 ]

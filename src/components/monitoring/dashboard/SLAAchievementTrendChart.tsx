@@ -1,38 +1,45 @@
 import { useMemo } from 'react'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from 'recharts'
 import { useMonitoringSLAStore } from '../../../store/useMonitoringSLAStore'
-import { slaMonthKeys, slaMonthLabel } from '../../../types/monitoring'
+import { SLA_MONTHS, slaMonthLabel, computeProjectMonthAvg } from '../../../types/monitoring'
 
 const TOOLTIP_STYLE = { background: '#ffffff', border: '1px solid rgba(15,23,42,0.1)', borderRadius: 8, fontSize: 12, boxShadow: '0 8px 24px rgba(15,23,42,0.12)' }
 const LABEL_STYLE = { color: '#475569' }
 
+const YEAR = new Date().getFullYear()
+
 export function SLAAchievementTrendChart() {
-  const slaRecords = useMonitoringSLAStore((s) => s.slaRecords)
+  const projects = useMonitoringSLAStore((s) => s.projects)
+  const components = useMonitoringSLAStore((s) => s.components)
+  const monthlyRecords = useMonitoringSLAStore((s) => s.monthlyRecords)
 
   const data = useMemo(() => {
-    const months = slaMonthKeys()
-    return months.map((key) => {
-      const values = slaRecords.map((r) => r[key]).filter((v): v is number => v !== null)
-      const avg = values.length ? values.reduce((a, b) => a + b, 0) / values.length : null
-      const avgBatas = slaRecords.length
-        ? slaRecords.reduce((a, b) => a + b.batas, 0) / slaRecords.length
+    const avgTarget = projects.length
+      ? projects.reduce((sum, p) => sum + p.targetSLA, 0) / projects.length
+      : null
+
+    return SLA_MONTHS.map((month) => {
+      // Average achievement across ALL project components for this month
+      const allRecs = monthlyRecords.filter((r) => r.month === month && r.year === YEAR)
+      const avg = allRecs.length
+        ? allRecs.reduce((sum, r) => sum + r.achievement, 0) / allRecs.length
         : null
       return {
-        month: slaMonthLabel(key),
+        month: slaMonthLabel(month),
         'Rata-rata Pencapaian': avg !== null ? Math.round(avg * 10) / 10 : null,
-        'Target Rata-rata': avgBatas !== null ? Math.round(avgBatas * 10) / 10 : null,
+        'Target Rata-rata': avgTarget !== null ? Math.round(avgTarget * 10) / 10 : null,
       }
     })
-  }, [slaRecords])
+  }, [projects, components, monthlyRecords])
 
   return (
     <div className="surface rounded-xl p-3 sm:p-4 h-[320px]">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-semibold text-ink-primary">Tren SLA Achievement</h3>
-        <span className="text-[11px] text-ink-tertiary">Rata-rata semua kontrak</span>
+        <span className="text-[11px] text-ink-tertiary">Rata-rata semua kontrak {YEAR}</span>
       </div>
       <div className="h-[250px]">
-        {slaRecords.length === 0 ? (
+        {projects.length === 0 ? (
           <div className="flex h-full items-center justify-center text-[11px] text-ink-tertiary">
             Belum ada data SLA
           </div>

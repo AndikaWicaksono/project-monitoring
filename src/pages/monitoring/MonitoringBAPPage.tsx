@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Plus, Search, Download, Eye, Pencil, Trash2, Filter } from 'lucide-react'
 import { useMonitoringBAPStore } from '../../store/useMonitoringBAPStore'
 import { useUIStore } from '../../store/useUIStore'
+import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { Button } from '../../components/ui/Button'
 import { classNames, downloadCsv, formatDateShort } from '../../utils/helpers'
 import { bapChecklistProgress, type MonitoringBAPDocumentType, type MonitoringBAPStatus } from '../../types/monitoring'
@@ -21,6 +22,7 @@ export function MonitoringBAPPage() {
   const bapRecords = useMonitoringBAPStore((s) => s.bapRecords)
   const deleteBAP = useMonitoringBAPStore((s) => s.deleteBAP)
   const openModal = useUIStore((s) => s.openModal)
+  const { canDeleteMonitoring } = useMonitoringRole()
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<MonitoringBAPStatus | ''>('')
@@ -139,7 +141,7 @@ export function MonitoringBAPPage() {
                       <div className="flex items-center gap-1">
                         <button onClick={() => openModal({ type: 'monitoring-bap-detail', bapId: r.id })} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Detail"><Eye size={13} /></button>
                         <button onClick={() => openModal({ type: 'monitoring-bap-edit', bapId: r.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>
-                        <button onClick={() => setConfirmDeleteId(r.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>
+                        {canDeleteMonitoring && <button onClick={() => setConfirmDeleteId(r.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>}
                       </div>
                     </td>
                   </tr>

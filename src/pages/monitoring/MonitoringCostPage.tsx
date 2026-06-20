@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Plus, Search, Download, Eye, Pencil, Trash2, Filter, ChevronDown, ChevronUp } from 'lucide-react'
 import { useMonitoringCostStore } from '../../store/useMonitoringCostStore'
 import { useUIStore } from '../../store/useUIStore'
+import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { Button } from '../../components/ui/Button'
 import { classNames, downloadCsv, formatDateShort } from '../../utils/helpers'
 import { formatCurrency, type MonitoringCostStatus } from '../../types/monitoring'
@@ -24,6 +25,7 @@ export function MonitoringCostPage() {
   const deleteCost = useMonitoringCostStore((s) => s.deleteCost)
   const deleteRealization = useMonitoringCostStore((s) => s.deleteRealization)
   const openModal = useUIStore((s) => s.openModal)
+  const { canDeleteMonitoring } = useMonitoringRole()
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<MonitoringCostStatus | ''>('')
@@ -139,7 +141,7 @@ export function MonitoringCostPage() {
                           <button onClick={() => openModal({ type: 'monitoring-cost-detail', costId: c.id })} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Detail"><Eye size={13} /></button>
                           <button onClick={() => openModal({ type: 'monitoring-cost-edit', costId: c.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>
                           <button onClick={() => openModal({ type: 'monitoring-cost-realization-create', costId: c.id })} className="rounded p-1 text-ink-tertiary hover:text-emerald-700 hover:bg-emerald-50 transition" title="Tambah Realisasi"><Plus size={13} /></button>
-                          <button onClick={() => setConfirmDeleteId(c.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>
+                          {canDeleteMonitoring && <button onClick={() => setConfirmDeleteId(c.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>}
                         </div>
                       </td>
                     </tr>
@@ -156,7 +158,7 @@ export function MonitoringCostPage() {
                         <td className="px-4 py-2">
                           <div className="flex items-center gap-1">
                             <button onClick={() => openModal({ type: 'monitoring-cost-realization-edit', realizationId: real.id, costId: real.projectId })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition"><Pencil size={11} /></button>
-                            <button onClick={() => setConfirmDeleteRealId(real.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition"><Trash2 size={11} /></button>
+                            {canDeleteMonitoring && <button onClick={() => setConfirmDeleteRealId(real.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition"><Trash2 size={11} /></button>}
                           </div>
                         </td>
                       </tr>

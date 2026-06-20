@@ -13,11 +13,11 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 export function ProjectMonitoringTrendChart() {
-  const reports = useMonitoringReportStore((s) => s.reports)
+  const documents = useMonitoringReportStore((s) => s.documents)
 
   const data = useMemo(() => {
     const months: Record<string, Record<string, number>> = {}
-    reports.forEach((r) => {
+    documents.forEach((r) => {
       const month = new Date(r.createdAt).toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })
       if (!months[month]) months[month] = { CREATE: 0, UNDER_APPROVAL: 0, UNDER_REVISION: 0, APPROVED: 0 }
       months[month][r.status] = (months[month][r.status] ?? 0) + 1
@@ -25,7 +25,7 @@ export function ProjectMonitoringTrendChart() {
     return Object.entries(months)
       .slice(-6)
       .map(([month, counts]) => ({ month, ...counts }))
-  }, [reports])
+  }, [documents])
 
   return (
     <div className="surface rounded-xl p-3 sm:p-4 h-[320px]">
@@ -34,7 +34,7 @@ export function ProjectMonitoringTrendChart() {
         <span className="text-[11px] text-ink-tertiary">6 bulan terakhir</span>
       </div>
       <div className="h-[250px]">
-        {reports.length === 0 ? (
+        {documents.length === 0 ? (
           <div className="flex h-full items-center justify-center text-[11px] text-ink-tertiary">
             Belum ada data laporan
           </div>
