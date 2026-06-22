@@ -7,6 +7,7 @@ import { MonitoringSLAMonthlyModal } from '../monitoring/MonitoringSLAMonthlyMod
 import { MonitoringCostModal } from '../monitoring/MonitoringCostModal'
 import { MonitoringCostRealizationModal } from '../monitoring/MonitoringCostRealizationModal'
 import { MonitoringBAPModal } from '../monitoring/MonitoringBAPModal'
+import { MonitoringBillingModal } from '../monitoring/MonitoringBillingModal'
 import { AddTaskModal } from './AddTaskModal'
 import { EditTaskModal } from './EditTaskModal'
 import { TaskDetailModal } from './TaskDetailModal'
@@ -123,6 +124,10 @@ export function ModalsRoot() {
       return <MonitoringReportDocumentModal open onClose={close} mode="edit" documentId={modal.documentId} />
     case 'monitoring-report-document-detail':
       return <MonitoringReportDocumentModal open onClose={close} mode="detail" documentId={modal.documentId} />
+    case 'monitoring-billing-create':
+      return <MonitoringBillingModal open onClose={close} mode="create" projectId={modal.projectId} />
+    case 'monitoring-billing-edit':
+      return <MonitoringBillingModal open onClose={close} mode="edit" billingId={modal.billingId} />
 
     // ── Monitoring — SLA ─────────────────────────────────────────
     case 'monitoring-sla-project-create':

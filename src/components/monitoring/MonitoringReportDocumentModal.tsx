@@ -10,13 +10,15 @@ import { classNames, formatDateTime, formatDateShort } from '../../utils/helpers
 import type { ReportDocumentType, ReportDocumentActionType } from '../../types/monitoring'
 
 const STATUS_CLS: Record<string, string> = {
-  CREATE:         'bg-slate-100 text-slate-700',
-  UNDER_APPROVAL: 'bg-amber-100 text-amber-700',
-  UNDER_REVISION: 'bg-red-100 text-red-700',
-  APPROVED:       'bg-emerald-100 text-emerald-700',
+  DRAFT:             'bg-slate-100 text-slate-700',
+  SUBMITTED:         'bg-blue-100 text-blue-700',
+  UNDER_REVIEW:      'bg-amber-100 text-amber-700',
+  REVISION_REQUIRED: 'bg-red-100 text-red-700',
+  APPROVED:          'bg-emerald-100 text-emerald-700',
 }
 const STATUS_LABEL: Record<string, string> = {
-  CREATE: 'Draft', UNDER_APPROVAL: 'Menunggu Approval', UNDER_REVISION: 'Revisi', APPROVED: 'Disetujui',
+  DRAFT: 'Draft', SUBMITTED: 'Submitted', UNDER_REVIEW: 'Under Review',
+  REVISION_REQUIRED: 'Revisi Diminta', APPROVED: 'Disetujui',
 }
 const REVISION_CLS: Record<string, string> = {
   R0: 'bg-slate-100 text-slate-600', R1: 'bg-blue-100 text-blue-700',
@@ -26,6 +28,7 @@ const REVISION_CLS: Record<string, string> = {
 const ACTION_META: Record<ReportDocumentActionType, { label: string; icon: React.ReactNode; color: string }> = {
   CREATE:           { label: 'Dibuat',        icon: <Clock size={13} />,        color: 'bg-slate-500' },
   SUBMIT:           { label: 'Disubmit',      icon: <Send size={13} />,         color: 'bg-blue-500' },
+  START_REVIEW:     { label: 'Mulai Review',  icon: <Clock size={13} />,        color: 'bg-amber-500' },
   APPROVE:          { label: 'Disetujui',     icon: <CheckCircle2 size={13} />, color: 'bg-emerald-500' },
   REQUEST_REVISION: { label: 'Revisi Diminta', icon: <RotateCcw size={13} />,  color: 'bg-pertamina-red' },
   RESUBMIT:         { label: 'Resubmit',      icon: <RefreshCw size={13} />,   color: 'bg-violet-500' },
@@ -93,11 +96,12 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
     onClose()
   }
 
-  function handleWorkflow(action: 'submit' | 'approve' | 'revision' | 'resubmit') {
+  function handleWorkflow(action: 'submit' | 'startReview' | 'approve' | 'revision' | 'resubmit') {
     if (!documentId || !currentUser) return
     const userId = currentUser.id
     const name = currentUser.name
     if (action === 'submit') store.submitDocument(documentId, userId, name, actionComment)
+    else if (action === 'startReview') store.startReview(documentId, userId, name)
     else if (action === 'approve') store.approveDocument(documentId, userId, name, actionComment)
     else if (action === 'revision') {
       if (!actionComment.trim()) { alert('Komentar revisi wajib diisi'); return }
@@ -170,6 +174,14 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
             )}
             <div className="grid grid-cols-2 gap-4">
               <div>
+                <div className="text-[11px] uppercase tracking-widest text-ink-tertiary">Tgl Submit</div>
+                <div className="text-sm text-ink-secondary mt-0.5">{existing.tanggalSubmit ? formatDateShort(existing.tanggalSubmit) : '—'}</div>
+              </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-widest text-ink-tertiary">Tgl Feedback</div>
+                <div className="text-sm text-ink-secondary mt-0.5">{existing.tanggalFeedback ? formatDateShort(existing.tanggalFeedback) : '—'}</div>
+              </div>
+              <div>
                 <div className="text-[11px] uppercase tracking-widest text-ink-tertiary">Dibuat</div>
                 <div className="text-sm text-ink-secondary mt-0.5">{existing.createdByName} · {formatDateShort(existing.createdAt)}</div>
               </div>
@@ -218,9 +230,10 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
 
           {/* Workflow */}
           {(
-            (status === 'CREATE' && canEdit) ||
-            (status === 'UNDER_APPROVAL' && canApprove) ||
-            (status === 'UNDER_REVISION' && canEdit)
+            (status === 'DRAFT' && canEdit) ||
+            (status === 'SUBMITTED' && canApprove) ||
+            (status === 'UNDER_REVIEW' && canApprove) ||
+            (status === 'REVISION_REQUIRED' && canEdit)
           ) && (
             <div className="border-t border-border-subtle pt-4 space-y-3">
               <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Aksi Workflow</div>
@@ -232,16 +245,19 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
                 placeholder="Catatan…"
               />
               <div className="flex flex-wrap gap-2">
-                {status === 'CREATE' && (
-                  <Button size="sm" onClick={() => handleWorkflow('submit')} leftIcon={<Send size={13} />}>Submit untuk Approval</Button>
+                {status === 'DRAFT' && (
+                  <Button size="sm" onClick={() => handleWorkflow('submit')} leftIcon={<Send size={13} />}>Submit</Button>
                 )}
-                {status === 'UNDER_APPROVAL' && canApprove && (
+                {status === 'SUBMITTED' && canApprove && (
+                  <Button size="sm" onClick={() => handleWorkflow('startReview')} leftIcon={<Clock size={13} />}>Mulai Review</Button>
+                )}
+                {status === 'UNDER_REVIEW' && canApprove && (
                   <>
                     <Button size="sm" onClick={() => handleWorkflow('approve')} leftIcon={<CheckCircle2 size={13} />}>Approve</Button>
                     <Button size="sm" variant="danger" onClick={() => handleWorkflow('revision')} leftIcon={<RotateCcw size={13} />}>Minta Revisi</Button>
                   </>
                 )}
-                {status === 'UNDER_REVISION' && (
+                {status === 'REVISION_REQUIRED' && (
                   <Button size="sm" onClick={() => handleWorkflow('resubmit')} leftIcon={<RefreshCw size={13} />}>Resubmit</Button>
                 )}
               </div>

@@ -6,10 +6,11 @@ const TOOLTIP_STYLE = { background: '#ffffff', border: '1px solid rgba(15,23,42,
 const LABEL_STYLE = { color: '#475569' }
 
 const STATUS_META = [
-  { key: 'CREATE', label: 'Draft', color: '#64748b' },
-  { key: 'UNDER_APPROVAL', label: 'Menunggu Approval', color: '#d97706' },
-  { key: 'UNDER_REVISION', label: 'Revisi', color: '#E31E24' },
-  { key: 'APPROVED', label: 'Disetujui', color: '#059669' },
+  { key: 'DRAFT',             label: 'Draft',         color: '#64748b' },
+  { key: 'SUBMITTED',         label: 'Submitted',      color: '#3b82f6' },
+  { key: 'UNDER_REVIEW',      label: 'Under Review',   color: '#d97706' },
+  { key: 'REVISION_REQUIRED', label: 'Revisi Diminta', color: '#E31E24' },
+  { key: 'APPROVED',          label: 'Disetujui',      color: '#059669' },
 ]
 
 export function ReportStatusDistributionChart() {

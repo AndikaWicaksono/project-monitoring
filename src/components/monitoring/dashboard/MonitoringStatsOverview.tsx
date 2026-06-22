@@ -4,13 +4,12 @@ import { Briefcase, CheckCircle2, FileText, TrendingUp, DollarSign, FileCheck } 
 import { useMonitoringReportStore } from '../../../store/useMonitoringReportStore'
 import { useMonitoringSLAStore } from '../../../store/useMonitoringSLAStore'
 import { useMonitoringCostStore } from '../../../store/useMonitoringCostStore'
-import { useMonitoringBAPStore } from '../../../store/useMonitoringBAPStore'
 
 export function MonitoringStatsOverview() {
   const reportProjects = useMonitoringReportStore((s) => s.projects)
+  const billingDocuments = useMonitoringReportStore((s) => s.billingDocuments)
   const slaProjects = useMonitoringSLAStore((s) => s.projects)
   const costs = useMonitoringCostStore((s) => s.costs)
-  const bapRecords = useMonitoringBAPStore((s) => s.bapRecords)
 
   const stats = useMemo(() => ({
     activeProjects: costs.filter((c) => c.status === 'active').length,
@@ -18,8 +17,9 @@ export function MonitoringStatsOverview() {
     totalReports: reportProjects.length,
     totalSLA: slaProjects.length,
     totalCostProjects: costs.length,
-    totalBAPDocs: bapRecords.length,
-  }), [reportProjects, slaProjects, costs, bapRecords])
+    billingCompleted: billingDocuments.filter((b) => b.status === 'COMPLETED').length,
+    billingTotal: billingDocuments.length,
+  }), [reportProjects, slaProjects, costs, billingDocuments])
 
   const cards = [
     {
@@ -68,8 +68,8 @@ export function MonitoringStatsOverview() {
       valueTone: 'text-amber-700',
     },
     {
-      label: 'Dokumen BAP',
-      value: stats.totalBAPDocs,
+      label: 'Billing Selesai',
+      value: `${stats.billingCompleted}/${stats.billingTotal}`,
       icon: <FileCheck size={16} />,
       accent: 'from-pertamina-red to-transparent',
       bg: 'bg-pertamina-red-50',

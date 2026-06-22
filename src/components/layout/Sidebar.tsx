@@ -17,7 +17,6 @@ import {
   TrendingUp,
   FileText,
   DollarSign,
-  FileCheck,
   Activity,
   ChevronDown,
 } from 'lucide-react'
@@ -373,7 +372,6 @@ function MonitoringNavSection({ collapsed }: { collapsed: boolean }) {
     { viewKey: 'monitoring-sla' as const, icon: <TrendingUp size={16} />, label: 'SLA Monitoring' },
     { viewKey: 'monitoring-report' as const, icon: <FileText size={16} />, label: 'Report Project' },
     { viewKey: 'monitoring-cost' as const, icon: <DollarSign size={16} />, label: 'Cost Monitoring' },
-    { viewKey: 'monitoring-bap' as const, icon: <FileCheck size={16} />, label: 'BAP / BAPP / BAST' },
   ]
 
   // In icon-only (collapsed) mode: show a divider then all items as icon-only NavItems with tooltips

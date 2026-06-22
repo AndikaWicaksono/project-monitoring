@@ -5,9 +5,9 @@
 // ---------- Report Project Monitoring ----------
 
 export type ReportDocumentType = 'customer' | 'vendor'
-export type ReportDocumentStatus = 'CREATE' | 'UNDER_APPROVAL' | 'UNDER_REVISION' | 'APPROVED'
+export type ReportDocumentStatus = 'DRAFT' | 'SUBMITTED' | 'UNDER_REVIEW' | 'REVISION_REQUIRED' | 'APPROVED'
 export type ReportDocumentRevision = 'R0' | 'R1' | 'R2' | 'R3' | 'R4'
-export type ReportDocumentActionType = 'CREATE' | 'SUBMIT' | 'APPROVE' | 'REQUEST_REVISION' | 'RESUBMIT'
+export type ReportDocumentActionType = 'CREATE' | 'SUBMIT' | 'START_REVIEW' | 'APPROVE' | 'REQUEST_REVISION' | 'RESUBMIT'
 
 export interface ReportDocumentActivity {
   id: string
@@ -50,10 +50,40 @@ export interface ReportDocument {
   docType: ReportDocumentType
   judul: string
   deskripsi: string
+  tanggalSubmit: string | null
+  tanggalFeedback: string | null
   revision: ReportDocumentRevision
   status: ReportDocumentStatus
   attachments: ReportDocumentAttachment[]
   activities: ReportDocumentActivity[]
+  createdAt: string
+  updatedAt: string
+  createdByUserId: string
+  createdByName: string
+}
+
+// ---------- Billing Tracker (embedded in Report Project) ----------
+
+export type BillingDocumentType = 'BAP' | 'BAPP' | 'BAST' | 'Invoice' | 'Supporting Document'
+
+export type BillingDocumentStatus =
+  | 'BELUM_DIBUAT'
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'COMPLETED'
+
+export interface BillingDocument {
+  id: string
+  projectId: string
+  docType: BillingDocumentType
+  pic: string
+  targetDate: string | null
+  actualDate: string | null
+  status: BillingDocumentStatus
+  keterangan: string
+  attachments: ReportDocumentAttachment[]
   createdAt: string
   updatedAt: string
   createdByUserId: string

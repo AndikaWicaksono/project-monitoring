@@ -7,7 +7,7 @@ import { Button } from '../../components/ui/Button'
 import { downloadCsv, formatDateShort } from '../../utils/helpers'
 
 export function MonitoringReportPage() {
-  const { projects, documents, deleteProject } = useMonitoringReportStore()
+  const { projects, documents, billingDocuments, deleteProject } = useMonitoringReportStore()
   const openModal = useUIStore((s) => s.openModal)
   const setView = useUIStore((s) => s.setView)
   const setReportDetailProjectId = useUIStore((s) => s.setReportDetailProjectId)
@@ -87,7 +87,7 @@ export function MonitoringReportPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border-subtle bg-black/[0.02]">
-                {['Kode Project', 'Client', 'Nama Kontrak', 'Dept', 'PIC Laporan', 'Dok. Customer', 'Dok. Vendor', 'Pending', 'Aksi'].map((h) => (
+                {['Kode Project', 'Client', 'Nama Kontrak', 'Dept', 'PIC Laporan', 'Dok. Customer', 'Dok. Vendor', 'Billing', 'Pending', 'Aksi'].map((h) => (
                   <th key={h} className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -97,6 +97,9 @@ export function MonitoringReportPage() {
                 const custDocs = documents.filter((d) => d.projectId === p.id && d.docType === 'customer').length
                 const vendDocs = documents.filter((d) => d.projectId === p.id && d.docType === 'vendor').length
                 const pending = pendingCount(p.id)
+                const billingDocs = billingDocuments.filter((b) => b.projectId === p.id)
+                const billingDone = billingDocs.filter((b) => b.status === 'COMPLETED').length
+                const billingPct = billingDocs.length > 0 ? Math.round((billingDone / billingDocs.length) * 100) : 0
                 return (
                   <tr
                     key={p.id}
@@ -110,6 +113,16 @@ export function MonitoringReportPage() {
                     <td className="px-4 py-3 text-xs text-ink-secondary whitespace-nowrap">{p.picLaporan}</td>
                     <td className="px-4 py-3 text-xs text-center text-ink-secondary">{custDocs}</td>
                     <td className="px-4 py-3 text-xs text-center text-ink-secondary">{vendDocs}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {billingDocs.length > 0 ? (
+                        <div className="flex items-center gap-2 min-w-[80px]">
+                          <div className="flex-1 h-1.5 rounded-full bg-black/[0.06] overflow-hidden">
+                            <div className="h-full rounded-full bg-pertamina-red transition-all" style={{ width: `${billingPct}%` }} />
+                          </div>
+                          <span className="text-[10px] text-ink-tertiary whitespace-nowrap">{billingDone}/{billingDocs.length}</span>
+                        </div>
+                      ) : <span className="text-xs text-ink-muted">—</span>}
+                    </td>
                     <td className="px-4 py-3 text-center">
                       {pending > 0
                         ? <span className="chip bg-amber-100 text-amber-700">{pending} pending</span>

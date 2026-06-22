@@ -36,6 +36,9 @@ export type ModalType =
   | { type: 'monitoring-report-document-create'; projectId: string; docType: 'customer' | 'vendor' }
   | { type: 'monitoring-report-document-edit'; documentId: string }
   | { type: 'monitoring-report-document-detail'; documentId: string }
+  // Monitoring — Billing Tracker
+  | { type: 'monitoring-billing-create'; projectId: string }
+  | { type: 'monitoring-billing-edit'; billingId: string }
   // Monitoring — SLA
   | { type: 'monitoring-sla-project-create' }
   | { type: 'monitoring-sla-project-edit'; projectId: string }
