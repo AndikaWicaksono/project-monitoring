@@ -4,6 +4,7 @@ import { Button } from '../ui/Button'
 import { Input, Textarea } from '../ui/Input'
 import { useMonitoringReportStore } from '../../store/useMonitoringReportStore'
 import { useAuthStore } from '../../store/useAuthStore'
+import { useUIStore } from '../../store/useUIStore'
 
 interface Props {
   open: boolean
@@ -16,6 +17,7 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
   const store = useMonitoringReportStore()
   const session = useAuthStore((s) => s.session)
   const users = useAuthStore((s) => s.users)
+  const selectedReportMonth = useUIStore((s) => s.selectedReportMonth)
   const currentUser = users.find((u) => u.id === session?.userId)
   const existing = projectId ? store.getProjectById(projectId) : undefined
 
@@ -28,6 +30,7 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
   const [salesCustomer, setSalesCustomer] = useState('')
   const [emailTujuan, setEmailTujuan] = useState('')
   const [catatan, setCatatan] = useState('')
+  const [kontrakMulai, setKontrakMulai] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
@@ -36,10 +39,11 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
       setNamaKontrak(existing.namaKontrak); setDepartment(existing.department)
       setPicDocon(existing.picDocon); setPicLaporan(existing.picLaporan)
       setSalesCustomer(existing.salesCustomer); setEmailTujuan(existing.emailTujuan)
-      setCatatan(existing.catatan)
+      setCatatan(existing.catatan); setKontrakMulai(existing.kontrakMulai)
     } else {
       setKodeProject(''); setClient(''); setNamaKontrak(''); setDepartment('')
-      setPicDocon(''); setPicLaporan(''); setSalesCustomer(''); setEmailTujuan(''); setCatatan('')
+      setPicDocon(''); setPicLaporan(''); setSalesCustomer(''); setEmailTujuan('')
+      setCatatan(''); setKontrakMulai(selectedReportMonth)
     }
     setErrors({})
   }, [open, mode, projectId])
@@ -51,6 +55,7 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
     if (!namaKontrak.trim()) e.namaKontrak = 'Nama Kontrak wajib diisi'
     if (!department.trim()) e.department = 'Department wajib diisi'
     if (!picLaporan.trim()) e.picLaporan = 'PIC Laporan wajib diisi'
+    if (!kontrakMulai.trim()) e.kontrakMulai = 'Periode mulai wajib diisi'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -61,10 +66,14 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
       kodeProject: kodeProject.trim(), client: client.trim(), namaKontrak: namaKontrak.trim(),
       department: department.trim(), picDocon: picDocon.trim(), picLaporan: picLaporan.trim(),
       salesCustomer: salesCustomer.trim(), emailTujuan: emailTujuan.trim(), catatan: catatan.trim(),
+      kontrakMulai: kontrakMulai.trim(), kontrakAkhir: null as string | null,
       createdByUserId: currentUser?.id ?? '', createdByName: currentUser?.name ?? '',
     }
     if (mode === 'create') store.addProject(payload)
-    else if (mode === 'edit' && projectId) store.updateProject(projectId, payload)
+    else if (mode === 'edit' && projectId) {
+      const { kontrakAkhir: _, ...rest } = payload
+      store.updateProject(projectId, rest)
+    }
     onClose()
   }
 
@@ -105,6 +114,16 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
           <Input label="Sales Customer" value={salesCustomer} onChange={(e) => setSalesCustomer(e.target.value)} placeholder="Nama Sales" />
         </div>
         <Input label="Email Tujuan" type="email" value={emailTujuan} onChange={(e) => setEmailTujuan(e.target.value)} placeholder="email@domain.com" />
+        <div>
+          <Input
+            label="Periode Mulai Kontrak *"
+            type="month"
+            value={kontrakMulai}
+            onChange={(e) => setKontrakMulai(e.target.value)}
+            hint="Project akan muncul di list mulai dari periode ini"
+          />
+          {errors.kontrakMulai && <p className="text-[11px] text-pertamina-red mt-1">{errors.kontrakMulai}</p>}
+        </div>
         <Textarea label="Catatan" value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Catatan tambahan…" rows={2} />
       </div>
     </Modal>

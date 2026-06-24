@@ -5,6 +5,7 @@ import type {
   ReportDocumentStatus, ReportDocumentRevision, ReportDocumentAttachment,
   BillingDocument, BillingDocumentStatus,
 } from '../types/monitoring'
+import { prevReportMonth } from '../types/monitoring'
 import { uid, nowIso } from '../utils/helpers'
 import { useLogStore } from './useLogStore'
 
@@ -15,10 +16,10 @@ const T1 = '2025-02-10T09:00:00.000Z'
 const T2 = '2025-03-05T10:00:00.000Z'
 
 const SEED_PROJECTS: ReportProject[] = [
-  { id: 'rp001', kodeProject: 'PGN-IT-001', client: 'PT Perusahaan Gas Negara', namaKontrak: 'Kontrak Jasa Pemeliharaan Jaringan IT 2025', department: 'IT Infrastructure', picDocon: 'Sari Dewi', picLaporan: 'Budi Santoso', salesCustomer: 'Andi Wijaya', emailTujuan: 'docon@pgn.co.id', catatan: '', createdAt: T0, updatedAt: T0, createdByUserId: 'system', createdByName: 'System' },
-  { id: 'rp002', kodeProject: 'PGN-SEC-002', client: 'PT Saka Energi Indonesia', namaKontrak: 'Kontrak Security System Management 2025', department: 'IT Security', picDocon: 'Rina Kartika', picLaporan: 'Ahmad Fauzi', salesCustomer: 'Dewi Rahayu', emailTujuan: 'sec@sakaindonesia.co.id', catatan: '', createdAt: T1, updatedAt: T1, createdByUserId: 'system', createdByName: 'System' },
-  { id: 'rp003', kodeProject: 'PGN-DC-003', client: 'PT Gagas Energi Indonesia', namaKontrak: 'Kontrak Data Center Operations Q1 2025', department: 'IT Infrastructure', picDocon: 'Hendra Putra', picLaporan: 'Lisa Andriani', salesCustomer: 'Rudi Setiawan', emailTujuan: 'dc@gagas.co.id', catatan: '', createdAt: T2, updatedAt: T2, createdByUserId: 'system', createdByName: 'System' },
-  { id: 'rp004', kodeProject: 'PS-024-00', client: 'PT PGN Tbk', namaKontrak: 'Pekerjaan Jasa Operasional PJOPTGMS', department: 'OSM', picDocon: 'Andika Wicaksono', picLaporan: 'Andika Wicaksono', salesCustomer: 'Bayu Pratama', emailTujuan: 'osm@pgn.co.id', catatan: 'Project OSM PGNCOM — laporan bulanan 5 dokumen', createdAt: '2025-12-01T08:00:00.000Z', updatedAt: '2025-12-01T08:00:00.000Z', createdByUserId: 'system', createdByName: 'System' },
+  { id: 'rp001', kodeProject: 'PGN-IT-001', client: 'PT Perusahaan Gas Negara', namaKontrak: 'Kontrak Jasa Pemeliharaan Jaringan IT 2025', department: 'IT Infrastructure', picDocon: 'Sari Dewi', picLaporan: 'Budi Santoso', salesCustomer: 'Andi Wijaya', emailTujuan: 'docon@pgn.co.id', catatan: '', kontrakMulai: '2025-01', kontrakAkhir: null, createdAt: T0, updatedAt: T0, createdByUserId: 'system', createdByName: 'System' },
+  { id: 'rp002', kodeProject: 'PGN-SEC-002', client: 'PT Saka Energi Indonesia', namaKontrak: 'Kontrak Security System Management 2025', department: 'IT Security', picDocon: 'Rina Kartika', picLaporan: 'Ahmad Fauzi', salesCustomer: 'Dewi Rahayu', emailTujuan: 'sec@sakaindonesia.co.id', catatan: '', kontrakMulai: '2025-02', kontrakAkhir: null, createdAt: T1, updatedAt: T1, createdByUserId: 'system', createdByName: 'System' },
+  { id: 'rp003', kodeProject: 'PGN-DC-003', client: 'PT Gagas Energi Indonesia', namaKontrak: 'Kontrak Data Center Operations Q1 2025', department: 'IT Infrastructure', picDocon: 'Hendra Putra', picLaporan: 'Lisa Andriani', salesCustomer: 'Rudi Setiawan', emailTujuan: 'dc@gagas.co.id', catatan: '', kontrakMulai: '2025-03', kontrakAkhir: null, createdAt: T2, updatedAt: T2, createdByUserId: 'system', createdByName: 'System' },
+  { id: 'rp004', kodeProject: 'PS-024-00', client: 'PT PGN Tbk', namaKontrak: 'Pekerjaan Jasa Operasional PJOPTGMS', department: 'OSM', picDocon: 'Andika Wicaksono', picLaporan: 'Andika Wicaksono', salesCustomer: 'Bayu Pratama', emailTujuan: 'osm@pgn.co.id', catatan: 'Project OSM PGNCOM — laporan bulanan 5 dokumen', kontrakMulai: '2025-12', kontrakAkhir: null, createdAt: '2025-12-01T08:00:00.000Z', updatedAt: '2025-12-01T08:00:00.000Z', createdByUserId: 'system', createdByName: 'System' },
 ]
 
 function act(id: string, action: ReportDocumentActivity['action'], byName: string, comment: string, ts: string): ReportDocumentActivity {
@@ -296,6 +297,7 @@ interface MonitoringReportState {
   addProject: (data: Omit<ReportProject, 'id' | 'createdAt' | 'updatedAt'>) => ReportProject
   updateProject: (id: string, patch: Partial<Omit<ReportProject, 'id' | 'createdAt'>>) => void
   deleteProject: (id: string) => void
+  endProjectAt: (id: string, selectedPeriod: string) => void
   getProjectById: (id: string) => ReportProject | undefined
 
   // Report document CRUD
@@ -366,7 +368,12 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
           documents: s.documents.filter((d) => d.projectId !== id),
           billingDocuments: s.billingDocuments.filter((b) => b.projectId !== id),
         }))
-        useLogStore.getState().addLog({ type: 'monitoring_report_deleted', message: `Project laporan dihapus`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+        useLogStore.getState().addLog({ type: 'monitoring_report_deleted', message: `Project laporan dihapus permanen`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+      endProjectAt: (id, selectedPeriod) => {
+        const kontrakAkhir = prevReportMonth(selectedPeriod)
+        set((s) => ({ projects: s.projects.map((p) => p.id === id ? { ...p, kontrakAkhir, updatedAt: nowIso() } : p) }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_edited', message: `Project laporan dikeluarkan dari periode ${selectedPeriod} ke atas (kontrak berakhir ${kontrakAkhir})`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
       },
       getProjectById: (id) => get().projects.find((p) => p.id === id),
 
@@ -537,10 +544,17 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
         const missingProjectDocIds = new Set(missingProjects.map((pr) => pr.id))
         const missingDocs = current.documents.filter((d) => missingProjectDocIds.has(d.projectId))
 
+        // Migrate old projects: add missing kontrakMulai/kontrakAkhir
+        const migratedProjects = (p.projects ?? []).map((pr) => ({
+          kontrakMulai: pr.createdAt?.slice(0, 7) ?? '2025-01',
+          kontrakAkhir: null as string | null,
+          ...pr,
+        }))
+
         return {
           ...current,
           ...p,
-          projects: [...(p.projects ?? []), ...missingProjects],
+          projects: [...migratedProjects, ...missingProjects],
           documents: [...migratedDocs, ...missingDocs],
           billingDocuments: [...persistedBilling, ...missingBilling],
         }

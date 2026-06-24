@@ -38,6 +38,8 @@ export interface ReportProject {
   salesCustomer: string
   emailTujuan: string
   catatan: string
+  kontrakMulai: string       // period YYYY-MM, project mulai muncul di list
+  kontrakAkhir: string | null  // period YYYY-MM, project berhenti muncul (null = masih aktif)
   createdAt: string
   updatedAt: string
   createdByUserId: string

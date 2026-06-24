@@ -132,18 +132,23 @@ export function MonitoringCostPage() {
                 const computedActual = costRealizations.reduce((s, r) => s + r.realisasiBiaya, 0)
                 return (
                   <>
-                    <tr key={c.id} className="border-b border-border-subtle hover:bg-black/[0.02] transition-colors">
-                      <td className="px-3 py-3">
-                        {costRealizations.length > 0 && (
-                          <button
-                            onClick={() => setExpandedId(isExpanded ? null : c.id)}
-                            className="rounded p-0.5 text-ink-tertiary hover:text-ink-primary transition"
-                          >
-                            {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                          </button>
-                        )}
+                    <tr
+                      key={c.id}
+                      className={classNames(
+                        'border-b border-border-subtle hover:bg-black/[0.02] transition-colors cursor-pointer',
+                        isExpanded && 'bg-black/[0.015] border-b-0',
+                      )}
+                      onClick={() => setExpandedId(isExpanded ? null : c.id)}
+                    >
+                      <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => setExpandedId(isExpanded ? null : c.id)}
+                          className="rounded p-0.5 text-ink-tertiary hover:text-ink-primary transition"
+                        >
+                          {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                        </button>
                       </td>
-                      <td className="px-4 py-3 text-xs font-mono text-ink-primary whitespace-nowrap">{c.projectCode}</td>
+                      <td className="px-4 py-3 text-xs font-mono text-pertamina-red whitespace-nowrap">{c.projectCode}</td>
                       <td className="px-4 py-3 text-xs font-medium text-ink-primary max-w-[180px] truncate" title={c.projectName}>{c.projectName}</td>
                       <td className="px-4 py-3 text-xs text-ink-secondary whitespace-nowrap">{c.projectClient}</td>
                       <td className="px-4 py-3 text-xs text-ink-secondary">{c.year}</td>
@@ -151,33 +156,81 @@ export function MonitoringCostPage() {
                       <td className="px-4 py-3 text-xs text-ink-primary tabular-nums whitespace-nowrap">{formatCurrency(c.projectValue)}</td>
                       <td className="px-4 py-3 text-xs text-ink-primary tabular-nums whitespace-nowrap">{formatCurrency(computedActual)}</td>
                       <td className="px-4 py-3 text-xs text-ink-secondary text-center">{c.tkdn}%</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
                           <button onClick={() => openModal({ type: 'monitoring-cost-detail', costId: c.id })} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Detail"><Eye size={13} /></button>
                           <button onClick={() => openModal({ type: 'monitoring-cost-edit', costId: c.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>
-                          <button onClick={() => openModal({ type: 'monitoring-cost-realization-create', costId: c.id })} className="rounded p-1 text-ink-tertiary hover:text-emerald-700 hover:bg-emerald-50 transition" title="Tambah Realisasi"><Plus size={13} /></button>
                           {canDeleteMonitoring && <button onClick={() => setConfirmDeleteId(c.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>}
                         </div>
                       </td>
                     </tr>
 
-                    {isExpanded && costRealizations.map((real) => (
-                      <tr key={real.id} className="bg-black/[0.015] border-b border-border-subtle">
-                        <td className="px-3 py-2" />
-                        <td colSpan={2} className="px-4 py-2 text-xs text-ink-secondary pl-8">{real.itemBiaya}</td>
-                        <td className="px-4 py-2 text-xs text-ink-secondary">{real.vendor}</td>
-                        <td className="px-4 py-2 text-xs text-ink-secondary">{real.satuanKerja}</td>
-                        <td className="px-4 py-2"><span className={classNames('chip', REAL_STATUS[real.status]?.cls ?? 'bg-slate-100 text-slate-700')}>{REAL_STATUS[real.status]?.label ?? real.status}</span></td>
-                        <td className="px-4 py-2 text-xs text-ink-primary tabular-nums whitespace-nowrap" colSpan={2}>{formatCurrency(real.realisasiBiaya)}</td>
-                        <td className="px-4 py-2 text-xs text-ink-secondary">{real.pic}</td>
-                        <td className="px-4 py-2">
-                          <div className="flex items-center gap-1">
-                            <button onClick={() => openModal({ type: 'monitoring-cost-realization-edit', realizationId: real.id, costId: real.projectId })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition"><Pencil size={11} /></button>
-                            {canDeleteMonitoring && <button onClick={() => setConfirmDeleteRealId(real.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition"><Trash2 size={11} /></button>}
+                    {isExpanded && (
+                      <tr key={`${c.id}-panel`} className="border-b border-border-subtle">
+                        <td colSpan={10} className="px-4 pb-4 pt-0 bg-black/[0.015]">
+                          <div className="rounded-lg border border-border-subtle overflow-hidden bg-white">
+                            {/* Panel header */}
+                            <div className="flex items-center justify-between px-3 py-2 bg-black/[0.02] border-b border-border-subtle">
+                              <span className="text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary">
+                                Realisasi Biaya
+                                {costRealizations.length > 0 && (
+                                  <span className="ml-1.5 rounded-full bg-black/[0.06] px-1.5 py-0.5 text-[10px] font-mono">{costRealizations.length}</span>
+                                )}
+                              </span>
+                              <button
+                                onClick={() => openModal({ type: 'monitoring-cost-realization-create', costId: c.id })}
+                                className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 transition"
+                              >
+                                <Plus size={11} /> Tambah Realisasi
+                              </button>
+                            </div>
+
+                            {costRealizations.length === 0 ? (
+                              <div className="py-6 text-center text-xs text-ink-tertiary">Belum ada realisasi biaya.</div>
+                            ) : (
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="border-b border-border-subtle bg-black/[0.01]">
+                                    {['Item Biaya', 'Vendor', 'Satuan Kerja', 'PIC', 'Status', 'Realisasi Biaya', 'Aksi'].map((h) => (
+                                      <th key={h} className="text-left px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">{h}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border-subtle">
+                                  {costRealizations.map((real) => (
+                                    <tr key={real.id} className="hover:bg-black/[0.02] transition-colors">
+                                      <td className="px-3 py-2.5 font-medium text-ink-primary">{real.itemBiaya}</td>
+                                      <td className="px-3 py-2.5 text-ink-secondary">{real.vendor}</td>
+                                      <td className="px-3 py-2.5 text-ink-secondary">{real.satuanKerja}</td>
+                                      <td className="px-3 py-2.5 text-ink-secondary">{real.pic}</td>
+                                      <td className="px-3 py-2.5">
+                                        <span className={classNames('chip', REAL_STATUS[real.status]?.cls ?? 'bg-slate-100 text-slate-700')}>
+                                          {REAL_STATUS[real.status]?.label ?? real.status}
+                                        </span>
+                                      </td>
+                                      <td className="px-3 py-2.5 tabular-nums text-ink-primary whitespace-nowrap">{formatCurrency(real.realisasiBiaya)}</td>
+                                      <td className="px-3 py-2.5">
+                                        <div className="flex items-center gap-1">
+                                          <button onClick={() => openModal({ type: 'monitoring-cost-realization-edit', realizationId: real.id, costId: real.projectId })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={11} /></button>
+                                          {canDeleteMonitoring && <button onClick={() => setConfirmDeleteRealId(real.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={11} /></button>}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                                <tfoot>
+                                  <tr className="border-t border-border-subtle bg-black/[0.02]">
+                                    <td colSpan={5} className="px-3 py-2 text-[11px] font-semibold text-ink-tertiary uppercase tracking-wide">Total</td>
+                                    <td className="px-3 py-2 text-xs font-semibold text-ink-primary tabular-nums whitespace-nowrap">{formatCurrency(computedActual)}</td>
+                                    <td />
+                                  </tr>
+                                </tfoot>
+                              </table>
+                            )}
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    )}
                   </>
                 )
               })}

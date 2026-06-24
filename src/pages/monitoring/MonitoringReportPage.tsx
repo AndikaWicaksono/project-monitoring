@@ -1,16 +1,16 @@
 import { useMemo, useState } from 'react'
-import { Plus, Search, Download, Eye, Pencil, Trash2, Filter, FileText, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Search, Download, Eye, Pencil, Trash2, Filter, FileText, ChevronLeft, ChevronRight, Archive } from 'lucide-react'
+import { MonthPicker } from '../../components/ui/MonthPicker'
 import { useMonitoringReportStore } from '../../store/useMonitoringReportStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { Button } from '../../components/ui/Button'
 import { downloadCsv, formatDateShort } from '../../utils/helpers'
-import { BULAN_ID, reportMonthLabel, prevReportMonth, nextReportMonth } from '../../types/monitoring'
+import { reportMonthLabel, prevReportMonth, nextReportMonth } from '../../types/monitoring'
 
-const CURRENT_YEAR = new Date().getFullYear()
 
 export function MonitoringReportPage() {
-  const { projects, documents, billingDocuments, deleteProject } = useMonitoringReportStore()
+  const { projects, documents, billingDocuments, deleteProject, endProjectAt } = useMonitoringReportStore()
   const openModal = useUIStore((s) => s.openModal)
   const setView = useUIStore((s) => s.setView)
   const setReportDetailProjectId = useUIStore((s) => s.setReportDetailProjectId)
@@ -21,25 +21,20 @@ export function MonitoringReportPage() {
   const [search, setSearch] = useState('')
   const [deptFilter, setDeptFilter] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [confirmEndId, setConfirmEndId] = useState<string | null>(null)
 
   const departments = useMemo(() => [...new Set(projects.map((p) => p.department).filter(Boolean))].sort(), [projects])
 
-  // Month options: Jan–Dec of current year
-  const monthOptions = useMemo(() =>
-    Array.from({ length: 12 }, (_, i) => {
-      const m = String(i + 1).padStart(2, '0')
-      return { value: `${CURRENT_YEAR}-${m}`, label: `${BULAN_ID[i]} ${CURRENT_YEAR}` }
-    }),
-  [])
-
-  const filtered = useMemo(() => {
+const filtered = useMemo(() => {
     const q = search.toLowerCase()
     return projects.filter((p) => {
+      if (selectedMonth < p.kontrakMulai) return false
+      if (p.kontrakAkhir !== null && selectedMonth > p.kontrakAkhir) return false
       if (deptFilter && p.department !== deptFilter) return false
       if (q && !p.kodeProject.toLowerCase().includes(q) && !p.client.toLowerCase().includes(q) && !p.namaKontrak.toLowerCase().includes(q)) return false
       return true
     })
-  }, [projects, search, deptFilter])
+  }, [projects, search, deptFilter, selectedMonth])
 
   function docCountByPeriod(projectId: string, type: 'customer' | 'vendor') {
     return documents.filter((d) => d.projectId === projectId && d.docType === type && d.period === selectedMonth).length
@@ -84,15 +79,7 @@ export function MonitoringReportPage() {
             >
               <ChevronLeft size={14} />
             </button>
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="input-base text-xs py-1 pr-7 w-auto font-medium"
-            >
-              {monthOptions.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+            <MonthPicker value={selectedMonth} onChange={setSelectedMonth} />
             <button
               onClick={() => setSelectedMonth(nextReportMonth(selectedMonth))}
               className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.05] transition"
@@ -189,7 +176,12 @@ export function MonitoringReportPage() {
                       <div className="flex items-center gap-1">
                         <button onClick={() => openDetail(p.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Detail"><Eye size={13} /></button>
                         <button onClick={() => openModal({ type: 'monitoring-report-project-edit', projectId: p.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>
-                        {canDeleteMonitoring && <button onClick={() => setConfirmDeleteId(p.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>}
+                        {canDeleteMonitoring && (
+                          <>
+                            <button onClick={() => setConfirmEndId(p.id)} className="rounded p-1 text-ink-tertiary hover:text-amber-600 hover:bg-amber-50 transition" title="Keluarin dari bulan ini & seterusnya"><Archive size={13} /></button>
+                            <button onClick={() => setConfirmDeleteId(p.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus Permanen"><Trash2 size={13} /></button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -207,15 +199,31 @@ export function MonitoringReportPage() {
         )}
       </div>
 
+      {confirmEndId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="glass rounded-2xl shadow-modal p-6 w-full max-w-sm mx-4">
+            <h3 className="text-base font-semibold text-ink-primary mb-2">Keluarkan dari periode ini?</h3>
+            <p className="text-sm text-ink-secondary mb-1">
+              Project ini tidak akan muncul lagi di <strong>{reportMonthLabel(selectedMonth)}</strong> dan bulan-bulan berikutnya.
+            </p>
+            <p className="text-sm text-ink-secondary mb-6">Data yang sudah ada di bulan sebelumnya tetap tersimpan.</p>
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setConfirmEndId(null)}>Batal</Button>
+              <Button size="sm" onClick={() => { endProjectAt(confirmEndId, selectedMonth); setConfirmEndId(null) }}>Keluarkan</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmDeleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="glass rounded-2xl shadow-modal p-6 w-full max-w-sm mx-4">
-            <h3 className="text-base font-semibold text-ink-primary mb-2">Hapus Project?</h3>
-            <p className="text-sm text-ink-secondary mb-1">Semua dokumen laporan project ini akan ikut terhapus.</p>
+            <h3 className="text-base font-semibold text-ink-primary mb-2">Hapus Permanen?</h3>
+            <p className="text-sm text-ink-secondary mb-1">Semua dokumen laporan project ini akan ikut terhapus dari semua periode.</p>
             <p className="text-sm text-ink-secondary mb-6">Tindakan ini tidak dapat dibatalkan.</p>
             <div className="flex gap-2 justify-end">
               <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>Batal</Button>
-              <Button variant="danger" size="sm" onClick={() => { deleteProject(confirmDeleteId); setConfirmDeleteId(null) }}>Hapus</Button>
+              <Button variant="danger" size="sm" onClick={() => { deleteProject(confirmDeleteId); setConfirmDeleteId(null) }}>Hapus Permanen</Button>
             </div>
           </div>
         </div>
