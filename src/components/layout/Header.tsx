@@ -80,21 +80,23 @@ export function Header() {
           <span className="text-[11px] text-ink-tertiary truncate">{(VIEW_META[view] ?? VIEW_META['dashboard']).subtitle}</span>
         </div>
 
-        <div className="flex-1 min-w-0 sm:mx-2">
-          <div className="relative w-full max-w-xl">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary pointer-events-none" />
-            <input
-              ref={inputRef}
-              value={filters.search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cari tugas..."
-              className="input-base pl-9 pr-16 sm:pr-20"
-            />
-            <kbd className="hidden sm:block absolute right-2 top-1/2 -translate-y-1/2 rounded border border-border bg-black/[0.04] px-1.5 py-0.5 text-[10px] font-mono text-ink-tertiary">
-              ⌘K
-            </kbd>
+        {!view.startsWith('monitoring-') && (
+          <div className="flex-1 min-w-0 sm:mx-2">
+            <div className="relative w-full max-w-xl">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary pointer-events-none" />
+              <input
+                ref={inputRef}
+                value={filters.search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Cari tugas..."
+                className="input-base pl-9 pr-16 sm:pr-20"
+              />
+              <kbd className="hidden sm:block absolute right-2 top-1/2 -translate-y-1/2 rounded border border-border bg-black/[0.04] px-1.5 py-0.5 text-[10px] font-mono text-ink-tertiary">
+                ⌘K
+              </kbd>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="flex items-center gap-1.5 sm:gap-2">
           <button
