@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Plus, Search, Download, Eye, Pencil, Trash2, Filter, ChevronDown, ChevronUp, Info } from 'lucide-react'
+import { Plus, Search, Download, Eye, Pencil, Trash2, Filter } from 'lucide-react'
 import { useMonitoringSLAStore } from '../../store/useMonitoringSLAStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useMonitoringRole } from '../../hooks/useMonitoringRole'
@@ -28,7 +28,6 @@ export function MonitoringSLAPage() {
   const [deptFilter, setDeptFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<SLAStatus | ''>('')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  const [reqOpen, setReqOpen] = useState(false)
 
   const departments = useMemo(() => [...new Set(projects.map((p) => p.department).filter(Boolean))].sort(), [projects])
 
@@ -71,61 +70,8 @@ export function MonitoringSLAPage() {
     )
   }
 
-  const REQUIREMENTS = [
-    {
-      label: 'a. Validasi & Notifikasi Input Otomatis',
-      desc: 'Ketika terjadi rewrite atau kesalahan pengisian pada field yang sudah pernah diisi, sistem harus secara otomatis memunculkan notifikasi peringatan secara real-time. Validasi berlapis wajib diterapkan untuk meminimalkan human error dari sisi Doccon.',
-    },
-    {
-      label: 'b. Automasi Periode SLA',
-      desc: 'Sistem (Docon) secara otomatis menentukan bulan yang akan diisi untuk mencegah kesalahan periode input data.',
-    },
-    {
-      label: 'c. Notifikasi Batas SLA Tidak Tercapai',
-      desc: 'Sistem memunculkan notifikasi peringatan secara otomatis sesaat setelah Doccon selesai mengisi data dan SLA tidak tercapai.',
-    },
-    {
-      label: 'd. Reconfirm / Recheck SLA untuk Engineer On Site',
-      desc: 'Ketika SLA tidak tercapai, sistem menyediakan mekanisme reconfirm atau recheck yang dapat diakses oleh Docon sebagai langkah tindak lanjut. EOS diberikan akses untuk memantau dokumen administratif dan meminimalkan kesalahan SLA.',
-    },
-    {
-      label: 'e. Data Lock Setelah Submit',
-      desc: 'Data yang sudah disubmit harus terkunci (locked) dan tidak dapat diubah tanpa mekanisme tertentu, untuk menjaga integritas data.',
-    },
-    {
-      label: 'f. Akun untuk Engineer',
-      desc: 'Sistem menyediakan akun khusus untuk Engineer agar dapat mengakses modul yang relevan sesuai dengan hak akses yang ditetapkan.',
-    },
-  ]
-
   return (
     <div className="absolute inset-0 overflow-y-auto p-5 space-y-4">
-
-      {/* Functional Requirements Panel */}
-      <div className="surface rounded-xl overflow-hidden">
-        <button
-          onClick={() => setReqOpen((v) => !v)}
-          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-black/[0.02] transition"
-        >
-          <div className="flex items-center gap-2 text-xs font-semibold text-ink-secondary uppercase tracking-widest">
-            <Info size={13} className="text-pertamina-red" />
-            Functional Requirements — SLA Monitoring
-          </div>
-          {reqOpen ? <ChevronUp size={14} className="text-ink-tertiary" /> : <ChevronDown size={14} className="text-ink-tertiary" />}
-        </button>
-
-        {reqOpen && (
-          <div className="border-t border-border-subtle px-4 pb-4 pt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {REQUIREMENTS.map((r) => (
-              <div key={r.label} className="rounded-lg border border-border-subtle bg-black/[0.01] p-3">
-                <p className="text-[11px] font-semibold text-ink-primary mb-1">{r.label}</p>
-                <p className="text-[11px] text-ink-secondary leading-relaxed">{r.desc}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       <div className="surface rounded-xl overflow-hidden">
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-2 p-4 border-b border-border-subtle">
