@@ -143,4 +143,18 @@ export const SEED_USERS: User[] = [
     createdBy: 'usr_super',
     lastLoginAt: null,
   },
+  {
+    id: 'usr_engineer_os',
+    name: 'Engineer On Site',
+    email: 'engineer.os@pertamina.id',
+    passwordHash: hashPassword('eos123'),
+    role: 'engineer_os',
+    teamId: null,
+    departmentId: null,
+    avatarColor: '#F59E0B',
+    active: true,
+    createdAt: nowIso(),
+    createdBy: 'usr_super',
+    lastLoginAt: null,
+  },
 ]

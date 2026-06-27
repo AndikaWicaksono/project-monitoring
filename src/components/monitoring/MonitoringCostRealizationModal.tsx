@@ -26,6 +26,8 @@ export function MonitoringCostRealizationModal({ open, onClose, mode, costId, re
   const [realisasiBiaya, setRealisasiBiaya] = useState('0')
   const [status, setStatus] = useState<MonitoringCostRealizationStatus>('POPAY')
   const [vendor, setVendor] = useState('')
+  const [period, setPeriod] = useState('')
+  const [tanggalRealisasi, setTanggalRealisasi] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
@@ -33,9 +35,11 @@ export function MonitoringCostRealizationModal({ open, onClose, mode, costId, re
       setItemBiaya(existing.itemBiaya); setSatuanKerja(existing.satuanKerja)
       setPic(existing.pic); setRealisasiBiaya(String(existing.realisasiBiaya))
       setStatus(existing.status); setVendor(existing.vendor)
+      setPeriod(existing.period ?? ''); setTanggalRealisasi(existing.tanggalRealisasi ?? '')
     } else {
       setItemBiaya(''); setSatuanKerja(''); setPic('')
       setRealisasiBiaya('0'); setStatus('POPAY'); setVendor('')
+      setPeriod(''); setTanggalRealisasi('')
     }
     setErrors({})
   }, [open, mode, realizationId])
@@ -56,6 +60,8 @@ export function MonitoringCostRealizationModal({ open, onClose, mode, costId, re
       itemBiaya, satuanKerja, pic,
       realisasiBiaya: Number(realisasiBiaya),
       status, vendor,
+      period: period || null,
+      tanggalRealisasi: tanggalRealisasi || null,
     }
     if (mode === 'create') store.addRealization(payload)
     else if (mode === 'edit' && realizationId) store.updateRealization(realizationId, payload)
@@ -118,6 +124,24 @@ export function MonitoringCostRealizationModal({ open, onClose, mode, costId, re
         </div>
 
         <Input label="Vendor" value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="Nama vendor" />
+
+        <div className="grid grid-cols-2 gap-4">
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-ink-secondary">Bulan Realisasi (YYYY-MM)</span>
+            <input
+              type="month"
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
+              className="input-base"
+            />
+          </label>
+          <Input
+            label="Tanggal Realisasi"
+            type="date"
+            value={tanggalRealisasi}
+            onChange={(e) => setTanggalRealisasi(e.target.value)}
+          />
+        </div>
       </div>
     </Modal>
   )

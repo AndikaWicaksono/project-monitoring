@@ -1,12 +1,107 @@
 import { useMemo, useState } from 'react'
-import { Plus, Search, Download, Eye, Pencil, Trash2, Filter, FileText, ChevronLeft, ChevronRight, Archive } from 'lucide-react'
+import { Plus, Search, Download, Eye, Pencil, Trash2, Filter, FileText, ChevronLeft, ChevronRight, Archive, AlertTriangle, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
 import { MonthPicker } from '../../components/ui/MonthPicker'
 import { useMonitoringReportStore } from '../../store/useMonitoringReportStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { Button } from '../../components/ui/Button'
 import { downloadCsv, formatDateShort } from '../../utils/helpers'
-import { reportMonthLabel, prevReportMonth, nextReportMonth } from '../../types/monitoring'
+import { reportMonthLabel, prevReportMonth, nextReportMonth, type ReportDocument } from '../../types/monitoring'
+
+// ── Bottleneck helpers ──────────────────────────────────────────────────────
+
+function daysBetween(a: string | null | undefined, b: string | null | undefined): number | null {
+  if (!a || !b) return null
+  const ms = new Date(b).getTime() - new Date(a).getTime()
+  return ms > 0 ? Math.round(ms / 86400000) : 0
+}
+
+function computeBottleneck(docs: ReportDocument[]) {
+  const today = new Date().toDateString()
+  const todayMs = new Date().getTime()
+
+  const engineerDays: number[] = []
+  let stuckEngineer = 0
+  const customerDays: number[] = []
+  let stuckCustomer = 0
+  const docconDays: number[] = []
+  let stuckDoccon = 0
+
+  for (const d of docs) {
+    // Engineer phase
+    const eDays = daysBetween(d.engineerStartedAt, d.engineerSubmittedAt ?? (d.engineerStartedAt ? new Date().toISOString() : null))
+    if (eDays != null) engineerDays.push(eDays)
+    if ((d.currentPhase ?? 'engineer') === 'engineer' && (d.status === 'DRAFT' || d.status === 'SUBMITTED' || d.status === 'REVISION_REQUIRED')) {
+      const start = d.engineerStartedAt ? new Date(d.engineerStartedAt).getTime() : null
+      if (start && (todayMs - start) / 86400000 > 5) stuckEngineer++
+      else if (!start) { void today }
+    }
+    // Customer phase
+    const cDays = daysBetween(d.customerReceivedAt, d.customerApprovedAt ?? (d.customerReceivedAt && d.status === 'UNDER_REVIEW' ? new Date().toISOString() : null))
+    if (cDays != null) customerDays.push(cDays)
+    if (d.status === 'UNDER_REVIEW') {
+      const start = d.customerReceivedAt ? new Date(d.customerReceivedAt).getTime() : null
+      if (start && (todayMs - start) / 86400000 > 3) stuckCustomer++
+    }
+    // Doccon phase
+    const dDays = daysBetween(d.docconReceivedAt, d.docconDeliveredAt ?? (d.docconReceivedAt && d.currentPhase === 'doccon' && d.docconSubStatus !== 'delivered' ? new Date().toISOString() : null))
+    if (dDays != null) docconDays.push(dDays)
+    if (d.currentPhase === 'doccon' && d.docconSubStatus && d.docconSubStatus !== 'delivered') {
+      const start = d.docconReceivedAt ? new Date(d.docconReceivedAt).getTime() : null
+      if (start && (todayMs - start) / 86400000 > 2) stuckDoccon++
+    }
+  }
+
+  const avg = (arr: number[]) => arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : '—'
+  return {
+    engineerAvg: avg(engineerDays), stuckEngineer,
+    customerAvg: avg(customerDays), stuckCustomer,
+    docconAvg: avg(docconDays), stuckDoccon,
+  }
+}
+
+// Early warning badge for a project's docs in the selected period
+function EarlyWarningBadge({ docs }: { docs: ReportDocument[] }) {
+  const today = new Date()
+  let hasOverdue = false
+  let hasH1 = false
+  let hasH3 = false
+  let hasFlagged = false
+
+  for (const d of docs) {
+    if (d.salesFlagIssue) hasFlagged = true
+    if (!d.deadlineToSales) continue
+    const deadline = new Date(d.deadlineToSales)
+    const diffDays = Math.ceil((deadline.getTime() - today.getTime()) / 86400000)
+    if (diffDays < 0) hasOverdue = true
+    else if (diffDays <= 1) hasH1 = true
+    else if (diffDays <= 3) hasH3 = true
+  }
+
+  if (hasOverdue) return <span className="chip bg-red-100 text-red-700 text-[10px] font-medium">Overdue</span>
+  if (hasFlagged) return <span className="chip bg-orange-100 text-orange-700 text-[10px] font-medium">Flagged</span>
+  if (hasH1) return <span className="chip bg-red-50 text-red-600 text-[10px] font-medium">H-1</span>
+  if (hasH3) return <span className="chip bg-amber-100 text-amber-700 text-[10px] font-medium">H-3</span>
+  return null
+}
+
+// Mini phase summary for a project's docs in the selected period
+function PhasesSummary({ docs }: { docs: ReportDocument[] }) {
+  const eng = docs.filter((d) => (d.currentPhase ?? 'engineer') === 'engineer').length
+  const cus = docs.filter((d) => d.currentPhase === 'customer').length
+  const doc = docs.filter((d) => d.currentPhase === 'doccon' && d.docconSubStatus !== 'delivered').length
+  const done = docs.filter((d) => d.docconSubStatus === 'delivered').length
+
+  if (!docs.length) return <span className="text-ink-muted text-xs">—</span>
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      {eng > 0 && <span className="chip bg-blue-50 text-blue-700 text-[9px]">Eng {eng}</span>}
+      {cus > 0 && <span className="chip bg-purple-50 text-purple-700 text-[9px]">Cust {cus}</span>}
+      {doc > 0 && <span className="chip bg-amber-50 text-amber-700 text-[9px]">Doccon {doc}</span>}
+      {done > 0 && <span className="chip bg-emerald-50 text-emerald-700 text-[9px]">Done {done}</span>}
+    </div>
+  )
+}
 
 
 export function MonitoringReportPage() {
@@ -25,7 +120,7 @@ export function MonitoringReportPage() {
 
   const departments = useMemo(() => [...new Set(projects.map((p) => p.department).filter(Boolean))].sort(), [projects])
 
-const filtered = useMemo(() => {
+  const filtered = useMemo(() => {
     const q = search.toLowerCase()
     return projects.filter((p) => {
       if (selectedMonth < p.kontrakMulai) return false
@@ -35,6 +130,17 @@ const filtered = useMemo(() => {
       return true
     })
   }, [projects, search, deptFilter, selectedMonth])
+
+  const periodDocs = useMemo(
+    () => documents.filter((d) => d.period === selectedMonth && filtered.some((p) => p.id === d.projectId)),
+    [documents, selectedMonth, filtered],
+  )
+
+  const bottleneck = useMemo(() => computeBottleneck(periodDocs), [periodDocs])
+
+  function getProjectDocs(projectId: string) {
+    return documents.filter((d) => d.projectId === projectId && d.period === selectedMonth)
+  }
 
   function docCountByPeriod(projectId: string, type: 'customer' | 'vendor') {
     return documents.filter((d) => d.projectId === projectId && d.docType === type && d.period === selectedMonth).length
@@ -68,6 +174,49 @@ const filtered = useMemo(() => {
 
   return (
     <div className="absolute inset-0 overflow-y-auto p-5 space-y-4">
+
+      {/* Bottleneck Analytics Card */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          {
+            label: 'Engineer Phase', icon: <Clock size={14} />,
+            avg: bottleneck.engineerAvg, stuck: bottleneck.stuckEngineer,
+            sla: '5 hari', color: 'blue',
+          },
+          {
+            label: 'Customer Phase', icon: <AlertCircle size={14} />,
+            avg: bottleneck.customerAvg, stuck: bottleneck.stuckCustomer,
+            sla: '3 hari', color: 'purple',
+          },
+          {
+            label: 'Doccon Phase', icon: <CheckCircle2 size={14} />,
+            avg: bottleneck.docconAvg, stuck: bottleneck.stuckDoccon,
+            sla: '2 hari', color: 'amber',
+          },
+        ].map(({ label, icon, avg, stuck, sla, color }) => (
+          <div key={label} className="surface rounded-xl p-4 flex flex-col gap-2">
+            <div className={`flex items-center gap-1.5 text-${color}-600 text-[11px] font-semibold uppercase tracking-widest`}>
+              {icon} {label}
+            </div>
+            <div className="flex items-end justify-between">
+              <div>
+                <div className="text-2xl font-bold text-ink-primary tabular-nums">{avg}</div>
+                <div className="text-[10px] text-ink-tertiary">rata-rata hari (SLA {sla})</div>
+              </div>
+              {stuck > 0 ? (
+                <div className="flex items-center gap-1 text-red-600">
+                  <AlertTriangle size={13} />
+                  <span className="text-sm font-semibold">{stuck}</span>
+                  <span className="text-[10px]">stuck</span>
+                </div>
+              ) : (
+                <div className="text-[10px] text-emerald-600 font-medium">OK</div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
       <div className="surface rounded-xl overflow-hidden">
         {/* Month navigator bar */}
         <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-border-subtle bg-black/[0.01]">
@@ -120,7 +269,7 @@ const filtered = useMemo(() => {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border-subtle bg-black/[0.02]">
-                {['Kode Project', 'Client', 'Nama Kontrak', 'Dept', 'PIC Laporan', 'Dok. Customer', 'Dok. Vendor', 'Billing', 'Pending', 'Aksi'].map((h) => (
+                {['Kode Project', 'Client', 'Nama Kontrak', 'Dept', 'PIC Laporan', 'Dok. Customer', 'Dok. Vendor', 'Billing', 'Phase', 'Warning', 'Aksi'].map((h) => (
                   <th key={h} className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -129,10 +278,10 @@ const filtered = useMemo(() => {
               {filtered.map((p) => {
                 const custDocs = docCountByPeriod(p.id, 'customer')
                 const vendDocs = docCountByPeriod(p.id, 'vendor')
-                const pending = pendingCountByPeriod(p.id)
                 const billingDocs = billingDocuments.filter((b) => b.projectId === p.id)
                 const billingDone = billingDocs.filter((b) => b.status === 'COMPLETED').length
                 const billingPct = billingDocs.length > 0 ? Math.round((billingDone / billingDocs.length) * 100) : 0
+                const projDocs = getProjectDocs(p.id)
                 return (
                   <tr
                     key={p.id}
@@ -166,11 +315,11 @@ const filtered = useMemo(() => {
                         </div>
                       ) : <span className="text-xs text-ink-muted">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-center">
-                      {pending > 0
-                        ? <span className="chip bg-amber-100 text-amber-700">{pending} pending</span>
-                        : <span className="text-xs text-ink-muted">—</span>
-                      }
+                    <td className="px-4 py-3">
+                      <PhasesSummary docs={projDocs} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <EarlyWarningBadge docs={projDocs} />
                     </td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-1">

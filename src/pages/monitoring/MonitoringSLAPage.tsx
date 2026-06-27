@@ -6,7 +6,7 @@ import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { Button } from '../../components/ui/Button'
 import { classNames, downloadCsv } from '../../utils/helpers'
 import {
-  SLA_MONTHS, slaMonthLabel, computeProjectMonthAvg, computeProjectGrandAvg, slaStatusCalc, fmt1, fmt2,
+  SLA_MONTHS, slaMonthLabel, computeProjectMonthAvg, computeProjectGrandAvg, slaStatusCalc, fmt2,
   type SLAStatus,
 } from '../../types/monitoring'
 
@@ -22,7 +22,7 @@ export function MonitoringSLAPage() {
   const openModal = useUIStore((s) => s.openModal)
   const setView = useUIStore((s) => s.setView)
   const setSlaDetailProjectId = useUIStore((s) => s.setSlaDetailProjectId)
-  const { canDeleteMonitoring } = useMonitoringRole()
+  const { canDeleteMonitoring, canEditMonitoring } = useMonitoringRole()
 
   const [search, setSearch] = useState('')
   const [deptFilter, setDeptFilter] = useState('')
@@ -102,7 +102,7 @@ export function MonitoringSLAPage() {
 
           <span className="text-[11px] text-ink-tertiary ml-auto">{filtered.length} project</span>
           <Button variant="ghost" size="sm" onClick={handleExport} leftIcon={<Download size={13} />}>Export</Button>
-          <Button size="sm" onClick={() => openModal({ type: 'monitoring-sla-project-create' })} leftIcon={<Plus size={13} />}>Tambah</Button>
+          {canEditMonitoring && <Button size="sm" onClick={() => openModal({ type: 'monitoring-sla-project-create' })} leftIcon={<Plus size={13} />}>Tambah</Button>}
         </div>
 
         {/* Table */}
@@ -152,7 +152,7 @@ export function MonitoringSLAPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
                         <button onClick={() => openDetail(p.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Lihat Detail"><Eye size={13} /></button>
-                        <button onClick={() => openModal({ type: 'monitoring-sla-project-edit', projectId: p.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>
+                        {canEditMonitoring && <button onClick={() => openModal({ type: 'monitoring-sla-project-edit', projectId: p.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>}
                         {canDeleteMonitoring && <button onClick={() => setConfirmDeleteId(p.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>}
                       </div>
                     </td>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { CheckCircle2, Clock, RotateCcw, Send, RefreshCw, Paperclip, X, Upload } from 'lucide-react'
+import { CheckCircle2, Clock, RotateCcw, Send, RefreshCw, Paperclip, X, Upload, ArrowRight, Flag, User } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Input, Textarea } from '../ui/Input'
@@ -9,7 +9,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { usePermissions } from '../../hooks/usePermissions'
 import { classNames, formatDateTime, formatDateShort } from '../../utils/helpers'
 import { reportMonthLabel } from '../../types/monitoring'
-import type { ReportDocumentType, ReportDocumentActionType } from '../../types/monitoring'
+import type { ReportDocumentType, ReportDocumentActionType, DocPhase } from '../../types/monitoring'
 
 const STATUS_CLS: Record<string, string> = {
   DRAFT:             'bg-slate-100 text-slate-700',
@@ -68,6 +68,10 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
 
   const [judul, setJudul] = useState('')
   const [deskripsi, setDeskripsi] = useState('')
+  const [deadlineToSales, setDeadlineToSales] = useState('')
+  const [engineerPIC, setEngineerPIC] = useState('')
+  const [customerPIC, setCustomerPIC] = useState('')
+  const [docconPIC, setDocconPIC] = useState('')
   const [actionComment, setActionComment] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -75,8 +79,13 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
     if ((mode === 'edit' || mode === 'detail') && existing) {
       setJudul(existing.judul)
       setDeskripsi(existing.deskripsi)
+      setDeadlineToSales(existing.deadlineToSales ?? '')
+      setEngineerPIC(existing.engineerPIC ?? '')
+      setCustomerPIC(existing.customerPIC ?? '')
+      setDocconPIC(existing.docconPIC ?? '')
     } else {
       setJudul(''); setDeskripsi('')
+      setDeadlineToSales(''); setEngineerPIC(''); setCustomerPIC(''); setDocconPIC('')
     }
     setErrors({})
     setActionComment('')
@@ -87,15 +96,22 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
     if (!judul.trim()) e.judul = 'Judul dokumen wajib diisi'
     setErrors(e)
     if (Object.keys(e).length) return
+    const extraFields = {
+      deadlineToSales: deadlineToSales.trim() || null,
+      engineerPIC: engineerPIC.trim(),
+      customerPIC: customerPIC.trim(),
+      docconPIC: docconPIC.trim(),
+    }
     if (mode === 'create' && projectId && docType) {
       store.addDocument({
         projectId, docType, judul: judul.trim(), deskripsi: deskripsi.trim(),
         period: selectedMonth,
         attachments: [],
         createdByUserId: currentUser?.id ?? '', createdByName: currentUser?.name ?? '',
+        ...extraFields,
       })
     } else if (mode === 'edit' && documentId) {
-      store.updateDocument(documentId, { judul: judul.trim(), deskripsi: deskripsi.trim() })
+      store.updateDocument(documentId, { judul: judul.trim(), deskripsi: deskripsi.trim(), ...extraFields })
     }
     onClose()
   }
@@ -165,6 +181,62 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
             </div>
           </div>
 
+          {/* Phase stepper inline */}
+          {existing.currentPhase && (() => {
+            const PHASES: { key: DocPhase; label: string }[] = [
+              { key: 'engineer', label: 'Engineer' },
+              { key: 'customer', label: 'Customer' },
+              { key: 'doccon',   label: 'Doccon' },
+            ]
+            const current = existing.currentPhase
+            const isDone = (p: DocPhase) => {
+              if (p === 'engineer') return current === 'customer' || current === 'doccon'
+              if (p === 'customer') return current === 'doccon'
+              if (p === 'doccon') return existing.docconSubStatus === 'delivered'
+              return false
+            }
+            return (
+              <div className="rounded-xl border border-border-subtle bg-black/[0.02] px-4 py-3 space-y-2">
+                <div className="text-[10px] uppercase tracking-widest text-ink-tertiary font-semibold">Phase Pipeline</div>
+                <div className="flex items-center gap-2">
+                  {PHASES.map((step, idx) => {
+                    const done = isDone(step.key)
+                    const active = step.key === current
+                    return (
+                      <div key={step.key} className="flex items-center gap-2">
+                        <div className={classNames(
+                          'rounded-md px-2.5 py-1 text-[11px] font-medium flex items-center gap-1',
+                          done ? 'bg-emerald-100 text-emerald-700' : active ? 'bg-pertamina-red/10 text-pertamina-red' : 'bg-black/[0.04] text-ink-muted',
+                        )}>
+                          {done && <CheckCircle2 size={10} />}
+                          {step.label}
+                        </div>
+                        {idx < 2 && <ArrowRight size={12} className="text-ink-muted" />}
+                      </div>
+                    )
+                  })}
+                  {existing.hasConflict && <span className="chip bg-orange-100 text-orange-700 text-[10px]">Conflict</span>}
+                </div>
+                {/* Doccon sub-status */}
+                {existing.currentPhase === 'doccon' && existing.docconSubStatus && (
+                  <div className="text-[11px] text-ink-secondary">
+                    Doccon: <span className="font-medium capitalize">{existing.docconSubStatus.replace(/_/g, ' ')}</span>
+                  </div>
+                )}
+                {/* Sales feedback */}
+                {existing.salesFlagIssue && (
+                  <div className="flex items-start gap-2 mt-2 rounded-lg bg-orange-50 border border-orange-200 px-3 py-2">
+                    <Flag size={12} className="text-orange-600 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="text-[11px] font-semibold text-orange-700">Flagged by Sales</div>
+                      {existing.salesIssueNote && <div className="text-[11px] text-orange-600 mt-0.5">{existing.salesIssueNote}</div>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
           {/* Info */}
           <div className="space-y-3">
             <div>
@@ -187,14 +259,29 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
                 <div className="text-sm text-ink-secondary mt-0.5">{existing.tanggalFeedback ? formatDateShort(existing.tanggalFeedback) : '—'}</div>
               </div>
               <div>
-                <div className="text-[11px] uppercase tracking-widest text-ink-tertiary">Dibuat</div>
-                <div className="text-sm text-ink-secondary mt-0.5">{existing.createdByName} · {formatDateShort(existing.createdAt)}</div>
+                <div className="text-[11px] uppercase tracking-widest text-ink-tertiary">Deadline ke Sales</div>
+                <div className="text-sm text-ink-secondary mt-0.5">{existing.deadlineToSales ? formatDateShort(existing.deadlineToSales) : '—'}</div>
               </div>
               <div>
                 <div className="text-[11px] uppercase tracking-widest text-ink-tertiary">Diperbarui</div>
                 <div className="text-sm text-ink-secondary mt-0.5">{formatDateShort(existing.updatedAt)}</div>
               </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-widest text-ink-tertiary">Dibuat</div>
+                <div className="text-sm text-ink-secondary mt-0.5">{existing.createdByName} · {formatDateShort(existing.createdAt)}</div>
+              </div>
             </div>
+            {/* PIC accountability */}
+            {(existing.engineerPIC || existing.customerPIC || existing.docconPIC) && (
+              <div>
+                <div className="text-[11px] uppercase tracking-widest text-ink-tertiary mb-1">PIC</div>
+                <div className="flex flex-wrap gap-3 text-xs text-ink-secondary">
+                  {existing.engineerPIC && <span className="flex items-center gap-1"><User size={11} className="text-blue-400" /><span className="text-ink-tertiary">Eng:</span> {existing.engineerPIC}</span>}
+                  {existing.customerPIC && <span className="flex items-center gap-1"><User size={11} className="text-purple-400" /><span className="text-ink-tertiary">Cust:</span> {existing.customerPIC}</span>}
+                  {existing.docconPIC && <span className="flex items-center gap-1"><User size={11} className="text-amber-500" /><span className="text-ink-tertiary">Doccon:</span> {existing.docconPIC}</span>}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Attachments */}
@@ -319,6 +406,32 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
             placeholder="Keterangan dokumen, konteks, atau catatan penting…"
             rows={3}
           />
+          <Input
+            label="Deadline ke Sales (YYYY-MM-DD)"
+            type="date"
+            value={deadlineToSales}
+            onChange={(e) => setDeadlineToSales(e.target.value)}
+          />
+          <div className="grid grid-cols-3 gap-3">
+            <Input
+              label="PIC Engineer"
+              value={engineerPIC}
+              onChange={(e) => setEngineerPIC(e.target.value)}
+              placeholder="Nama engineer"
+            />
+            <Input
+              label="PIC Customer"
+              value={customerPIC}
+              onChange={(e) => setCustomerPIC(e.target.value)}
+              placeholder="Nama customer PIC"
+            />
+            <Input
+              label="PIC Doccon"
+              value={docconPIC}
+              onChange={(e) => setDocconPIC(e.target.value)}
+              placeholder="Nama doccon PIC"
+            />
+          </div>
           {mode === 'create' && (
             <div className="rounded-lg border border-border-subtle bg-black/[0.02] px-4 py-3 text-xs text-ink-secondary">
               Dokumen akan dibuat dengan status <strong>Draft (R0)</strong>. Setelah disimpan, buka detail untuk upload attachment dan submit approval.

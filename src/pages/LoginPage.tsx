@@ -15,6 +15,7 @@ const DEMO_ACCOUNTS = [
   { email: 'tamu@pertamina.id', password: 'tamu123', label: 'Viewer' },
   { email: 'admin.osm@pertamina.id', password: 'osm123', label: 'Admin OSM' },
   { email: 'doccon.osm@pertamina.id', password: 'osm123', label: 'Doccon OSM' },
+  { email: 'engineer.os@pertamina.id', password: 'eos123', label: 'Engineer OS' },
 ]
 
 export function LoginPage() {

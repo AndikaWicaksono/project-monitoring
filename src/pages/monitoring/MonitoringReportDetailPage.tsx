@@ -1,14 +1,14 @@
-import { useState } from 'react'
-import { ArrowLeft, Plus, Eye, Pencil, Trash2, Paperclip, CheckCircle2, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { ArrowLeft, Plus, Eye, Pencil, Trash2, Paperclip, CheckCircle2, ChevronLeft, ChevronRight, Calendar, AlertTriangle, Flag, User, ArrowRight } from 'lucide-react'
 import { useMonitoringReportStore } from '../../store/useMonitoringReportStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { Button } from '../../components/ui/Button'
 import { classNames, formatDateShort } from '../../utils/helpers'
 import { reportMonthLabel, prevReportMonth, nextReportMonth } from '../../types/monitoring'
-import type { ReportDocumentStatus, BillingDocumentStatus } from '../../types/monitoring'
+import type { ReportDocument, ReportDocumentStatus, BillingDocumentStatus, DocPhase } from '../../types/monitoring'
 
-type ActiveTab = 'customer' | 'vendor' | 'billing'
+type ActiveTab = 'customer' | 'vendor' | 'billing' | 'sla'
 
 const DOC_STATUS_META: Record<ReportDocumentStatus, { label: string; cls: string }> = {
   DRAFT:             { label: 'Draft',          cls: 'bg-slate-100 text-slate-700' },
@@ -35,6 +35,188 @@ const REVISION_CLS: Record<string, string> = {
   R4: 'bg-red-100 text-red-700',
 }
 
+// ── Phase stepper ──────────────────────────────────────────────────────────
+
+const PHASE_STEPS: { key: DocPhase; label: string }[] = [
+  { key: 'engineer', label: 'Engineer' },
+  { key: 'customer', label: 'Customer' },
+  { key: 'doccon',   label: 'Doccon' },
+]
+
+function PhaseStepperMini({ doc }: { doc: ReportDocument }) {
+  const current = doc.currentPhase ?? 'engineer'
+  const isDone = (phase: DocPhase) => {
+    if (phase === 'engineer') return current === 'customer' || current === 'doccon'
+    if (phase === 'customer') return current === 'doccon'
+    if (phase === 'doccon') return doc.docconSubStatus === 'delivered'
+    return false
+  }
+  const isActive = (phase: DocPhase) => phase === current
+
+  return (
+    <div className="flex items-center gap-1 mt-1.5">
+      {PHASE_STEPS.map((step, idx) => {
+        const done = isDone(step.key)
+        const active = isActive(step.key)
+        return (
+          <div key={step.key} className="flex items-center gap-1">
+            <div className={classNames(
+              'flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-medium',
+              done ? 'bg-emerald-100 text-emerald-700' :
+              active ? 'bg-pertamina-red/10 text-pertamina-red' :
+              'bg-black/[0.04] text-ink-muted',
+            )}>
+              {done && <CheckCircle2 size={8} />}
+              {step.label}
+            </div>
+            {idx < 2 && <ArrowRight size={8} className="text-ink-muted shrink-0" />}
+          </div>
+        )
+      })}
+      {doc.hasConflict && (
+        <span className="ml-1 chip bg-orange-100 text-orange-700 text-[9px]">Conflict</span>
+      )}
+    </div>
+  )
+}
+
+// ── Dependency badge ───────────────────────────────────────────────────────
+
+function DependencyBadge({ doc }: { doc: ReportDocument }) {
+  if (doc.currentPhase !== 'doccon') return null
+  const sub = doc.docconSubStatus
+  if (sub === 'delivered') return <span className="chip bg-emerald-100 text-emerald-700 text-[9px]">Delivered</span>
+  if (sub === 'ready_to_sales') return <span className="chip bg-blue-100 text-blue-700 text-[9px]">Ready to Sales</span>
+  if (sub === 'qc_review') return <span className="chip bg-purple-100 text-purple-700 text-[9px]">QC Review</span>
+  return <span className="chip bg-amber-100 text-amber-700 text-[9px]">Compiling</span>
+}
+
+// ── Early warning badge ────────────────────────────────────────────────────
+
+function DeadlineBadge({ doc }: { doc: ReportDocument }) {
+  if (!doc.deadlineToSales) return null
+  const today = new Date()
+  const deadline = new Date(doc.deadlineToSales)
+  const diffDays = Math.ceil((deadline.getTime() - today.getTime()) / 86400000)
+
+  if (diffDays < 0) return <span className="chip bg-red-100 text-red-700 text-[9px] font-semibold">Overdue</span>
+  if (diffDays === 0) return <span className="chip bg-red-50 text-red-600 text-[9px] font-semibold">H-0</span>
+  if (diffDays <= 1) return <span className="chip bg-red-50 text-red-600 text-[9px]">H-{diffDays}</span>
+  if (diffDays <= 3) return <span className="chip bg-amber-100 text-amber-700 text-[9px]">H-{diffDays}</span>
+  if (diffDays <= 5) return <span className="chip bg-yellow-100 text-yellow-700 text-[9px]">H-{diffDays}</span>
+  return <span className="text-[10px] text-ink-tertiary">{formatDateShort(doc.deadlineToSales)}</span>
+}
+
+// ── SLA Compliance section ─────────────────────────────────────────────────
+
+function daysBetween(a: string | null | undefined, b: string | null | undefined): number | null {
+  if (!a || !b) return null
+  const ms = new Date(b).getTime() - new Date(a).getTime()
+  return ms > 0 ? Math.round(ms / 86400000) : 0
+}
+
+function SLAComplianceTab({ docs }: { docs: ReportDocument[] }) {
+  const allDocs = docs
+
+  const engineerSLA = 5
+  const customerSLA = 3
+  const docconSLA = 2
+
+  const engineerDone = allDocs.filter((d) => d.engineerSubmittedAt && d.engineerStartedAt)
+  const engOnTime = engineerDone.filter((d) => {
+    const days = daysBetween(d.engineerStartedAt, d.engineerSubmittedAt)
+    return days !== null && days <= engineerSLA
+  })
+  const engPct = engineerDone.length ? Math.round((engOnTime.length / engineerDone.length) * 100) : null
+
+  const customerDone = allDocs.filter((d) => d.customerApprovedAt && d.customerReceivedAt)
+  const custOnTime = customerDone.filter((d) => {
+    const days = daysBetween(d.customerReceivedAt, d.customerApprovedAt)
+    return days !== null && days <= customerSLA
+  })
+  const custPct = customerDone.length ? Math.round((custOnTime.length / customerDone.length) * 100) : null
+
+  const docconDone = allDocs.filter((d) => d.docconDeliveredAt && d.docconReceivedAt)
+  const docconOnTime = docconDone.filter((d) => {
+    const days = daysBetween(d.docconReceivedAt, d.docconDeliveredAt)
+    return days !== null && days <= docconSLA
+  })
+  const docconPct = docconDone.length ? Math.round((docconOnTime.length / docconDone.length) * 100) : null
+
+  const slaRows = [
+    { label: 'Engineer', sla: engineerSLA, pct: engPct, done: engineerDone.length, onTime: engOnTime.length },
+    { label: 'Customer', sla: customerSLA, pct: custPct, done: customerDone.length, onTime: custOnTime.length },
+    { label: 'Doccon',   sla: docconSLA,   pct: docconPct, done: docconDone.length, onTime: docconOnTime.length },
+  ]
+
+  return (
+    <div className="p-5 space-y-5">
+      <div className="grid grid-cols-3 gap-4">
+        {slaRows.map(({ label, sla, pct, done, onTime }) => (
+          <div key={label} className="surface rounded-xl p-4 space-y-2">
+            <div className="text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary">{label} Phase</div>
+            <div className="text-2xl font-bold text-ink-primary">
+              {pct !== null ? `${pct}%` : <span className="text-ink-muted text-base">N/A</span>}
+            </div>
+            <div className="text-[10px] text-ink-tertiary">On-time (SLA ≤{sla} hari)</div>
+            <div className="h-1.5 rounded-full bg-black/[0.06] overflow-hidden">
+              <div
+                className={classNames('h-full rounded-full transition-all', pct !== null && pct >= 80 ? 'bg-emerald-500' : pct !== null && pct >= 50 ? 'bg-amber-500' : 'bg-red-500')}
+                style={{ width: pct !== null ? `${pct}%` : '0%' }}
+              />
+            </div>
+            {done > 0 && <div className="text-[10px] text-ink-secondary">{onTime}/{done} dokumen tepat waktu</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* Per-doc breakdown */}
+      <div className="surface rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-border-subtle">
+          <span className="text-xs font-semibold text-ink-primary">Detail Per Dokumen</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border-subtle bg-black/[0.02]">
+                {['Dokumen', 'Engineer (SLA 5d)', 'Customer (SLA 3d)', 'Doccon (SLA 2d)', 'Deadline Sales'].map((h) => (
+                  <th key={h} className="text-left px-4 py-2 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-subtle">
+              {allDocs.map((doc) => {
+                const eDays = daysBetween(doc.engineerStartedAt, doc.engineerSubmittedAt)
+                const cDays = daysBetween(doc.customerReceivedAt, doc.customerApprovedAt)
+                const dDays = daysBetween(doc.docconReceivedAt, doc.docconDeliveredAt)
+                const cell = (days: number | null, sla: number) => {
+                  if (days === null) return <span className="text-ink-muted">—</span>
+                  const ok = days <= sla
+                  return <span className={classNames('chip text-[10px]', ok ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700')}>{days}d {ok ? '✓' : '!'}</span>
+                }
+                return (
+                  <tr key={doc.id} className="hover:bg-black/[0.02]">
+                    <td className="px-4 py-2.5 text-xs text-ink-primary max-w-[180px] truncate" title={doc.judul}>{doc.judul}</td>
+                    <td className="px-4 py-2.5">{cell(eDays, 5)}</td>
+                    <td className="px-4 py-2.5">{cell(cDays, 3)}</td>
+                    <td className="px-4 py-2.5">{cell(dDays, 2)}</td>
+                    <td className="px-4 py-2.5"><DeadlineBadge doc={doc} /></td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        {allDocs.length === 0 && (
+          <div className="py-10 text-center text-xs text-ink-tertiary">Belum ada dokumen pada periode ini.</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Main component ─────────────────────────────────────────────────────────
+
 export function MonitoringReportDetailPage() {
   const { projects, documents, billingDocuments, deleteDocument, deleteBillingDocument } = useMonitoringReportStore()
   const openModal = useUIStore((s) => s.openModal)
@@ -49,13 +231,13 @@ export function MonitoringReportDetailPage() {
   const [confirmDeleteDocId, setConfirmDeleteDocId] = useState<string | null>(null)
   const [confirmDeleteBillingId, setConfirmDeleteBillingId] = useState<string | null>(null)
 
-  // Filter docs by selected period
   const custDocs = documents.filter((d) => d.projectId === reportDetailProjectId && d.docType === 'customer' && d.period === selectedMonth)
   const vendDocs = documents.filter((d) => d.projectId === reportDetailProjectId && d.docType === 'vendor' && d.period === selectedMonth)
   const billingDocs = billingDocuments.filter((b) => b.projectId === reportDetailProjectId)
   const billingCompleted = billingDocs.filter((b) => b.status === 'COMPLETED').length
   const billingProgress = billingDocs.length > 0 ? Math.round((billingCompleted / billingDocs.length) * 100) : 0
 
+  const allPeriodDocs = useMemo(() => [...custDocs, ...vendDocs], [custDocs, vendDocs])
   const tabDocs = activeTab === 'customer' ? custDocs : activeTab === 'vendor' ? vendDocs : []
 
   if (!project) {
@@ -71,6 +253,7 @@ export function MonitoringReportDetailPage() {
     { key: 'customer', label: 'Report Customer', count: custDocs.length },
     { key: 'vendor',   label: 'Report Vendor',   count: vendDocs.length },
     { key: 'billing',  label: 'Billing Tracker', count: billingDocs.length },
+    { key: 'sla',      label: 'SLA Compliance',  count: allPeriodDocs.length },
   ]
 
   return (
@@ -141,7 +324,7 @@ export function MonitoringReportDetailPage() {
         </span>
       </div>
 
-      {/* Billing Progress Card — always visible */}
+      {/* Billing Progress Card */}
       <div className="surface rounded-xl p-4 flex items-center gap-5">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-pertamina-red-50">
           <CheckCircle2 size={22} className="text-pertamina-red" />
@@ -164,13 +347,13 @@ export function MonitoringReportDetailPage() {
       {/* Tabs */}
       <div className="surface rounded-xl overflow-hidden">
         {/* Tab bar */}
-        <div className="flex border-b border-border-subtle">
+        <div className="flex border-b border-border-subtle overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={classNames(
-                'flex items-center gap-2 px-5 py-3 text-sm font-medium transition border-b-2 -mb-px',
+                'flex items-center gap-2 px-5 py-3 text-sm font-medium transition border-b-2 -mb-px whitespace-nowrap',
                 activeTab === tab.key
                   ? 'border-pertamina-red text-pertamina-red'
                   : 'border-transparent text-ink-secondary hover:text-ink-primary',
@@ -186,7 +369,7 @@ export function MonitoringReportDetailPage() {
             </button>
           ))}
           <div className="ml-auto flex items-center px-4">
-            {activeTab !== 'billing' ? (
+            {activeTab === 'customer' || activeTab === 'vendor' ? (
               <Button
                 size="sm"
                 onClick={() => openModal({ type: 'monitoring-report-document-create', projectId: project.id, docType: activeTab as 'customer' | 'vendor' })}
@@ -194,7 +377,7 @@ export function MonitoringReportDetailPage() {
               >
                 Tambah Dokumen
               </Button>
-            ) : (
+            ) : activeTab === 'billing' ? (
               <Button
                 size="sm"
                 onClick={() => openModal({ type: 'monitoring-billing-create', projectId: project.id })}
@@ -202,28 +385,56 @@ export function MonitoringReportDetailPage() {
               >
                 Tambah Billing
               </Button>
-            )}
+            ) : null}
           </div>
         </div>
 
         {/* Report Customer / Report Vendor table */}
-        {activeTab !== 'billing' && (
+        {(activeTab === 'customer' || activeTab === 'vendor') && (
           <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border-subtle bg-black/[0.02]">
-                    {['Judul Dokumen', 'Tgl Submit', 'Tgl Feedback', 'Revisi', 'Status', 'Attachment', 'Aksi'].map((h) => (
+                    {['Judul Dokumen', 'PIC', 'Deadline Sales', 'Tgl Submit', 'Tgl Feedback', 'Revisi', 'Status', 'Attach', 'Aksi'].map((h) => (
                       <th key={h} className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
                   {tabDocs.map((doc) => (
-                    <tr key={doc.id} className="hover:bg-black/[0.02] transition-colors">
+                    <tr key={doc.id} className="hover:bg-black/[0.02] transition-colors align-top">
                       <td className="px-4 py-3 text-xs font-medium text-ink-primary max-w-[220px]">
                         <div className="truncate" title={doc.judul}>{doc.judul}</div>
                         {doc.deskripsi && <div className="text-[11px] text-ink-tertiary truncate mt-0.5">{doc.deskripsi}</div>}
+                        {/* Phase stepper */}
+                        <PhaseStepperMini doc={doc} />
+                        {/* Dependency / doccon badge */}
+                        <div className="mt-1 flex gap-1 flex-wrap">
+                          <DependencyBadge doc={doc} />
+                          {doc.salesFlagIssue && (
+                            <span className="chip bg-orange-100 text-orange-700 text-[9px] flex items-center gap-0.5">
+                              <Flag size={8} />Flagged by Sales
+                            </span>
+                          )}
+                          {doc.hasConflict && doc.currentPhase === 'engineer' && (
+                            <span className="chip bg-red-100 text-red-700 text-[9px] flex items-center gap-0.5">
+                              <AlertTriangle size={8} />Conflict
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-[11px] text-ink-secondary whitespace-nowrap">
+                        {(doc.engineerPIC || doc.customerPIC || doc.docconPIC) ? (
+                          <div className="space-y-0.5">
+                            {doc.engineerPIC && <div className="flex items-center gap-1"><User size={9} className="text-blue-400" />{doc.engineerPIC}</div>}
+                            {doc.customerPIC && <div className="flex items-center gap-1"><User size={9} className="text-purple-400" />{doc.customerPIC}</div>}
+                            {doc.docconPIC && <div className="flex items-center gap-1"><User size={9} className="text-amber-500" />{doc.docconPIC}</div>}
+                          </div>
+                        ) : <span className="text-ink-muted">—</span>}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <DeadlineBadge doc={doc} />
                       </td>
                       <td className="px-4 py-3 text-xs text-ink-secondary whitespace-nowrap">
                         {doc.tanggalSubmit ? formatDateShort(doc.tanggalSubmit) : <span className="text-ink-muted">—</span>}
@@ -330,6 +541,9 @@ export function MonitoringReportDetailPage() {
             )}
           </>
         )}
+
+        {/* SLA Compliance tab */}
+        {activeTab === 'sla' && <SLAComplianceTab docs={allPeriodDocs} />}
       </div>
 
       {/* Confirm delete report doc */}

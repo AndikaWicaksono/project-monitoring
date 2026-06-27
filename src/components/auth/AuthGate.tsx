@@ -3,7 +3,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { useUIStore } from '../../store/useUIStore'
 import { LoginPage } from '../../pages/LoginPage'
 
-const OSM_ROLES = new Set(['admin_osm', 'doccon_osm'])
+const OSM_ROLES = new Set(['admin_osm', 'doccon_osm', 'engineer_os'])
 
 interface Props {
   children: ReactNode

@@ -9,6 +9,12 @@ export type ReportDocumentStatus = 'DRAFT' | 'SUBMITTED' | 'UNDER_REVIEW' | 'REV
 export type ReportDocumentRevision = 'R0' | 'R1' | 'R2' | 'R3' | 'R4'
 export type ReportDocumentActionType = 'CREATE' | 'SUBMIT' | 'START_REVIEW' | 'APPROVE' | 'REQUEST_REVISION' | 'RESUBMIT'
 
+// E2E phase tracking (feature: end-to-end document pipeline)
+export type DocPhase = 'engineer' | 'customer' | 'doccon'
+export type EngineerSubStatus = 'draft' | 'ready_for_review' | 'submitted'
+export type CustomerSubStatus = 'under_review' | 'approved' | 'revisions_required'
+export type DocconSubStatus = 'compiling' | 'qc_review' | 'ready_to_sales' | 'delivered'
+
 export interface ReportDocumentActivity {
   id: string
   action: ReportDocumentActionType
@@ -63,6 +69,30 @@ export interface ReportDocument {
   updatedAt: string
   createdByUserId: string
   createdByName: string
+  // E2E phase tracking (optional — backward compat with localStorage)
+  currentPhase?: DocPhase
+  engineerSubStatus?: EngineerSubStatus
+  customerSubStatus?: CustomerSubStatus
+  docconSubStatus?: DocconSubStatus
+  // Phase timestamps
+  engineerStartedAt?: string | null
+  engineerSubmittedAt?: string | null
+  customerReceivedAt?: string | null
+  customerApprovedAt?: string | null
+  docconReceivedAt?: string | null
+  docconDeliveredAt?: string | null
+  // Deadline & SLA
+  deadlineToSales?: string | null
+  // Accountability
+  engineerPIC?: string
+  customerPIC?: string
+  docconPIC?: string
+  // Conflict flag (revision after customer approved)
+  hasConflict?: boolean
+  // Sales feedback
+  salesAcceptedAt?: string | null
+  salesFlagIssue?: boolean
+  salesIssueNote?: string
 }
 
 // ---------- Billing Tracker (embedded in Report Project) ----------
@@ -129,12 +159,28 @@ export interface SLAMonthlyRecord {
   remark: string
   createdAt: string
   updatedAt: string
+  lockedAt: string | null
+  lockedByName: string | null
+  reconfirmRequested: boolean
+  reconfirmNote: string
 }
 
 // ---------- Cost Monitoring ----------
 
 export type MonitoringCostStatus = 'active' | 'closed' | 'cancelled' | 'future'
 export type MonitoringCostRealizationStatus = 'PAID' | 'POPAY' | 'READY_TO_RELEASE'
+
+// Cost Monitoring — Monthly Planning Breakdown
+export interface CostBasedMonthlyItem {
+  itemBiaya: string
+  satuanKerja: string
+  planned: number
+}
+
+export interface CostBasedMonthlyPlan {
+  planned: number
+  items: CostBasedMonthlyItem[]
+}
 
 export interface MonitoringCost {
   id: string
@@ -155,6 +201,8 @@ export interface MonitoringCost {
   amandemen: string
   tkdn: number
   description: string
+  // Monthly cost based breakdown — key is YYYY-MM
+  costBasedMonthly?: Record<string, CostBasedMonthlyPlan>
   createdAt: string
   updatedAt: string
   createdByUserId: string
@@ -171,6 +219,8 @@ export interface MonitoringCostRealization {
   realisasiBiaya: number
   status: MonitoringCostRealizationStatus
   vendor: string
+  period?: string | null          // YYYY-MM — bulan realisasi ini
+  tanggalRealisasi?: string | null
   createdAt: string
   updatedAt: string
 }

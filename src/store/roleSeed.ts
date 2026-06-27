@@ -190,4 +190,14 @@ export const SEED_ROLES: MasterRole[] = [
       canEditTask: true, // workflow submit/resubmit di monitoring dokumen
     },
   },
+  {
+    id: 'engineer_os',
+    name: 'Engineer On Site',
+    description: 'Engineer On Site (EOS). Akses read-only ke modul SLA Monitoring. Dapat memantau status reconfirm SLA. Tidak dapat mengakses Board Management.',
+    color: '#F59E0B',
+    rank: 20,
+    isSystem: true,
+    scopeRestriction: 'any',
+    permissions: none(),
+  },
 ]

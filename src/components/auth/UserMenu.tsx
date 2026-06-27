@@ -42,7 +42,7 @@ export function UserMenu({ collapsed }: Props) {
   const manageAllowed = can('user.manage').allowed
   const canRoles = can('role.manage').allowed
   const canWorkflow = can('workflow.configure').allowed
-  const isOSMRole = role?.id === 'admin_osm' || role?.id === 'doccon_osm'
+  const isOSMRole = role?.id === 'admin_osm' || role?.id === 'doccon_osm' || role?.id === 'engineer_os'
 
   const handleLogout = () => {
     logout()

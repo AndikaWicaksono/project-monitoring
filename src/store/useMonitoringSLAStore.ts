@@ -7,18 +7,43 @@ import { useLogStore } from './useLogStore'
 // ── Mock seed data ────────────────────────────────────────────────────────────
 
 const T = '2025-01-01T00:00:00.000Z'
+const T26 = '2026-01-01T00:00:00.000Z'
+
 function mrec(id: string, compId: string, projId: string, month: number, year: number, ach: number, remark = ''): SLAMonthlyRecord {
-  return { id, componentId: compId, projectId: projId, month, year, achievement: ach, remark, createdAt: T, updatedAt: T }
+  return { id, componentId: compId, projectId: projId, month, year, achievement: ach, remark, createdAt: T, updatedAt: T, lockedAt: T, lockedByName: 'System', reconfirmRequested: false, reconfirmNote: '' }
+}
+
+// 2026 records — Jan-Apr locked, May unlocked
+function mrec26(id: string, compId: string, projId: string, month: number, ach: number, lockedByName?: string, remark = ''): SLAMonthlyRecord {
+  const isLocked = month < 5
+  const mm = String(month).padStart(2, '0')
+  const lastDays = [31, 28, 31, 30, 31]
+  const lockTs = isLocked ? `2026-${mm}-${lastDays[month - 1]}T23:59:00.000Z` : null
+  return {
+    id, componentId: compId, projectId: projId, month, year: 2026, achievement: ach, remark,
+    createdAt: `2026-${mm}-01T08:00:00.000Z`,
+    updatedAt: isLocked ? lockTs! : `2026-${mm}-01T08:00:00.000Z`,
+    lockedAt: lockTs,
+    lockedByName: isLocked ? (lockedByName ?? null) : null,
+    reconfirmRequested: false,
+    reconfirmNote: '',
+  }
 }
 
 const SEED_PROJECTS: SLAProject[] = [
+  // ── Existing projects (2025) ──────────────────────────────────────────────
   { id: 'ms0003', kodeProject: 'MS-0003', namaProject: 'Network Infrastructure Region', department: 'IT Infrastructure', pic: 'Budi Santoso', targetSLA: 98, catatan: '', createdAt: T, updatedAt: T, createdByUserId: 'system', createdByName: 'System' },
   { id: 'ms0026', kodeProject: 'MS-0026', namaProject: 'Equipment Procurement 2025', department: 'IT Support', pic: 'Dewi Rahayu', targetSLA: 99, catatan: '', createdAt: T, updatedAt: T, createdByUserId: 'system', createdByName: 'System' },
   { id: 'ms0030', kodeProject: 'MS-0030', namaProject: 'Data Center Maintenance', department: 'IT Infrastructure', pic: 'Ahmad Fauzi', targetSLA: 95, catatan: '', createdAt: T, updatedAt: T, createdByUserId: 'system', createdByName: 'System' },
   { id: 'ms0004', kodeProject: 'MS-0004', namaProject: 'Security System Management', department: 'IT Security', pic: 'Rina Kartika', targetSLA: 99.5, catatan: '', createdAt: T, updatedAt: T, createdByUserId: 'system', createdByName: 'System' },
+  // ── New projects 2026 — PS-024/025/026 ───────────────────────────────────
+  { id: 'sla-ps024', kodeProject: 'PS-024-00', namaProject: 'Pekerjaan Jasa Operasi dan Pemeliharaan Terintegrasi Gas Management System (PJOPTGMS)', department: 'ICS', pic: 'Nyaklia', targetSLA: 99, catatan: '', createdAt: T26, updatedAt: T26, createdByUserId: 'system', createdByName: 'System' },
+  { id: 'sla-ps025', kodeProject: 'PS-025-00', namaProject: 'Jasa Teknikal Asistensi dan Konsultansi Sistem Informasi Manajemen Aset (SIMA)', department: 'ICS', pic: 'Budi Santoso', targetSLA: 98, catatan: '', createdAt: T26, updatedAt: T26, createdByUserId: 'system', createdByName: 'System' },
+  { id: 'sla-ps026', kodeProject: 'PS-026-00', namaProject: 'Pekerjaan Penyediaan Layanan Managed Service End User Support (EUS)', department: 'EUS', pic: 'Dimas Pratama', targetSLA: 99.5, catatan: '', createdAt: T26, updatedAt: T26, createdByUserId: 'system', createdByName: 'System' },
 ]
 
 const SEED_COMPONENTS: SLAComponent[] = [
+  // ── Existing components ───────────────────────────────────────────────────
   { id: 'c-r1',     projectId: 'ms0003', componentName: 'Region I',            createdAt: T, updatedAt: T },
   { id: 'c-r2',     projectId: 'ms0003', componentName: 'Region II',           createdAt: T, updatedAt: T },
   { id: 'c-r3',     projectId: 'ms0003', componentName: 'Region III',          createdAt: T, updatedAt: T },
@@ -34,44 +59,159 @@ const SEED_COMPONENTS: SLAComponent[] = [
   { id: 'c-dc2',    projectId: 'ms0030', componentName: 'DC Secondary',        createdAt: T, updatedAt: T },
   { id: 'c-cctv',   projectId: 'ms0004', componentName: 'CCTV System',         createdAt: T, updatedAt: T },
   { id: 'c-access', projectId: 'ms0004', componentName: 'Access Control',      createdAt: T, updatedAt: T },
+  // ── PS-024-00 components ──────────────────────────────────────────────────
+  { id: 'c-p24-r1',   projectId: 'sla-ps024', componentName: 'Region I',              createdAt: T26, updatedAt: T26 },
+  { id: 'c-p24-r2',   projectId: 'sla-ps024', componentName: 'Region II',             createdAt: T26, updatedAt: T26 },
+  { id: 'c-p24-r3',   projectId: 'sla-ps024', componentName: 'Region III',            createdAt: T26, updatedAt: T26 },
+  { id: 'c-p24-rt',   projectId: 'sla-ps024', componentName: 'Regional Transmission', createdAt: T26, updatedAt: T26 },
+  { id: 'c-p24-ig',   projectId: 'sla-ps024', componentName: 'IOGM',                  createdAt: T26, updatedAt: T26 },
+  // ── PS-025-00 components ──────────────────────────────────────────────────
+  { id: 'c-p25-in',   projectId: 'sla-ps025', componentName: 'Modul Inventory',       createdAt: T26, updatedAt: T26 },
+  { id: 'c-p25-mn',   projectId: 'sla-ps025', componentName: 'Modul Maintenance',     createdAt: T26, updatedAt: T26 },
+  { id: 'c-p25-rp',   projectId: 'sla-ps025', componentName: 'Modul Reporting',       createdAt: T26, updatedAt: T26 },
+  { id: 'c-p25-it',   projectId: 'sla-ps025', componentName: 'Modul Integration',     createdAt: T26, updatedAt: T26 },
+  // ── PS-026-00 components ──────────────────────────────────────────────────
+  { id: 'c-p26-a3',   projectId: 'sla-ps026', componentName: 'Printer A3',            createdAt: T26, updatedAt: T26 },
+  { id: 'c-p26-a4',   projectId: 'sla-ps026', componentName: 'Printer A4',            createdAt: T26, updatedAt: T26 },
+  { id: 'c-p26-lc',   projectId: 'sla-ps026', componentName: 'LCD Projector',         createdAt: T26, updatedAt: T26 },
+  { id: 'c-p26-up',   projectId: 'sla-ps026', componentName: 'UPS',                   createdAt: T26, updatedAt: T26 },
+  { id: 'c-p26-sc',   projectId: 'sla-ps026', componentName: 'Scanner',               createdAt: T26, updatedAt: T26 },
+  { id: 'c-p26-mo',   projectId: 'sla-ps026', componentName: 'Monitor',               createdAt: T26, updatedAt: T26 },
 ]
 
 const SEED_RECORDS: SLAMonthlyRecord[] = [
-  // MS-0003 Region I — Jan–Jun 2025
-  mrec('mr001', 'c-r1', 'ms0003', 1, 2025, 99.91), mrec('mr002', 'c-r1', 'ms0003', 2, 2025, 100),
-  mrec('mr003', 'c-r1', 'ms0003', 3, 2025, 99.95), mrec('mr004', 'c-r1', 'ms0003', 4, 2025, 99.88),
-  mrec('mr005', 'c-r1', 'ms0003', 5, 2025, 100),   mrec('mr006', 'c-r1', 'ms0003', 6, 2025, 99.92),
+  // ── Existing 2025 records ─────────────────────────────────────────────────
+  // MS-0003 Region I
+  mrec('mr001','c-r1','ms0003',1,2025,99.91), mrec('mr002','c-r1','ms0003',2,2025,100),
+  mrec('mr003','c-r1','ms0003',3,2025,99.95), mrec('mr004','c-r1','ms0003',4,2025,99.88),
+  mrec('mr005','c-r1','ms0003',5,2025,100),   mrec('mr006','c-r1','ms0003',6,2025,99.92),
   // MS-0003 Region II
-  mrec('mr007', 'c-r2', 'ms0003', 1, 2025, 99.99), mrec('mr008', 'c-r2', 'ms0003', 2, 2025, 99.52),
-  mrec('mr009', 'c-r2', 'ms0003', 3, 2025, 99.99), mrec('mr010', 'c-r2', 'ms0003', 4, 2025, 100),
-  mrec('mr011', 'c-r2', 'ms0003', 5, 2025, 99.85), mrec('mr012', 'c-r2', 'ms0003', 6, 2025, 99.71),
+  mrec('mr007','c-r2','ms0003',1,2025,99.99), mrec('mr008','c-r2','ms0003',2,2025,99.52),
+  mrec('mr009','c-r2','ms0003',3,2025,99.99), mrec('mr010','c-r2','ms0003',4,2025,100),
+  mrec('mr011','c-r2','ms0003',5,2025,99.85), mrec('mr012','c-r2','ms0003',6,2025,99.71),
   // MS-0003 Region III
-  mrec('mr013', 'c-r3', 'ms0003', 1, 2025, 100),   mrec('mr014', 'c-r3', 'ms0003', 2, 2025, 99.91),
-  mrec('mr015', 'c-r3', 'ms0003', 3, 2025, 100),   mrec('mr016', 'c-r3', 'ms0003', 4, 2025, 99.95),
-  mrec('mr017', 'c-r3', 'ms0003', 5, 2025, 99.99), mrec('mr018', 'c-r3', 'ms0003', 6, 2025, 100),
+  mrec('mr013','c-r3','ms0003',1,2025,100),   mrec('mr014','c-r3','ms0003',2,2025,99.91),
+  mrec('mr015','c-r3','ms0003',3,2025,100),   mrec('mr016','c-r3','ms0003',4,2025,99.95),
+  mrec('mr017','c-r3','ms0003',5,2025,99.99), mrec('mr018','c-r3','ms0003',6,2025,100),
   // MS-0003 Regional Transmisi
-  mrec('mr019', 'c-rt', 'ms0003', 1, 2025, 98.92), mrec('mr020', 'c-rt', 'ms0003', 2, 2025, 98.73),
-  mrec('mr021', 'c-rt', 'ms0003', 3, 2025, 99.11), mrec('mr022', 'c-rt', 'ms0003', 4, 2025, 98.55),
-  mrec('mr023', 'c-rt', 'ms0003', 5, 2025, 99.02), mrec('mr024', 'c-rt', 'ms0003', 6, 2025, 98.88),
+  mrec('mr019','c-rt','ms0003',1,2025,98.92), mrec('mr020','c-rt','ms0003',2,2025,98.73),
+  mrec('mr021','c-rt','ms0003',3,2025,99.11), mrec('mr022','c-rt','ms0003',4,2025,98.55),
+  mrec('mr023','c-rt','ms0003',5,2025,99.02), mrec('mr024','c-rt','ms0003',6,2025,98.88),
   // MS-0003 IOGM
-  mrec('mr025', 'c-iogm', 'ms0003', 1, 2025, 99.45), mrec('mr026', 'c-iogm', 'ms0003', 2, 2025, 99.77),
-  mrec('mr027', 'c-iogm', 'ms0003', 3, 2025, 99.33), mrec('mr028', 'c-iogm', 'ms0003', 4, 2025, 99.61),
-  mrec('mr029', 'c-iogm', 'ms0003', 5, 2025, 99.89), mrec('mr030', 'c-iogm', 'ms0003', 6, 2025, 99.50),
-  // MS-0026 components — Jan–Mar 2025
-  mrec('mr031', 'c-pca3', 'ms0026', 1, 2025, 100),  mrec('mr032', 'c-pca3', 'ms0026', 2, 2025, 100),  mrec('mr033', 'c-pca3', 'ms0026', 3, 2025, 99.5),
-  mrec('mr034', 'c-lcd1', 'ms0026', 1, 2025, 99.8), mrec('mr035', 'c-lcd1', 'ms0026', 2, 2025, 100),  mrec('mr036', 'c-lcd1', 'ms0026', 3, 2025, 100),
-  mrec('mr037', 'c-lcd2', 'ms0026', 1, 2025, 100),  mrec('mr038', 'c-lcd2', 'ms0026', 2, 2025, 99.9), mrec('mr039', 'c-lcd2', 'ms0026', 3, 2025, 100),
-  mrec('mr040', 'c-aio',  'ms0026', 1, 2025, 99.5), mrec('mr041', 'c-aio',  'ms0026', 2, 2025, 99.8), mrec('mr042', 'c-aio',  'ms0026', 3, 2025, 99.9),
-  mrec('mr043', 'c-scan', 'ms0026', 1, 2025, 100),  mrec('mr044', 'c-scan', 'ms0026', 2, 2025, 100),  mrec('mr045', 'c-scan', 'ms0026', 3, 2025, 99.8),
-  mrec('mr046', 'c-ups',  'ms0026', 1, 2025, 98.5), mrec('mr047', 'c-ups',  'ms0026', 2, 2025, 99.1), mrec('mr048', 'c-ups',  'ms0026', 3, 2025, 99.8),
-  // MS-0030 — Jan–Apr 2025
-  mrec('mr049', 'c-dc1', 'ms0030', 1, 2025, 99.99), mrec('mr050', 'c-dc1', 'ms0030', 2, 2025, 100),
-  mrec('mr051', 'c-dc1', 'ms0030', 3, 2025, 99.95), mrec('mr052', 'c-dc1', 'ms0030', 4, 2025, 100),
-  mrec('mr053', 'c-dc2', 'ms0030', 1, 2025, 98.11), mrec('mr054', 'c-dc2', 'ms0030', 2, 2025, 97.88),
-  mrec('mr055', 'c-dc2', 'ms0030', 3, 2025, 98.55), mrec('mr056', 'c-dc2', 'ms0030', 4, 2025, 97.99),
-  // MS-0004 — Jan–Mar 2025
-  mrec('mr057', 'c-cctv',   'ms0004', 1, 2025, 100),   mrec('mr058', 'c-cctv',   'ms0004', 2, 2025, 99.9), mrec('mr059', 'c-cctv',   'ms0004', 3, 2025, 100),
-  mrec('mr060', 'c-access', 'ms0004', 1, 2025, 99.85), mrec('mr061', 'c-access', 'ms0004', 2, 2025, 100),  mrec('mr062', 'c-access', 'ms0004', 3, 2025, 99.95),
+  mrec('mr025','c-iogm','ms0003',1,2025,99.45), mrec('mr026','c-iogm','ms0003',2,2025,99.77),
+  mrec('mr027','c-iogm','ms0003',3,2025,99.33), mrec('mr028','c-iogm','ms0003',4,2025,99.61),
+  mrec('mr029','c-iogm','ms0003',5,2025,99.89), mrec('mr030','c-iogm','ms0003',6,2025,99.50),
+  // MS-0026
+  mrec('mr031','c-pca3','ms0026',1,2025,100),  mrec('mr032','c-pca3','ms0026',2,2025,100),  mrec('mr033','c-pca3','ms0026',3,2025,99.5),
+  mrec('mr034','c-lcd1','ms0026',1,2025,99.8), mrec('mr035','c-lcd1','ms0026',2,2025,100),  mrec('mr036','c-lcd1','ms0026',3,2025,100),
+  mrec('mr037','c-lcd2','ms0026',1,2025,100),  mrec('mr038','c-lcd2','ms0026',2,2025,99.9), mrec('mr039','c-lcd2','ms0026',3,2025,100),
+  mrec('mr040','c-aio', 'ms0026',1,2025,99.5), mrec('mr041','c-aio', 'ms0026',2,2025,99.8), mrec('mr042','c-aio', 'ms0026',3,2025,99.9),
+  mrec('mr043','c-scan','ms0026',1,2025,100),  mrec('mr044','c-scan','ms0026',2,2025,100),  mrec('mr045','c-scan','ms0026',3,2025,99.8),
+  mrec('mr046','c-ups', 'ms0026',1,2025,98.5), mrec('mr047','c-ups', 'ms0026',2,2025,99.1), mrec('mr048','c-ups', 'ms0026',3,2025,99.8),
+  // MS-0030
+  mrec('mr049','c-dc1','ms0030',1,2025,99.99), mrec('mr050','c-dc1','ms0030',2,2025,100),
+  mrec('mr051','c-dc1','ms0030',3,2025,99.95), mrec('mr052','c-dc1','ms0030',4,2025,100),
+  mrec('mr053','c-dc2','ms0030',1,2025,98.11), mrec('mr054','c-dc2','ms0030',2,2025,97.88),
+  mrec('mr055','c-dc2','ms0030',3,2025,98.55), mrec('mr056','c-dc2','ms0030',4,2025,97.99),
+  // MS-0004
+  mrec('mr057','c-cctv',  'ms0004',1,2025,100),   mrec('mr058','c-cctv',  'ms0004',2,2025,99.9), mrec('mr059','c-cctv',  'ms0004',3,2025,100),
+  mrec('mr060','c-access','ms0004',1,2025,99.85), mrec('mr061','c-access','ms0004',2,2025,100),  mrec('mr062','c-access','ms0004',3,2025,99.95),
+
+  // ── PS-024-00 2026 (target 99) — Jan-Mei ─────────────────────────────────
+  // Region I: Jan✓ Feb✗ Mar✓ Apr✓ May✓
+  mrec26('xr001','c-p24-r1','sla-ps024',1, 99.92,'Nyaklia'),
+  mrec26('xr002','c-p24-r1','sla-ps024',2, 98.45,'Nyaklia','Incident jaringan R1-Feb'),
+  mrec26('xr003','c-p24-r1','sla-ps024',3, 99.88,'Nyaklia'),
+  mrec26('xr004','c-p24-r1','sla-ps024',4,100.00,'Nyaklia'),
+  mrec26('xr005','c-p24-r1','sla-ps024',5, 99.75),
+  // Region II: Jan✓ Feb✓ Mar✓ Apr✓ May✓
+  mrec26('xr006','c-p24-r2','sla-ps024',1,100.00,'Nyaklia'),
+  mrec26('xr007','c-p24-r2','sla-ps024',2, 99.55,'Nyaklia'),
+  mrec26('xr008','c-p24-r2','sla-ps024',3, 99.99,'Nyaklia'),
+  mrec26('xr009','c-p24-r2','sla-ps024',4, 99.88,'Nyaklia'),
+  mrec26('xr010','c-p24-r2','sla-ps024',5,100.00),
+  // Region III: semua ✗ (konsisten di bawah target 99)
+  mrec26('xr011','c-p24-r3','sla-ps024',1, 98.12,'Nyaklia','Gangguan infrastruktur R3'),
+  mrec26('xr012','c-p24-r3','sla-ps024',2, 97.88,'Nyaklia','Maintenance terjadwal R3'),
+  mrec26('xr013','c-p24-r3','sla-ps024',3, 98.45,'Nyaklia','Link backup bermasalah'),
+  mrec26('xr014','c-p24-r3','sla-ps024',4, 97.55,'Nyaklia','Gangguan power supply R3'),
+  mrec26('xr015','c-p24-r3','sla-ps024',5, 98.10),
+  // Regional Transmission: Jan✓ Feb✓ Mar✗ Apr✓ May✓
+  mrec26('xr016','c-p24-rt','sla-ps024',1, 99.45,'Nyaklia'),
+  mrec26('xr017','c-p24-rt','sla-ps024',2, 99.12,'Nyaklia'),
+  mrec26('xr018','c-p24-rt','sla-ps024',3, 98.76,'Nyaklia','Planned maintenance transmisi'),
+  mrec26('xr019','c-p24-rt','sla-ps024',4, 99.88,'Nyaklia'),
+  mrec26('xr020','c-p24-rt','sla-ps024',5, 99.55),
+  // IOGM: Jan✓ Feb✓ Mar✓ Apr✗ May✓
+  mrec26('xr021','c-p24-ig','sla-ps024',1, 99.88,'Nyaklia'),
+  mrec26('xr022','c-p24-ig','sla-ps024',2, 99.45,'Nyaklia'),
+  mrec26('xr023','c-p24-ig','sla-ps024',3, 99.99,'Nyaklia'),
+  mrec26('xr024','c-p24-ig','sla-ps024',4, 98.55,'Nyaklia','Gangguan SCADA IOGM Apr'),
+  mrec26('xr025','c-p24-ig','sla-ps024',5, 99.77),
+
+  // ── PS-025-00 2026 (target 98) — Jan-Mei ─────────────────────────────────
+  // Modul Inventory: Jan✓ Feb✓ Mar✓ Apr✓ May✓
+  mrec26('xr026','c-p25-in','sla-ps025',1, 99.12,'Budi Santoso'),
+  mrec26('xr027','c-p25-in','sla-ps025',2, 98.88,'Budi Santoso'),
+  mrec26('xr028','c-p25-in','sla-ps025',3, 99.45,'Budi Santoso'),
+  mrec26('xr029','c-p25-in','sla-ps025',4, 98.55,'Budi Santoso'),
+  mrec26('xr030','c-p25-in','sla-ps025',5, 99.22),
+  // Modul Maintenance: semua ✗ (konsisten di bawah target 98)
+  mrec26('xr031','c-p25-mn','sla-ps025',1, 96.88,'Budi Santoso','Backlog tiket maintenance tinggi'),
+  mrec26('xr032','c-p25-mn','sla-ps025',2, 97.22,'Budi Santoso','Keterlambatan spare part'),
+  mrec26('xr033','c-p25-mn','sla-ps025',3, 96.55,'Budi Santoso','Resource maintenance kurang'),
+  mrec26('xr034','c-p25-mn','sla-ps025',4, 97.11,'Budi Santoso','Eskalasi tiket kritis'),
+  mrec26('xr035','c-p25-mn','sla-ps025',5, 96.99),
+  // Modul Reporting: Jan✓ Feb✓ Mar✓ Apr✗ May✓
+  mrec26('xr036','c-p25-rp','sla-ps025',1, 99.55,'Budi Santoso'),
+  mrec26('xr037','c-p25-rp','sla-ps025',2, 98.12,'Budi Santoso'),
+  mrec26('xr038','c-p25-rp','sla-ps025',3, 99.11,'Budi Santoso'),
+  mrec26('xr039','c-p25-rp','sla-ps025',4, 97.88,'Budi Santoso','Report engine error Apr'),
+  mrec26('xr040','c-p25-rp','sla-ps025',5, 99.44),
+  // Modul Integration: Jan✓ Feb✓ Mar✗ Apr✓ May✓
+  mrec26('xr041','c-p25-it','sla-ps025',1, 98.55,'Budi Santoso'),
+  mrec26('xr042','c-p25-it','sla-ps025',2, 99.22,'Budi Santoso'),
+  mrec26('xr043','c-p25-it','sla-ps025',3, 97.11,'Budi Santoso','API integration timeout Mar'),
+  mrec26('xr044','c-p25-it','sla-ps025',4, 98.88,'Budi Santoso'),
+  mrec26('xr045','c-p25-it','sla-ps025',5, 99.55),
+
+  // ── PS-026-00 2026 (target 99.5) — Jan-Mei ───────────────────────────────
+  // Printer A3: Jan✓ Feb✓ Mar✓ Apr✓ May✓
+  mrec26('xr046','c-p26-a3','sla-ps026',1, 99.88,'Dimas Pratama'),
+  mrec26('xr047','c-p26-a3','sla-ps026',2,100.00,'Dimas Pratama'),
+  mrec26('xr048','c-p26-a3','sla-ps026',3, 99.77,'Dimas Pratama'),
+  mrec26('xr049','c-p26-a3','sla-ps026',4, 99.88,'Dimas Pratama'),
+  mrec26('xr050','c-p26-a3','sla-ps026',5,100.00),
+  // Printer A4: Jan✓ Feb✓ Mar✓ Apr✓ May✓
+  mrec26('xr051','c-p26-a4','sla-ps026',1,100.00,'Dimas Pratama'),
+  mrec26('xr052','c-p26-a4','sla-ps026',2, 99.55,'Dimas Pratama'),
+  mrec26('xr053','c-p26-a4','sla-ps026',3, 99.88,'Dimas Pratama'),
+  mrec26('xr054','c-p26-a4','sla-ps026',4,100.00,'Dimas Pratama'),
+  mrec26('xr055','c-p26-a4','sla-ps026',5, 99.77),
+  // LCD Projector: Jan✓ Feb✗ Mar✓ Apr✓ May✗
+  mrec26('xr056','c-p26-lc','sla-ps026',1, 99.66,'Dimas Pratama'),
+  mrec26('xr057','c-p26-lc','sla-ps026',2, 99.11,'Dimas Pratama','Lampu projector rusak Feb'),
+  mrec26('xr058','c-p26-lc','sla-ps026',3, 99.99,'Dimas Pratama'),
+  mrec26('xr059','c-p26-lc','sla-ps026',4, 99.77,'Dimas Pratama'),
+  mrec26('xr060','c-p26-lc','sla-ps026',5, 99.33),
+  // UPS: semua ✗ (konsisten di bawah target 99.5)
+  mrec26('xr061','c-p26-up','sla-ps026',1, 98.45,'Dimas Pratama','Baterai UPS degradasi'),
+  mrec26('xr062','c-p26-up','sla-ps026',2, 97.88,'Dimas Pratama','Penggantian baterai terjadwal'),
+  mrec26('xr063','c-p26-up','sla-ps026',3, 98.55,'Dimas Pratama','Gangguan switching UPS'),
+  mrec26('xr064','c-p26-up','sla-ps026',4, 97.22,'Dimas Pratama','UPS overload beban tinggi'),
+  mrec26('xr065','c-p26-up','sla-ps026',5, 98.11),
+  // Scanner: Jan✓ Feb✓ Mar✓ Apr✓ May✓
+  mrec26('xr066','c-p26-sc','sla-ps026',1, 99.88,'Dimas Pratama'),
+  mrec26('xr067','c-p26-sc','sla-ps026',2,100.00,'Dimas Pratama'),
+  mrec26('xr068','c-p26-sc','sla-ps026',3, 99.77,'Dimas Pratama'),
+  mrec26('xr069','c-p26-sc','sla-ps026',4,100.00,'Dimas Pratama'),
+  mrec26('xr070','c-p26-sc','sla-ps026',5, 99.99),
+  // Monitor: Jan✓ Feb✓ Mar✗ Apr✗ May✓
+  mrec26('xr071','c-p26-mo','sla-ps026',1, 99.55,'Dimas Pratama'),
+  mrec26('xr072','c-p26-mo','sla-ps026',2, 99.88,'Dimas Pratama'),
+  mrec26('xr073','c-p26-mo','sla-ps026',3, 98.44,'Dimas Pratama','Panel monitor bermasalah Mar'),
+  mrec26('xr074','c-p26-mo','sla-ps026',4, 99.11,'Dimas Pratama','Backlight failure beberapa unit'),
+  mrec26('xr075','c-p26-mo','sla-ps026',5, 99.88),
 ]
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -81,25 +221,27 @@ interface MonitoringSLAState {
   components: SLAComponent[]
   monthlyRecords: SLAMonthlyRecord[]
 
-  // Project CRUD
   addProject: (data: Omit<SLAProject, 'id' | 'createdAt' | 'updatedAt'>) => SLAProject
   updateProject: (id: string, patch: Partial<Omit<SLAProject, 'id' | 'createdAt'>>) => void
   deleteProject: (id: string) => void
   getProjectById: (id: string) => SLAProject | undefined
 
-  // Component CRUD
   addComponent: (data: Omit<SLAComponent, 'id' | 'createdAt' | 'updatedAt'>) => SLAComponent
   updateComponent: (id: string, patch: Partial<Omit<SLAComponent, 'id' | 'createdAt'>>) => void
   deleteComponent: (id: string) => void
   getComponentById: (id: string) => SLAComponent | undefined
   getProjectComponents: (projectId: string) => SLAComponent[]
 
-  // Monthly CRUD
-  addMonthlyRecord: (data: Omit<SLAMonthlyRecord, 'id' | 'createdAt' | 'updatedAt'>) => SLAMonthlyRecord
+  addMonthlyRecord: (data: Omit<SLAMonthlyRecord, 'id' | 'createdAt' | 'updatedAt' | 'lockedAt' | 'lockedByName' | 'reconfirmRequested' | 'reconfirmNote'>, submittedByName?: string) => SLAMonthlyRecord
   updateMonthlyRecord: (id: string, patch: Partial<Omit<SLAMonthlyRecord, 'id' | 'createdAt'>>) => void
   deleteMonthlyRecord: (id: string) => void
   getComponentRecords: (componentId: string) => SLAMonthlyRecord[]
   getProjectRecords: (projectId: string, year: number) => SLAMonthlyRecord[]
+
+  lockRecord: (id: string, byName: string) => void
+  unlockRecord: (id: string) => void
+  requestReconfirm: (id: string, note: string) => void
+  clearReconfirm: (id: string) => void
 }
 
 export const useMonitoringSLAStore = create<MonitoringSLAState>()(
@@ -109,7 +251,6 @@ export const useMonitoringSLAStore = create<MonitoringSLAState>()(
       components: SEED_COMPONENTS,
       monthlyRecords: SEED_RECORDS,
 
-      // ── Project ──
       addProject: (data) => {
         const now = nowIso()
         const record: SLAProject = { ...data, id: uid('sla-proj'), createdAt: now, updatedAt: now }
@@ -132,7 +273,6 @@ export const useMonitoringSLAStore = create<MonitoringSLAState>()(
       },
       getProjectById: (id) => get().projects.find((p) => p.id === id),
 
-      // ── Component ──
       addComponent: (data) => {
         const now = nowIso()
         const record: SLAComponent = { ...data, id: uid('sla-comp'), createdAt: now, updatedAt: now }
@@ -151,10 +291,9 @@ export const useMonitoringSLAStore = create<MonitoringSLAState>()(
       getComponentById: (id) => get().components.find((c) => c.id === id),
       getProjectComponents: (projectId) => get().components.filter((c) => c.projectId === projectId),
 
-      // ── Monthly Records ──
-      addMonthlyRecord: (data) => {
+      addMonthlyRecord: (data, submittedByName) => {
         const now = nowIso()
-        const record: SLAMonthlyRecord = { ...data, id: uid('sla-rec'), createdAt: now, updatedAt: now }
+        const record: SLAMonthlyRecord = { ...data, id: uid('sla-rec'), createdAt: now, updatedAt: now, lockedAt: now, lockedByName: submittedByName ?? null, reconfirmRequested: false, reconfirmNote: '' }
         set((s) => ({ monthlyRecords: [...s.monthlyRecords, record] }))
         return record
       },
@@ -166,14 +305,42 @@ export const useMonitoringSLAStore = create<MonitoringSLAState>()(
       },
       getComponentRecords: (componentId) => get().monthlyRecords.filter((r) => r.componentId === componentId),
       getProjectRecords: (projectId, year) => get().monthlyRecords.filter((r) => r.projectId === projectId && r.year === year),
+
+      lockRecord: (id, byName) => {
+        const now = nowIso()
+        set((s) => ({ monthlyRecords: s.monthlyRecords.map((r) => r.id === id ? { ...r, lockedAt: now, lockedByName: byName, updatedAt: now } : r) }))
+      },
+      unlockRecord: (id) => {
+        set((s) => ({ monthlyRecords: s.monthlyRecords.map((r) => r.id === id ? { ...r, lockedAt: null, lockedByName: null, updatedAt: nowIso() } : r) }))
+      },
+      requestReconfirm: (id, note) => {
+        set((s) => ({ monthlyRecords: s.monthlyRecords.map((r) => r.id === id ? { ...r, reconfirmRequested: true, reconfirmNote: note, updatedAt: nowIso() } : r) }))
+      },
+      clearReconfirm: (id) => {
+        set((s) => ({ monthlyRecords: s.monthlyRecords.map((r) => r.id === id ? { ...r, reconfirmRequested: false, reconfirmNote: '', updatedAt: nowIso() } : r) }))
+      },
     }),
     {
       name: 'flowdesk:monitoring-sla',
-      // Seed data only loads on fresh install (no existing localStorage key)
       merge: (persisted: unknown, current) => {
         const p = persisted as Partial<MonitoringSLAState>
         if (!p.projects?.length) return current
-        return { ...current, ...p }
+
+        // Inject seed projects/components/records not yet in localStorage
+        const persistedProjIds = new Set((p.projects ?? []).map((pr) => pr.id))
+        const missingProjects = current.projects.filter((pr) => !persistedProjIds.has(pr.id))
+        const missingProjIds = new Set(missingProjects.map((pr) => pr.id))
+        const missingComponents = current.components.filter((c) => missingProjIds.has(c.projectId))
+        const missingCompIds = new Set(missingComponents.map((c) => c.id))
+        const missingRecords = current.monthlyRecords.filter((r) => missingCompIds.has(r.componentId))
+
+        return {
+          ...current,
+          ...p,
+          projects: [...(p.projects ?? []), ...missingProjects],
+          components: [...(p.components ?? []), ...missingComponents],
+          monthlyRecords: [...(p.monthlyRecords ?? []), ...missingRecords],
+        }
       },
     },
   ),
