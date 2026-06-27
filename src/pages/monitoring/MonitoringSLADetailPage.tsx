@@ -372,12 +372,12 @@ export function MonitoringSLADetailPage() {
                           <p className="mt-1 text-ink-secondary italic ml-4">{rec.reconfirmNote}</p>
                         )}
                       </div>
-                      {(isDoccon || canUnlockRecord) && (
+                      {(isDoccon || canUnlockRecord || isEngineerOS) && (
                         <button
                           onClick={() => handleClearReconfirm(rec.id)}
                           className="shrink-0 rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 transition flex items-center gap-1"
                         >
-                          <CheckCircle2 size={11} /> Selesai
+                          <CheckCircle2 size={11} /> {isEngineerOS ? 'Konfirmasi' : 'Selesai'}
                         </button>
                       )}
                     </div>

@@ -1,14 +1,18 @@
 import { useMemo, useState } from 'react'
-import { Plus, Search, Download, Eye, Pencil, Trash2, Filter, FileText, ChevronLeft, ChevronRight, Archive, AlertTriangle, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
+import {
+  Plus, Search, Download, Eye, Pencil, Trash2, Filter,
+  FileText, ChevronLeft, ChevronRight, Archive,
+  AlertTriangle, Clock, CheckCircle2, AlertCircle,
+} from 'lucide-react'
 import { MonthPicker } from '../../components/ui/MonthPicker'
 import { useMonitoringReportStore } from '../../store/useMonitoringReportStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { Button } from '../../components/ui/Button'
-import { downloadCsv, formatDateShort } from '../../utils/helpers'
+import { classNames, downloadCsv, formatDateShort } from '../../utils/helpers'
 import { reportMonthLabel, prevReportMonth, nextReportMonth, type ReportDocument } from '../../types/monitoring'
 
-// ── Bottleneck helpers ──────────────────────────────────────────────────────
+// ── Bottleneck helpers ───────────────────────────────────────────────────────
 
 function daysBetween(a: string | null | undefined, b: string | null | undefined): number | null {
   if (!a || !b) return null
@@ -17,7 +21,6 @@ function daysBetween(a: string | null | undefined, b: string | null | undefined)
 }
 
 function computeBottleneck(docs: ReportDocument[]) {
-  const today = new Date().toDateString()
   const todayMs = new Date().getTime()
 
   const engineerDays: number[] = []
@@ -28,22 +31,18 @@ function computeBottleneck(docs: ReportDocument[]) {
   let stuckDoccon = 0
 
   for (const d of docs) {
-    // Engineer phase
     const eDays = daysBetween(d.engineerStartedAt, d.engineerSubmittedAt ?? (d.engineerStartedAt ? new Date().toISOString() : null))
     if (eDays != null) engineerDays.push(eDays)
     if ((d.currentPhase ?? 'engineer') === 'engineer' && (d.status === 'DRAFT' || d.status === 'SUBMITTED' || d.status === 'REVISION_REQUIRED')) {
       const start = d.engineerStartedAt ? new Date(d.engineerStartedAt).getTime() : null
       if (start && (todayMs - start) / 86400000 > 5) stuckEngineer++
-      else if (!start) { void today }
     }
-    // Customer phase
     const cDays = daysBetween(d.customerReceivedAt, d.customerApprovedAt ?? (d.customerReceivedAt && d.status === 'UNDER_REVIEW' ? new Date().toISOString() : null))
     if (cDays != null) customerDays.push(cDays)
     if (d.status === 'UNDER_REVIEW') {
       const start = d.customerReceivedAt ? new Date(d.customerReceivedAt).getTime() : null
       if (start && (todayMs - start) / 86400000 > 3) stuckCustomer++
     }
-    // Doccon phase
     const dDays = daysBetween(d.docconReceivedAt, d.docconDeliveredAt ?? (d.docconReceivedAt && d.currentPhase === 'doccon' && d.docconSubStatus !== 'delivered' ? new Date().toISOString() : null))
     if (dDays != null) docconDays.push(dDays)
     if (d.currentPhase === 'doccon' && d.docconSubStatus && d.docconSubStatus !== 'delivered') {
@@ -52,57 +51,131 @@ function computeBottleneck(docs: ReportDocument[]) {
     }
   }
 
-  const avg = (arr: number[]) => arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : '—'
+  const avgNum = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null
+  const avgStr = (n: number | null) => n !== null ? n.toFixed(1) : '—'
+
   return {
-    engineerAvg: avg(engineerDays), stuckEngineer,
-    customerAvg: avg(customerDays), stuckCustomer,
-    docconAvg: avg(docconDays), stuckDoccon,
+    engineerAvg: avgStr(avgNum(engineerDays)), engineerAvgNum: avgNum(engineerDays), stuckEngineer,
+    customerAvg: avgStr(avgNum(customerDays)), customerAvgNum: avgNum(customerDays), stuckCustomer,
+    docconAvg:   avgStr(avgNum(docconDays)),   docconAvgNum:   avgNum(docconDays),   stuckDoccon,
   }
 }
 
-// Early warning badge for a project's docs in the selected period
-function EarlyWarningBadge({ docs }: { docs: ReportDocument[] }) {
-  const today = new Date()
-  let hasOverdue = false
-  let hasH1 = false
-  let hasH3 = false
-  let hasFlagged = false
+// ── Phase pipeline bar ───────────────────────────────────────────────────────
 
-  for (const d of docs) {
-    if (d.salesFlagIssue) hasFlagged = true
-    if (!d.deadlineToSales) continue
-    const deadline = new Date(d.deadlineToSales)
-    const diffDays = Math.ceil((deadline.getTime() - today.getTime()) / 86400000)
-    if (diffDays < 0) hasOverdue = true
-    else if (diffDays <= 1) hasH1 = true
-    else if (diffDays <= 3) hasH3 = true
-  }
+function PipelineBar({ docs }: { docs: ReportDocument[] }) {
+  const eng  = docs.filter(d => (d.currentPhase ?? 'engineer') === 'engineer').length
+  const cust = docs.filter(d => d.currentPhase === 'customer').length
+  const doc  = docs.filter(d => d.currentPhase === 'doccon' && d.docconSubStatus !== 'delivered').length
+  const done = docs.filter(d => d.docconSubStatus === 'delivered').length
+  const total = docs.length
+  if (!total) return <span className="text-xs text-ink-muted">—</span>
 
-  if (hasOverdue) return <span className="chip bg-red-100 text-red-700 text-[10px] font-medium">Overdue</span>
-  if (hasFlagged) return <span className="chip bg-orange-100 text-orange-700 text-[10px] font-medium">Flagged</span>
-  if (hasH1) return <span className="chip bg-red-50 text-red-600 text-[10px] font-medium">H-1</span>
-  if (hasH3) return <span className="chip bg-amber-100 text-amber-700 text-[10px] font-medium">H-3</span>
-  return null
-}
+  const pct = (n: number) => `${Math.round((n / total) * 100)}%`
+  const tooltip = [
+    eng  > 0 && `Eng: ${eng}`,
+    cust > 0 && `Customer: ${cust}`,
+    doc  > 0 && `Doccon: ${doc}`,
+    done > 0 && `Done: ${done}`,
+  ].filter(Boolean).join(' · ')
 
-// Mini phase summary for a project's docs in the selected period
-function PhasesSummary({ docs }: { docs: ReportDocument[] }) {
-  const eng = docs.filter((d) => (d.currentPhase ?? 'engineer') === 'engineer').length
-  const cus = docs.filter((d) => d.currentPhase === 'customer').length
-  const doc = docs.filter((d) => d.currentPhase === 'doccon' && d.docconSubStatus !== 'delivered').length
-  const done = docs.filter((d) => d.docconSubStatus === 'delivered').length
-
-  if (!docs.length) return <span className="text-ink-muted text-xs">—</span>
   return (
-    <div className="flex items-center gap-1 flex-wrap">
-      {eng > 0 && <span className="chip bg-blue-50 text-blue-700 text-[9px]">Eng {eng}</span>}
-      {cus > 0 && <span className="chip bg-purple-50 text-purple-700 text-[9px]">Cust {cus}</span>}
-      {doc > 0 && <span className="chip bg-amber-50 text-amber-700 text-[9px]">Doccon {doc}</span>}
-      {done > 0 && <span className="chip bg-emerald-50 text-emerald-700 text-[9px]">Done {done}</span>}
+    <div className="flex items-center gap-2" title={tooltip}>
+      <div className="flex h-1.5 w-14 rounded-full overflow-hidden gap-px bg-black/[0.06] flex-shrink-0">
+        {eng  > 0 && <div className="bg-blue-400 flex-shrink-0"    style={{ width: pct(eng) }} />}
+        {cust > 0 && <div className="bg-violet-400 flex-shrink-0"  style={{ width: pct(cust) }} />}
+        {doc  > 0 && <div className="bg-amber-400 flex-shrink-0"   style={{ width: pct(doc) }} />}
+        {done > 0 && <div className="bg-emerald-400 flex-shrink-0" style={{ width: pct(done) }} />}
+      </div>
+      <span className="text-[10px] tabular-nums whitespace-nowrap">
+        <span className={classNames('font-medium', done === total ? 'text-emerald-600' : 'text-ink-primary')}>{done}</span>
+        <span className="text-ink-muted">/{total}</span>
+      </span>
     </div>
   )
 }
 
+// ── Early warning badge ──────────────────────────────────────────────────────
+
+function WarningBadge({ docs }: { docs: ReportDocument[] }) {
+  const today = new Date()
+  let hasOverdue = false, hasH1 = false, hasH3 = false, hasFlagged = false
+  for (const d of docs) {
+    if (d.salesFlagIssue) hasFlagged = true
+    if (!d.deadlineToSales) continue
+    const diffDays = Math.ceil((new Date(d.deadlineToSales).getTime() - today.getTime()) / 86400000)
+    if (diffDays < 0) hasOverdue = true
+    else if (diffDays <= 1) hasH1 = true
+    else if (diffDays <= 3) hasH3 = true
+  }
+  if (hasOverdue)  return <span className="chip bg-red-100 text-red-700 text-[9px] font-semibold">OVERDUE</span>
+  if (hasFlagged)  return <span className="chip bg-orange-100 text-orange-700 text-[9px] font-semibold">Flagged</span>
+  if (hasH1)       return <span className="chip bg-red-50 text-red-600 text-[9px] font-semibold">H-1</span>
+  if (hasH3)       return <span className="chip bg-amber-100 text-amber-700 text-[9px] font-semibold">H-3</span>
+  return null
+}
+
+// ── Bottleneck analytics card ────────────────────────────────────────────────
+
+function BottleneckCard({
+  label, icon, avg, avgNum, stuck, sla, slaNum, color,
+}: {
+  label: string
+  icon: React.ReactNode
+  avg: string
+  avgNum: number | null
+  stuck: number
+  sla: string
+  slaNum: number
+  color: 'blue' | 'purple' | 'amber'
+}) {
+  const ratio = avgNum !== null ? avgNum / slaNum : null
+  const isOver  = ratio !== null && ratio > 1
+  const isWarn  = ratio !== null && ratio >= 0.8 && !isOver
+  const isOK    = ratio !== null && !isOver && !isWarn
+  const gaugeW  = ratio !== null ? `${Math.min(100, ratio * 100)}%` : '0%'
+
+  const accentCls = {
+    blue:   'bg-blue-500',
+    purple: 'bg-violet-500',
+    amber:  'bg-amber-500',
+  }[color]
+
+  const gaugeCls = isOver ? 'bg-red-400' : isWarn ? 'bg-amber-400' : 'bg-emerald-400'
+  const avgCls   = isOver ? 'text-red-600' : isWarn ? 'text-amber-600' : 'text-ink-primary'
+
+  return (
+    <div className="surface rounded-xl p-4 flex flex-col gap-3 relative overflow-hidden">
+      <div className={`absolute left-0 top-3 bottom-3 w-[3px] rounded-full ${accentCls}`} />
+      <div className="pl-3 flex items-center justify-between gap-2">
+        <div className={classNames('flex items-center gap-1.5 text-[11px] font-semibold text-ink-secondary')}>
+          {icon} {label}
+        </div>
+        {stuck > 0 ? (
+          <span className="chip bg-red-100 text-red-700 text-[10px] flex items-center gap-0.5 font-semibold">
+            <AlertTriangle size={9} /> {stuck} stuck
+          </span>
+        ) : avgNum !== null ? (
+          <span className="chip bg-emerald-100 text-emerald-700 text-[10px] font-medium">On Track</span>
+        ) : null}
+      </div>
+      <div className="pl-3">
+        <div className="flex items-baseline gap-1.5">
+          <span className={classNames('text-2xl font-bold tabular-nums', avgCls)}>{avg}</span>
+          <span className="text-xs text-ink-tertiary">hari avg</span>
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <div className="flex-1 h-1 rounded-full bg-black/[0.06] overflow-hidden">
+            <div className={classNames('h-full rounded-full transition-all', gaugeCls)} style={{ width: gaugeW }} />
+          </div>
+          <span className="text-[10px] text-ink-tertiary whitespace-nowrap">SLA {sla}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
 
 export function MonitoringReportPage() {
   const { projects, documents, billingDocuments, deleteProject, endProjectAt } = useMonitoringReportStore()
@@ -113,12 +186,15 @@ export function MonitoringReportPage() {
   const setSelectedMonth = useUIStore((s) => s.setSelectedReportMonth)
   const { canDeleteMonitoring } = useMonitoringRole()
 
-  const [search, setSearch] = useState('')
+  const [search, setSearch]       = useState('')
   const [deptFilter, setDeptFilter] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  const [confirmEndId, setConfirmEndId] = useState<string | null>(null)
+  const [confirmEndId, setConfirmEndId]       = useState<string | null>(null)
 
-  const departments = useMemo(() => [...new Set(projects.map((p) => p.department).filter(Boolean))].sort(), [projects])
+  const departments = useMemo(
+    () => [...new Set(projects.map((p) => p.department).filter(Boolean))].sort(),
+    [projects],
+  )
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -142,11 +218,8 @@ export function MonitoringReportPage() {
     return documents.filter((d) => d.projectId === projectId && d.period === selectedMonth)
   }
 
-  function docCountByPeriod(projectId: string, type: 'customer' | 'vendor') {
+  function docCount(projectId: string, type: 'customer' | 'vendor') {
     return documents.filter((d) => d.projectId === projectId && d.docType === type && d.period === selectedMonth).length
-  }
-  function pendingCountByPeriod(projectId: string) {
-    return documents.filter((d) => d.projectId === projectId && d.status !== 'APPROVED' && d.period === selectedMonth).length
   }
 
   function openDetail(projectId: string) {
@@ -163,9 +236,8 @@ export function MonitoringReportPage() {
         Department: p.department,
         'PIC Laporan': p.picLaporan,
         Periode: reportMonthLabel(selectedMonth),
-        'Dok. Customer': docCountByPeriod(p.id, 'customer'),
-        'Dok. Vendor': docCountByPeriod(p.id, 'vendor'),
-        'Pending': pendingCountByPeriod(p.id),
+        'Dok. Customer': docCount(p.id, 'customer'),
+        'Dok. Vendor': docCount(p.id, 'vendor'),
         'Created': formatDateShort(p.createdAt),
       })),
       'monitoring-report-projects.csv',
@@ -175,53 +247,31 @@ export function MonitoringReportPage() {
   return (
     <div className="absolute inset-0 overflow-y-auto p-5 space-y-4">
 
-      {/* Bottleneck Analytics Card */}
+      {/* ── Bottleneck analytics ── */}
       <div className="grid grid-cols-3 gap-3">
-        {[
-          {
-            label: 'Engineer Phase', icon: <Clock size={14} />,
-            avg: bottleneck.engineerAvg, stuck: bottleneck.stuckEngineer,
-            sla: '5 hari', color: 'blue',
-          },
-          {
-            label: 'Customer Phase', icon: <AlertCircle size={14} />,
-            avg: bottleneck.customerAvg, stuck: bottleneck.stuckCustomer,
-            sla: '3 hari', color: 'purple',
-          },
-          {
-            label: 'Doccon Phase', icon: <CheckCircle2 size={14} />,
-            avg: bottleneck.docconAvg, stuck: bottleneck.stuckDoccon,
-            sla: '2 hari', color: 'amber',
-          },
-        ].map(({ label, icon, avg, stuck, sla, color }) => (
-          <div key={label} className="surface rounded-xl p-4 flex flex-col gap-2">
-            <div className={`flex items-center gap-1.5 text-${color}-600 text-[11px] font-semibold uppercase tracking-widest`}>
-              {icon} {label}
-            </div>
-            <div className="flex items-end justify-between">
-              <div>
-                <div className="text-2xl font-bold text-ink-primary tabular-nums">{avg}</div>
-                <div className="text-[10px] text-ink-tertiary">rata-rata hari (SLA {sla})</div>
-              </div>
-              {stuck > 0 ? (
-                <div className="flex items-center gap-1 text-red-600">
-                  <AlertTriangle size={13} />
-                  <span className="text-sm font-semibold">{stuck}</span>
-                  <span className="text-[10px]">stuck</span>
-                </div>
-              ) : (
-                <div className="text-[10px] text-emerald-600 font-medium">OK</div>
-              )}
-            </div>
-          </div>
-        ))}
+        <BottleneckCard
+          label="Engineer Phase" icon={<Clock size={13} />}
+          avg={bottleneck.engineerAvg} avgNum={bottleneck.engineerAvgNum}
+          stuck={bottleneck.stuckEngineer} sla="5 hari" slaNum={5} color="blue"
+        />
+        <BottleneckCard
+          label="Customer Phase" icon={<AlertCircle size={13} />}
+          avg={bottleneck.customerAvg} avgNum={bottleneck.customerAvgNum}
+          stuck={bottleneck.stuckCustomer} sla="3 hari" slaNum={3} color="purple"
+        />
+        <BottleneckCard
+          label="Doccon Phase" icon={<CheckCircle2 size={13} />}
+          avg={bottleneck.docconAvg} avgNum={bottleneck.docconAvgNum}
+          stuck={bottleneck.stuckDoccon} sla="2 hari" slaNum={2} color="amber"
+        />
       </div>
 
       <div className="surface rounded-xl overflow-hidden">
-        {/* Month navigator bar */}
+
+        {/* ── Month navigator ── */}
         <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-border-subtle bg-black/[0.01]">
           <span className="text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary">Periode</span>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5">
             <button
               onClick={() => setSelectedMonth(prevReportMonth(selectedMonth))}
               className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.05] transition"
@@ -241,7 +291,7 @@ export function MonitoringReportPage() {
           </span>
         </div>
 
-        {/* Toolbar */}
+        {/* ── Toolbar ── */}
         <div className="flex flex-wrap items-center gap-2 p-4 border-b border-border-subtle">
           <div className="relative flex-1 min-w-[180px] max-w-xs">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary pointer-events-none" />
@@ -252,83 +302,184 @@ export function MonitoringReportPage() {
               className="input-base pl-9 text-xs"
             />
           </div>
-          <div className="flex items-center gap-1 text-[11px] text-ink-tertiary">
-            <Filter size={12} />
-          </div>
-          <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} className="input-base text-xs w-auto py-1.5 pr-7">
+          <Filter size={12} className="text-ink-tertiary" />
+          <select
+            value={deptFilter}
+            onChange={(e) => setDeptFilter(e.target.value)}
+            className="input-base text-xs w-auto py-1.5 pr-7"
+          >
             <option value="">Semua Dept</option>
             {departments.map((d) => <option key={d} value={d}>{d}</option>)}
           </select>
           <span className="text-[11px] text-ink-tertiary ml-auto">{filtered.length} project</span>
           <Button variant="ghost" size="sm" onClick={handleExport} leftIcon={<Download size={13} />}>Export</Button>
-          <Button size="sm" onClick={() => openModal({ type: 'monitoring-report-project-create' })} leftIcon={<Plus size={13} />}>Tambah Project</Button>
+          <Button size="sm" onClick={() => openModal({ type: 'monitoring-report-project-create' })} leftIcon={<Plus size={13} />}>
+            Tambah Project
+          </Button>
         </div>
 
-        {/* Table */}
+        {/* ── Table ── */}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border-subtle bg-black/[0.02]">
-                {['Kode Project', 'Client', 'Nama Kontrak', 'Dept', 'PIC Laporan', 'Dok. Customer', 'Dok. Vendor', 'Billing', 'Phase', 'Warning', 'Aksi'].map((h) => (
-                  <th key={h} className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">{h}</th>
+                {[
+                  { label: 'Project',       cls: 'min-w-[220px]' },
+                  { label: 'Client · Dept', cls: 'min-w-[140px]' },
+                  { label: 'PIC',           cls: 'min-w-[100px]' },
+                  { label: 'Dokumen',       cls: 'text-center'   },
+                  { label: 'Billing',       cls: 'min-w-[100px]' },
+                  { label: 'Status',        cls: 'min-w-[160px]' },
+                  { label: 'Aksi',          cls: ''              },
+                ].map(({ label, cls }) => (
+                  <th
+                    key={label}
+                    className={classNames(
+                      'text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap',
+                      cls,
+                    )}
+                  >
+                    {label}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
               {filtered.map((p) => {
-                const custDocs = docCountByPeriod(p.id, 'customer')
-                const vendDocs = docCountByPeriod(p.id, 'vendor')
+                const custDocs  = docCount(p.id, 'customer')
+                const vendDocs  = docCount(p.id, 'vendor')
                 const billingDocs = billingDocuments.filter((b) => b.projectId === p.id)
                 const billingDone = billingDocs.filter((b) => b.status === 'COMPLETED').length
-                const billingPct = billingDocs.length > 0 ? Math.round((billingDone / billingDocs.length) * 100) : 0
-                const projDocs = getProjectDocs(p.id)
+                const billingPct  = billingDocs.length > 0 ? Math.round((billingDone / billingDocs.length) * 100) : 0
+                const projDocs  = getProjectDocs(p.id)
+                const totalDocs = custDocs + vendDocs
+
                 return (
                   <tr
                     key={p.id}
-                    className="hover:bg-black/[0.02] transition-colors cursor-pointer"
+                    className="hover:bg-black/[0.02] transition-colors cursor-pointer group"
                     onClick={() => openDetail(p.id)}
                   >
-                    <td className="px-4 py-3 text-xs font-mono font-medium text-pertamina-red whitespace-nowrap">{p.kodeProject}</td>
-                    <td className="px-4 py-3 text-xs text-ink-primary whitespace-nowrap">{p.client}</td>
-                    <td className="px-4 py-3 text-xs text-ink-secondary max-w-[220px] truncate" title={p.namaKontrak}>{p.namaKontrak}</td>
-                    <td className="px-4 py-3 text-xs text-ink-secondary whitespace-nowrap">{p.department}</td>
-                    <td className="px-4 py-3 text-xs text-ink-secondary whitespace-nowrap">{p.picLaporan}</td>
-                    <td className="px-4 py-3 text-xs text-center">
-                      {custDocs > 0
-                        ? <span className="font-medium text-ink-primary">{custDocs}</span>
-                        : <span className="text-ink-muted">—</span>
-                      }
+                    {/* ① Project — kode chip + nama */}
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[10px] font-mono font-semibold text-pertamina-red tracking-wide">
+                          {p.kodeProject}
+                        </span>
+                        <span
+                          className="text-xs font-medium text-ink-primary max-w-[240px] truncate leading-tight"
+                          title={p.namaKontrak}
+                        >
+                          {p.namaKontrak}
+                        </span>
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-xs text-center">
-                      {vendDocs > 0
-                        ? <span className="font-medium text-ink-primary">{vendDocs}</span>
-                        : <span className="text-ink-muted">—</span>
-                      }
+
+                    {/* ② Client · Dept */}
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs text-ink-primary whitespace-nowrap">{p.client}</span>
+                        {p.department && (
+                          <span className="chip bg-slate-100 text-slate-600 text-[9px] font-medium w-fit">
+                            {p.department}
+                          </span>
+                        )}
+                      </div>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {billingDocs.length > 0 ? (
-                        <div className="flex items-center gap-2 min-w-[80px]">
-                          <div className="flex-1 h-1.5 rounded-full bg-black/[0.06] overflow-hidden">
-                            <div className="h-full rounded-full bg-pertamina-red transition-all" style={{ width: `${billingPct}%` }} />
-                          </div>
-                          <span className="text-[10px] text-ink-tertiary whitespace-nowrap">{billingDone}/{billingDocs.length}</span>
+
+                    {/* ③ PIC */}
+                    <td className="px-4 py-3">
+                      <span className="text-xs text-ink-secondary whitespace-nowrap">{p.picLaporan || '—'}</span>
+                    </td>
+
+                    {/* ④ Dokumen — customer + vendor */}
+                    <td className="px-4 py-3">
+                      {totalDocs > 0 ? (
+                        <div className="flex items-center gap-2">
+                          {custDocs > 0 && (
+                            <div className="flex items-center gap-0.5">
+                              <span className="text-xs font-semibold text-ink-primary tabular-nums">{custDocs}</span>
+                              <span className="text-[9px] text-ink-muted uppercase tracking-wide">C</span>
+                            </div>
+                          )}
+                          {custDocs > 0 && vendDocs > 0 && (
+                            <span className="text-ink-muted/30 text-xs">·</span>
+                          )}
+                          {vendDocs > 0 && (
+                            <div className="flex items-center gap-0.5">
+                              <span className="text-xs font-semibold text-ink-primary tabular-nums">{vendDocs}</span>
+                              <span className="text-[9px] text-ink-muted uppercase tracking-wide">V</span>
+                            </div>
+                          )}
                         </div>
-                      ) : <span className="text-xs text-ink-muted">—</span>}
+                      ) : (
+                        <span className="text-xs text-ink-muted">—</span>
+                      )}
                     </td>
+
+                    {/* ⑤ Billing */}
                     <td className="px-4 py-3">
-                      <PhasesSummary docs={projDocs} />
+                      {billingDocs.length > 0 ? (
+                        <div className="flex items-center gap-2 min-w-[72px]">
+                          <div className="flex-1 h-1.5 rounded-full bg-black/[0.06] overflow-hidden">
+                            <div
+                              className={classNames(
+                                'h-full rounded-full transition-all',
+                                billingPct === 100 ? 'bg-emerald-400' : billingPct >= 50 ? 'bg-pertamina-red' : 'bg-red-400',
+                              )}
+                              style={{ width: `${billingPct}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-ink-tertiary whitespace-nowrap tabular-nums">
+                            {billingDone}/{billingDocs.length}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-ink-muted">—</span>
+                      )}
                     </td>
+
+                    {/* ⑥ Status — pipeline bar + warning badge */}
                     <td className="px-4 py-3">
-                      <EarlyWarningBadge docs={projDocs} />
+                      <div className="flex items-center gap-2">
+                        <PipelineBar docs={projDocs} />
+                        <WarningBadge docs={projDocs} />
+                      </div>
                     </td>
+
+                    {/* ⑦ Aksi */}
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => openDetail(p.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Detail"><Eye size={13} /></button>
-                        <button onClick={() => openModal({ type: 'monitoring-report-project-edit', projectId: p.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => openDetail(p.id)}
+                          className="rounded p-1.5 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition"
+                          title="Detail"
+                        >
+                          <Eye size={13} />
+                        </button>
+                        <button
+                          onClick={() => openModal({ type: 'monitoring-report-project-edit', projectId: p.id })}
+                          className="rounded p-1.5 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.05] transition"
+                          title="Edit"
+                        >
+                          <Pencil size={13} />
+                        </button>
                         {canDeleteMonitoring && (
                           <>
-                            <button onClick={() => setConfirmEndId(p.id)} className="rounded p-1 text-ink-tertiary hover:text-amber-600 hover:bg-amber-50 transition" title="Keluarin dari bulan ini & seterusnya"><Archive size={13} /></button>
-                            <button onClick={() => setConfirmDeleteId(p.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus Permanen"><Trash2 size={13} /></button>
+                            <button
+                              onClick={() => setConfirmEndId(p.id)}
+                              className="rounded p-1.5 text-ink-tertiary hover:text-amber-600 hover:bg-amber-50 transition"
+                              title="Keluarkan dari periode ini"
+                            >
+                              <Archive size={13} />
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(p.id)}
+                              className="rounded p-1.5 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition"
+                              title="Hapus Permanen"
+                            >
+                              <Trash2 size={13} />
+                            </button>
                           </>
                         )}
                       </div>
@@ -343,36 +494,48 @@ export function MonitoringReportPage() {
         {filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-ink-tertiary">
             <FileText size={32} className="mb-2 opacity-30" />
-            <p className="text-sm">{projects.length === 0 ? 'Belum ada project. Klik "Tambah Project" untuk membuat.' : 'Tidak ada data yang cocok.'}</p>
+            <p className="text-sm">
+              {projects.length === 0
+                ? 'Belum ada project. Klik "Tambah Project" untuk membuat.'
+                : 'Tidak ada data yang cocok dengan filter.'}
+            </p>
           </div>
         )}
       </div>
 
+      {/* ── Confirm: keluarkan dari periode ── */}
       {confirmEndId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="glass rounded-2xl shadow-modal p-6 w-full max-w-sm mx-4">
             <h3 className="text-base font-semibold text-ink-primary mb-2">Keluarkan dari periode ini?</h3>
             <p className="text-sm text-ink-secondary mb-1">
-              Project ini tidak akan muncul lagi di <strong>{reportMonthLabel(selectedMonth)}</strong> dan bulan-bulan berikutnya.
+              Project tidak akan muncul di <strong>{reportMonthLabel(selectedMonth)}</strong> dan bulan berikutnya.
             </p>
-            <p className="text-sm text-ink-secondary mb-6">Data yang sudah ada di bulan sebelumnya tetap tersimpan.</p>
+            <p className="text-sm text-ink-secondary mb-6">Data bulan sebelumnya tetap tersimpan.</p>
             <div className="flex gap-2 justify-end">
               <Button variant="ghost" size="sm" onClick={() => setConfirmEndId(null)}>Batal</Button>
-              <Button size="sm" onClick={() => { endProjectAt(confirmEndId, selectedMonth); setConfirmEndId(null) }}>Keluarkan</Button>
+              <Button size="sm" onClick={() => { endProjectAt(confirmEndId, selectedMonth); setConfirmEndId(null) }}>
+                Keluarkan
+              </Button>
             </div>
           </div>
         </div>
       )}
 
+      {/* ── Confirm: hapus permanen ── */}
       {confirmDeleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="glass rounded-2xl shadow-modal p-6 w-full max-w-sm mx-4">
             <h3 className="text-base font-semibold text-ink-primary mb-2">Hapus Permanen?</h3>
-            <p className="text-sm text-ink-secondary mb-1">Semua dokumen laporan project ini akan ikut terhapus dari semua periode.</p>
+            <p className="text-sm text-ink-secondary mb-1">
+              Semua dokumen laporan project ini akan ikut terhapus dari semua periode.
+            </p>
             <p className="text-sm text-ink-secondary mb-6">Tindakan ini tidak dapat dibatalkan.</p>
             <div className="flex gap-2 justify-end">
               <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(null)}>Batal</Button>
-              <Button variant="danger" size="sm" onClick={() => { deleteProject(confirmDeleteId); setConfirmDeleteId(null) }}>Hapus Permanen</Button>
+              <Button variant="danger" size="sm" onClick={() => { deleteProject(confirmDeleteId); setConfirmDeleteId(null) }}>
+                Hapus Permanen
+              </Button>
             </div>
           </div>
         </div>

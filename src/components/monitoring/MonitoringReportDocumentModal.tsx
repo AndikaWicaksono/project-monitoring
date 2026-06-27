@@ -7,6 +7,7 @@ import { useMonitoringReportStore } from '../../store/useMonitoringReportStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
 import { usePermissions } from '../../hooks/usePermissions'
+import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { classNames, formatDateTime, formatDateShort } from '../../utils/helpers'
 import { reportMonthLabel } from '../../types/monitoring'
 import type { ReportDocumentType, ReportDocumentActionType, DocPhase } from '../../types/monitoring'
@@ -57,10 +58,12 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
   const session = useAuthStore((s) => s.session)
   const users = useAuthStore((s) => s.users)
   const { hasPermission } = usePermissions()
+  const { isDoccon, isAdminOSM } = useMonitoringRole()
 
   const currentUser = users.find((u) => u.id === session?.userId)
   const canApprove = hasPermission('canApproveHandoff')
   const canEdit = hasPermission('canEditTask')
+  const canAdvanceDoccon = isDoccon || isAdminOSM || canApprove
 
   const existing = documentId ? store.getDocumentById(documentId) : undefined
   const project = existing ? store.getProjectById(existing.projectId) : (projectId ? store.getProjectById(projectId) : undefined)
@@ -129,6 +132,12 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
     }
     else if (action === 'resubmit') store.resubmitDocument(documentId, userId, name, actionComment)
     setActionComment('')
+    onClose()
+  }
+
+  function handleDocconAdvance(next: 'qc_review' | 'ready_to_sales' | 'delivered') {
+    if (!documentId) return
+    store.advanceDocconPhase(documentId, next)
     onClose()
   }
 
@@ -352,6 +361,74 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
                 {status === 'REVISION_REQUIRED' && (
                   <Button size="sm" onClick={() => handleWorkflow('resubmit')} leftIcon={<RefreshCw size={13} />}>Resubmit</Button>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Doccon pipeline actions */}
+          {existing.currentPhase === 'doccon' && existing.docconSubStatus !== 'delivered' && canAdvanceDoccon && (
+            <div className="border-t border-border-subtle pt-4 space-y-3">
+              <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Doccon Pipeline</div>
+              <div className="flex items-center gap-2 rounded-xl border border-border-subtle bg-black/[0.02] px-4 py-3">
+                {(['compiling', 'qc_review', 'ready_to_sales', 'delivered'] as const).map((step, idx, arr) => {
+                  const labels: Record<string, string> = {
+                    compiling: 'Compiling', qc_review: 'QC Review',
+                    ready_to_sales: 'Ready to Sales', delivered: 'Delivered',
+                  }
+                  const cur = existing.docconSubStatus ?? 'compiling'
+                  const stepIdx = arr.indexOf(step)
+                  const curIdx  = arr.indexOf(cur)
+                  const isDone   = stepIdx < curIdx
+                  const isActive = step === cur
+                  return (
+                    <div key={step} className="flex items-center gap-2">
+                      <div className={classNames(
+                        'rounded-md px-2.5 py-1 text-[10px] font-medium flex items-center gap-1 whitespace-nowrap',
+                        isDone  ? 'bg-emerald-100 text-emerald-700' :
+                        isActive ? 'bg-amber-100 text-amber-700' :
+                        'bg-black/[0.04] text-ink-muted',
+                      )}>
+                        {isDone && <CheckCircle2 size={9} />}
+                        {labels[step]}
+                      </div>
+                      {idx < arr.length - 1 && <ArrowRight size={9} className="text-ink-muted shrink-0" />}
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="flex gap-2">
+                {existing.docconSubStatus === 'compiling' && (
+                  <Button size="sm" onClick={() => handleDocconAdvance('qc_review')} leftIcon={<ArrowRight size={13} />}>
+                    Mulai QC Review
+                  </Button>
+                )}
+                {existing.docconSubStatus === 'qc_review' && (
+                  <Button size="sm" onClick={() => handleDocconAdvance('ready_to_sales')} leftIcon={<CheckCircle2 size={13} />}>
+                    Ready to Sales
+                  </Button>
+                )}
+                {existing.docconSubStatus === 'ready_to_sales' && (
+                  <Button size="sm" onClick={() => handleDocconAdvance('delivered')} leftIcon={<Send size={13} />}>
+                    Submit ke Sales
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Delivered confirmation panel */}
+          {existing.currentPhase === 'doccon' && existing.docconSubStatus === 'delivered' && (
+            <div className="border-t border-border-subtle pt-4">
+              <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3">
+                <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                <div>
+                  <div className="text-xs font-semibold text-emerald-700">Dokumen sudah dikirim ke Sales</div>
+                  {existing.docconDeliveredAt && (
+                    <div className="text-[10px] text-emerald-600 mt-0.5">
+                      Delivered: {new Date(existing.docconDeliveredAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
