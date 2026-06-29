@@ -978,6 +978,7 @@ interface MonitoringReportState {
   // Phase management (E2E pipeline)
   advanceDocconPhase: (id: string, subStatus: DocconSubStatus) => void
   recordSalesFeedback: (id: string, flagIssue: boolean, note: string) => void
+  docconResubmitToSales: (id: string) => void
 }
 
 function makeActivity(action: ReportDocumentActivity['action'], byUserId: string, byName: string, comment: string): ReportDocumentActivity {
@@ -1200,6 +1201,20 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
             salesFlagIssue: flagIssue,
             salesIssueNote: note,
             salesAcceptedAt: d.salesAcceptedAt ?? now,
+            updatedAt: now,
+          }),
+        }))
+      },
+
+      docconResubmitToSales: (id) => {
+        const now = nowIso()
+        set((s) => ({
+          documents: s.documents.map((d) => d.id !== id ? d : {
+            ...d,
+            salesFlagIssue: false,
+            salesIssueNote: '',
+            salesAcceptedAt: null,
+            docconDeliveredAt: now,
             updatedAt: now,
           }),
         }))

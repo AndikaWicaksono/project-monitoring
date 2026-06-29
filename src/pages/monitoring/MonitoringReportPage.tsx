@@ -3,6 +3,7 @@ import {
   Plus, Search, Download, Eye, Pencil, Trash2, Filter,
   FileText, ChevronLeft, ChevronRight, Archive,
   AlertTriangle, Clock, CheckCircle2, AlertCircle,
+  LayoutGrid, List,
 } from 'lucide-react'
 import { MonthPicker } from '../../components/ui/MonthPicker'
 import { useMonitoringReportStore } from '../../store/useMonitoringReportStore'
@@ -188,6 +189,8 @@ export function MonitoringReportPage() {
 
   const [search, setSearch]       = useState('')
   const [deptFilter, setDeptFilter] = useState('')
+  const [sortBy, setSortBy]       = useState<'kode-asc' | 'kode-desc' | 'nama-asc' | 'nama-desc'>('kode-asc')
+  const [viewMode, setViewMode]   = useState<'table' | 'card'>('table')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [confirmEndId, setConfirmEndId]       = useState<string | null>(null)
 
@@ -198,14 +201,21 @@ export function MonitoringReportPage() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    return projects.filter((p) => {
+    const list = projects.filter((p) => {
       if (selectedMonth < p.kontrakMulai) return false
       if (p.kontrakAkhir !== null && selectedMonth > p.kontrakAkhir) return false
       if (deptFilter && p.department !== deptFilter) return false
       if (q && !p.kodeProject.toLowerCase().includes(q) && !p.client.toLowerCase().includes(q) && !p.namaKontrak.toLowerCase().includes(q)) return false
       return true
     })
-  }, [projects, search, deptFilter, selectedMonth])
+    return [...list].sort((a, b) => {
+      if (sortBy === 'kode-asc')  return a.kodeProject.localeCompare(b.kodeProject)
+      if (sortBy === 'kode-desc') return b.kodeProject.localeCompare(a.kodeProject)
+      if (sortBy === 'nama-asc')  return a.namaKontrak.localeCompare(b.namaKontrak)
+      if (sortBy === 'nama-desc') return b.namaKontrak.localeCompare(a.namaKontrak)
+      return 0
+    })
+  }, [projects, search, deptFilter, selectedMonth, sortBy])
 
   const periodDocs = useMemo(
     () => documents.filter((d) => d.period === selectedMonth && filtered.some((p) => p.id === d.projectId)),
@@ -311,194 +321,384 @@ export function MonitoringReportPage() {
             <option value="">Semua Dept</option>
             {departments.map((d) => <option key={d} value={d}>{d}</option>)}
           </select>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} className="input-base text-xs w-auto py-1.5 pr-7">
+            <option value="kode-asc">Kode A→Z</option>
+            <option value="kode-desc">Kode Z→A</option>
+            <option value="nama-asc">Nama A→Z</option>
+            <option value="nama-desc">Nama Z→A</option>
+          </select>
           <span className="text-[11px] text-ink-tertiary ml-auto">{filtered.length} project</span>
+          {/* View toggle */}
+          <div className="flex items-center rounded-lg border border-border-subtle overflow-hidden">
+            <button
+              onClick={() => setViewMode('table')}
+              className={classNames(
+                'flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium transition',
+                viewMode === 'table'
+                  ? 'bg-pertamina-red text-white'
+                  : 'text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04]',
+              )}
+              title="Tampilan Tabel"
+            >
+              <List size={13} />
+            </button>
+            <button
+              onClick={() => setViewMode('card')}
+              className={classNames(
+                'flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium transition',
+                viewMode === 'card'
+                  ? 'bg-pertamina-red text-white'
+                  : 'text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04]',
+              )}
+              title="Tampilan Card"
+            >
+              <LayoutGrid size={13} />
+            </button>
+          </div>
           <Button variant="ghost" size="sm" onClick={handleExport} leftIcon={<Download size={13} />}>Export</Button>
           <Button size="sm" onClick={() => openModal({ type: 'monitoring-report-project-create' })} leftIcon={<Plus size={13} />}>
             Tambah Project
           </Button>
         </div>
 
-        {/* ── Table ── */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border-subtle bg-black/[0.02]">
-                {[
-                  { label: 'Project',       cls: 'min-w-[220px]' },
-                  { label: 'Client · Dept', cls: 'min-w-[140px]' },
-                  { label: 'PIC',           cls: 'min-w-[100px]' },
-                  { label: 'Dokumen',       cls: 'text-center'   },
-                  { label: 'Billing',       cls: 'min-w-[100px]' },
-                  { label: 'Status',        cls: 'min-w-[160px]' },
-                  { label: 'Aksi',          cls: ''              },
-                ].map(({ label, cls }) => (
-                  <th
-                    key={label}
-                    className={classNames(
-                      'text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap',
-                      cls,
-                    )}
-                  >
-                    {label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {filtered.map((p) => {
-                const custDocs  = docCount(p.id, 'customer')
-                const vendDocs  = docCount(p.id, 'vendor')
-                const billingDocs = billingDocuments.filter((b) => b.projectId === p.id)
-                const billingDone = billingDocs.filter((b) => b.status === 'COMPLETED').length
-                const billingPct  = billingDocs.length > 0 ? Math.round((billingDone / billingDocs.length) * 100) : 0
-                const projDocs  = getProjectDocs(p.id)
-                const totalDocs = custDocs + vendDocs
-
-                return (
-                  <tr
-                    key={p.id}
-                    className="hover:bg-black/[0.02] transition-colors cursor-pointer group"
-                    onClick={() => openDetail(p.id)}
-                  >
-                    {/* ① Project — kode chip + nama */}
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-[10px] font-mono font-semibold text-pertamina-red tracking-wide">
-                          {p.kodeProject}
-                        </span>
-                        <span
-                          className="text-xs font-medium text-ink-primary max-w-[240px] truncate leading-tight"
-                          title={p.namaKontrak}
-                        >
-                          {p.namaKontrak}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* ② Client · Dept */}
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs text-ink-primary whitespace-nowrap">{p.client}</span>
-                        {p.department && (
-                          <span className="chip bg-slate-100 text-slate-600 text-[9px] font-medium w-fit">
-                            {p.department}
-                          </span>
+        {/* ── Table view ── */}
+        {viewMode === 'table' && (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border-subtle bg-black/[0.02]">
+                    {[
+                      { label: 'Project',       cls: 'min-w-[220px]' },
+                      { label: 'Client · Dept', cls: 'min-w-[140px]' },
+                      { label: 'PIC',           cls: 'min-w-[100px]' },
+                      { label: 'Dokumen',       cls: 'text-center'   },
+                      { label: 'Billing',       cls: 'min-w-[100px]' },
+                      { label: 'Status',        cls: 'min-w-[160px]' },
+                      { label: 'Aksi',          cls: ''              },
+                    ].map(({ label, cls }) => (
+                      <th
+                        key={label}
+                        className={classNames(
+                          'text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap',
+                          cls,
                         )}
-                      </div>
-                    </td>
+                      >
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-subtle">
+                  {filtered.map((p) => {
+                    const custDocs  = docCount(p.id, 'customer')
+                    const vendDocs  = docCount(p.id, 'vendor')
+                    const billingDocs = billingDocuments.filter((b) => b.projectId === p.id)
+                    const billingDone = billingDocs.filter((b) => b.status === 'COMPLETED').length
+                    const billingPct  = billingDocs.length > 0 ? Math.round((billingDone / billingDocs.length) * 100) : 0
+                    const projDocs  = getProjectDocs(p.id)
+                    const totalDocs = custDocs + vendDocs
 
-                    {/* ③ PIC */}
-                    <td className="px-4 py-3">
-                      <span className="text-xs text-ink-secondary whitespace-nowrap">{p.picLaporan || '—'}</span>
-                    </td>
-
-                    {/* ④ Dokumen — customer + vendor */}
-                    <td className="px-4 py-3">
-                      {totalDocs > 0 ? (
-                        <div className="flex items-center gap-2">
-                          {custDocs > 0 && (
-                            <div className="flex items-center gap-0.5">
-                              <span className="text-xs font-semibold text-ink-primary tabular-nums">{custDocs}</span>
-                              <span className="text-[9px] text-ink-muted uppercase tracking-wide">C</span>
-                            </div>
-                          )}
-                          {custDocs > 0 && vendDocs > 0 && (
-                            <span className="text-ink-muted/30 text-xs">·</span>
-                          )}
-                          {vendDocs > 0 && (
-                            <div className="flex items-center gap-0.5">
-                              <span className="text-xs font-semibold text-ink-primary tabular-nums">{vendDocs}</span>
-                              <span className="text-[9px] text-ink-muted uppercase tracking-wide">V</span>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-ink-muted">—</span>
-                      )}
-                    </td>
-
-                    {/* ⑤ Billing */}
-                    <td className="px-4 py-3">
-                      {billingDocs.length > 0 ? (
-                        <div className="flex items-center gap-2 min-w-[72px]">
-                          <div className="flex-1 h-1.5 rounded-full bg-black/[0.06] overflow-hidden">
-                            <div
-                              className={classNames(
-                                'h-full rounded-full transition-all',
-                                billingPct === 100 ? 'bg-emerald-400' : billingPct >= 50 ? 'bg-pertamina-red' : 'bg-red-400',
-                              )}
-                              style={{ width: `${billingPct}%` }}
-                            />
+                    return (
+                      <tr
+                        key={p.id}
+                        className="hover:bg-black/[0.02] transition-colors cursor-pointer group"
+                        onClick={() => openDetail(p.id)}
+                      >
+                        {/* ① Project — kode chip + nama */}
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[10px] font-mono font-semibold text-pertamina-red tracking-wide">
+                              {p.kodeProject}
+                            </span>
+                            <span
+                              className="text-xs font-medium text-ink-primary max-w-[240px] truncate leading-tight"
+                              title={p.namaKontrak}
+                            >
+                              {p.namaKontrak}
+                            </span>
                           </div>
-                          <span className="text-[10px] text-ink-tertiary whitespace-nowrap tabular-nums">
-                            {billingDone}/{billingDocs.length}
+                        </td>
+
+                        {/* ② Client · Dept */}
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs text-ink-primary whitespace-nowrap">{p.client}</span>
+                            {p.department && (
+                              <span className="chip bg-slate-100 text-slate-600 text-[9px] font-medium w-fit">
+                                {p.department}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* ③ PIC */}
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-ink-secondary whitespace-nowrap">{p.picLaporan || '—'}</span>
+                        </td>
+
+                        {/* ④ Dokumen — customer + vendor */}
+                        <td className="px-4 py-3">
+                          {totalDocs > 0 ? (
+                            <div className="flex items-center gap-2">
+                              {custDocs > 0 && (
+                                <div className="flex items-center gap-0.5">
+                                  <span className="text-xs font-semibold text-ink-primary tabular-nums">{custDocs}</span>
+                                  <span className="text-[9px] text-ink-muted uppercase tracking-wide">C</span>
+                                </div>
+                              )}
+                              {custDocs > 0 && vendDocs > 0 && (
+                                <span className="text-ink-muted/30 text-xs">·</span>
+                              )}
+                              {vendDocs > 0 && (
+                                <div className="flex items-center gap-0.5">
+                                  <span className="text-xs font-semibold text-ink-primary tabular-nums">{vendDocs}</span>
+                                  <span className="text-[9px] text-ink-muted uppercase tracking-wide">V</span>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-ink-muted">—</span>
+                          )}
+                        </td>
+
+                        {/* ⑤ Billing */}
+                        <td className="px-4 py-3">
+                          {billingDocs.length > 0 ? (
+                            <div className="flex items-center gap-2 min-w-[72px]">
+                              <div className="flex-1 h-1.5 rounded-full bg-black/[0.06] overflow-hidden">
+                                <div
+                                  className={classNames(
+                                    'h-full rounded-full transition-all',
+                                    billingPct === 100 ? 'bg-emerald-400' : billingPct >= 50 ? 'bg-pertamina-red' : 'bg-red-400',
+                                  )}
+                                  style={{ width: `${billingPct}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] text-ink-tertiary whitespace-nowrap tabular-nums">
+                                {billingDone}/{billingDocs.length}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-ink-muted">—</span>
+                          )}
+                        </td>
+
+                        {/* ⑥ Status — pipeline bar + warning badge */}
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <PipelineBar docs={projDocs} />
+                            <WarningBadge docs={projDocs} />
+                          </div>
+                        </td>
+
+                        {/* ⑦ Aksi */}
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => openDetail(p.id)}
+                              className="rounded p-1.5 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition"
+                              title="Detail"
+                            >
+                              <Eye size={13} />
+                            </button>
+                            <button
+                              onClick={() => openModal({ type: 'monitoring-report-project-edit', projectId: p.id })}
+                              className="rounded p-1.5 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.05] transition"
+                              title="Edit"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                            {canDeleteMonitoring && (
+                              <>
+                                <button
+                                  onClick={() => setConfirmEndId(p.id)}
+                                  className="rounded p-1.5 text-ink-tertiary hover:text-amber-600 hover:bg-amber-50 transition"
+                                  title="Keluarkan dari periode ini"
+                                >
+                                  <Archive size={13} />
+                                </button>
+                                <button
+                                  onClick={() => setConfirmDeleteId(p.id)}
+                                  className="rounded p-1.5 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition"
+                                  title="Hapus Permanen"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {filtered.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 text-ink-tertiary">
+                <FileText size={32} className="mb-2 opacity-30" />
+                <p className="text-sm">
+                  {projects.length === 0
+                    ? 'Belum ada project. Klik "Tambah Project" untuk membuat.'
+                    : 'Tidak ada data yang cocok dengan filter.'}
+                </p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── Card view ── */}
+        {viewMode === 'card' && (
+          <div className="p-4">
+            {filtered.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-ink-tertiary">
+                <FileText size={32} className="mb-2 opacity-30" />
+                <p className="text-sm">
+                  {projects.length === 0
+                    ? 'Belum ada project. Klik "Tambah Project" untuk membuat.'
+                    : 'Tidak ada data yang cocok dengan filter.'}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {filtered.map((p) => {
+                  const custDocs    = docCount(p.id, 'customer')
+                  const vendDocs    = docCount(p.id, 'vendor')
+                  const totalDocs   = custDocs + vendDocs
+                  const billingDocs = billingDocuments.filter((b) => b.projectId === p.id)
+                  const billingDone = billingDocs.filter((b) => b.status === 'COMPLETED').length
+                  const billingPct  = billingDocs.length > 0 ? Math.round((billingDone / billingDocs.length) * 100) : 0
+                  const projDocs    = getProjectDocs(p.id)
+
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={() => openDetail(p.id)}
+                      className="group relative rounded-xl border border-border-subtle bg-white hover:border-pertamina-red/30 hover:shadow-md transition-all cursor-pointer overflow-hidden flex flex-col"
+                    >
+                      {/* Top accent bar */}
+                      <div className="h-1 bg-pertamina-red w-full" />
+
+                      <div className="p-4 flex flex-col gap-3 flex-1">
+                        {/* Kode + badge warning */}
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-[13px] font-mono font-bold text-pertamina-red tracking-wide leading-none">
+                            {p.kodeProject}
+                          </span>
+                          <WarningBadge docs={projDocs} />
+                        </div>
+
+                        {/* Client */}
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[10px] text-ink-tertiary uppercase tracking-widest font-semibold">Client</span>
+                          <span className="text-xs text-ink-primary font-medium leading-snug line-clamp-1">{p.client}</span>
+                        </div>
+
+                        {/* Nama Project */}
+                        <div className="flex flex-col gap-0.5 flex-1">
+                          <span className="text-[10px] text-ink-tertiary uppercase tracking-widest font-semibold">Nama Project</span>
+                          <span className="text-xs text-ink-secondary leading-snug line-clamp-2" title={p.namaKontrak}>
+                            {p.namaKontrak}
                           </span>
                         </div>
-                      ) : (
-                        <span className="text-xs text-ink-muted">—</span>
-                      )}
-                    </td>
 
-                    {/* ⑥ Status — pipeline bar + warning badge */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
+                        {/* PIC + Dept chips */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {p.department && (
+                            <span className="chip bg-slate-100 text-slate-600 text-[9px] font-medium">{p.department}</span>
+                          )}
+                          {p.picLaporan && (
+                            <span className="chip bg-blue-50 text-blue-600 text-[9px] font-medium">{p.picLaporan}</span>
+                          )}
+                        </div>
+
+                        {/* Divider */}
+                        <div className="border-t border-border-subtle" />
+
+                        {/* Metrics row */}
+                        <div className="flex items-center justify-between gap-2">
+                          {/* Dokumen */}
+                          <div className="flex items-center gap-1">
+                            <FileText size={11} className="text-ink-tertiary" />
+                            {totalDocs > 0 ? (
+                              <span className="text-[11px] text-ink-secondary tabular-nums">
+                                {custDocs > 0 && <><span className="font-semibold text-ink-primary">{custDocs}</span><span className="text-ink-muted">C</span></>}
+                                {custDocs > 0 && vendDocs > 0 && <span className="text-ink-muted/40 mx-0.5">·</span>}
+                                {vendDocs > 0 && <><span className="font-semibold text-ink-primary">{vendDocs}</span><span className="text-ink-muted">V</span></>}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-ink-muted">—</span>
+                            )}
+                          </div>
+
+                          {/* Billing progress */}
+                          {billingDocs.length > 0 ? (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-12 h-1 rounded-full bg-black/[0.06] overflow-hidden">
+                                <div
+                                  className={classNames(
+                                    'h-full rounded-full',
+                                    billingPct === 100 ? 'bg-emerald-400' : billingPct >= 50 ? 'bg-pertamina-red' : 'bg-red-400',
+                                  )}
+                                  style={{ width: `${billingPct}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] text-ink-tertiary tabular-nums">{billingDone}/{billingDocs.length}</span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-ink-muted">No billing</span>
+                          )}
+                        </div>
+
+                        {/* Pipeline bar */}
                         <PipelineBar docs={projDocs} />
-                        <WarningBadge docs={projDocs} />
                       </div>
-                    </td>
 
-                    {/* ⑦ Aksi */}
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {/* Action buttons — visible on hover */}
+                      <div
+                        className="absolute bottom-3 right-3 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <button
                           onClick={() => openDetail(p.id)}
-                          className="rounded p-1.5 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition"
+                          className="rounded p-1.5 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition bg-white/80 shadow-sm"
                           title="Detail"
                         >
-                          <Eye size={13} />
+                          <Eye size={12} />
                         </button>
                         <button
                           onClick={() => openModal({ type: 'monitoring-report-project-edit', projectId: p.id })}
-                          className="rounded p-1.5 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.05] transition"
+                          className="rounded p-1.5 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.05] transition bg-white/80 shadow-sm"
                           title="Edit"
                         >
-                          <Pencil size={13} />
+                          <Pencil size={12} />
                         </button>
                         {canDeleteMonitoring && (
                           <>
                             <button
                               onClick={() => setConfirmEndId(p.id)}
-                              className="rounded p-1.5 text-ink-tertiary hover:text-amber-600 hover:bg-amber-50 transition"
+                              className="rounded p-1.5 text-ink-tertiary hover:text-amber-600 hover:bg-amber-50 transition bg-white/80 shadow-sm"
                               title="Keluarkan dari periode ini"
                             >
-                              <Archive size={13} />
+                              <Archive size={12} />
                             </button>
                             <button
                               onClick={() => setConfirmDeleteId(p.id)}
-                              className="rounded p-1.5 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition"
+                              className="rounded p-1.5 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition bg-white/80 shadow-sm"
                               title="Hapus Permanen"
                             >
-                              <Trash2 size={13} />
+                              <Trash2 size={12} />
                             </button>
                           </>
                         )}
                       </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {filtered.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 text-ink-tertiary">
-            <FileText size={32} className="mb-2 opacity-30" />
-            <p className="text-sm">
-              {projects.length === 0
-                ? 'Belum ada project. Klik "Tambah Project" untuk membuat.'
-                : 'Tidak ada data yang cocok dengan filter.'}
-            </p>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -200,4 +200,14 @@ export const SEED_ROLES: MasterRole[] = [
     scopeRestriction: 'any',
     permissions: none(),
   },
+  {
+    id: 'sales',
+    name: 'Sales',
+    description: 'Tim Sales. Menerima dan memverifikasi dokumen yang diserahkan Doccon. Hanya dapat mengakses Sales Inbox.',
+    color: '#10B981',
+    rank: 15,
+    isSystem: true,
+    scopeRestriction: 'any',
+    permissions: none(),
+  },
 ]

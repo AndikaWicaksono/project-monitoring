@@ -5,24 +5,28 @@ import { useMonitoringReportStore } from '../../../store/useMonitoringReportStor
 import { useMonitoringSLAStore } from '../../../store/useMonitoringSLAStore'
 import { useMonitoringCostStore } from '../../../store/useMonitoringCostStore'
 import { getEffectiveCostStatus } from '../../../types/monitoring'
+import { useMonitoringRole } from '../../../hooks/useMonitoringRole'
 
 export function MonitoringStatsOverview() {
-  const reportProjects = useMonitoringReportStore((s) => s.projects)
+  const { canViewCost } = useMonitoringRole()
+
+  const reportProjects   = useMonitoringReportStore((s) => s.projects)
   const billingDocuments = useMonitoringReportStore((s) => s.billingDocuments)
-  const slaProjects = useMonitoringSLAStore((s) => s.projects)
-  const costs = useMonitoringCostStore((s) => s.costs)
+  const slaProjects      = useMonitoringSLAStore((s) => s.projects)
+  const costs            = useMonitoringCostStore((s) => s.costs)
 
   const stats = useMemo(() => ({
-    activeProjects: costs.filter((c) => getEffectiveCostStatus(c.startDate, c.endDate, c.status === 'cancelled') === 'active').length,
-    closedProjects: costs.filter((c) => getEffectiveCostStatus(c.startDate, c.endDate, c.status === 'cancelled') === 'closed').length,
-    totalReports: reportProjects.length,
-    totalSLA: slaProjects.length,
+    activeProjects:   costs.filter((c) => getEffectiveCostStatus(c.startDate, c.endDate, c.status === 'cancelled') === 'active').length,
+    closedProjects:   costs.filter((c) => getEffectiveCostStatus(c.startDate, c.endDate, c.status === 'cancelled') === 'closed').length,
+    totalReports:     reportProjects.length,
+    totalSLA:         slaProjects.length,
     totalCostProjects: costs.length,
     billingCompleted: billingDocuments.filter((b) => b.status === 'COMPLETED').length,
-    billingTotal: billingDocuments.length,
+    billingTotal:     billingDocuments.length,
   }), [reportProjects, slaProjects, costs, billingDocuments])
 
-  const cards = [
+  // Kartu khusus admin_osm (cost monitoring)
+  const costCards = [
     {
       label: 'Project Aktif',
       value: stats.activeProjects,
@@ -40,24 +44,6 @@ export function MonitoringStatsOverview() {
       bg: 'bg-emerald-100',
       tone: 'text-emerald-700',
       valueTone: 'text-emerald-700',
-    },
-    {
-      label: 'Total Laporan',
-      value: stats.totalReports,
-      icon: <FileText size={16} />,
-      accent: 'from-violet-400 to-transparent',
-      bg: 'bg-violet-100',
-      tone: 'text-violet-700',
-      valueTone: 'text-violet-700',
-    },
-    {
-      label: 'Total SLA',
-      value: stats.totalSLA,
-      icon: <TrendingUp size={16} />,
-      accent: 'from-cyan-400 to-transparent',
-      bg: 'bg-cyan-100',
-      tone: 'text-cyan-700',
-      valueTone: 'text-cyan-700',
     },
     {
       label: 'Total Cost Project',
@@ -79,8 +65,41 @@ export function MonitoringStatsOverview() {
     },
   ]
 
+  // Kartu untuk doccon_osm & engineer_os (SLA & Report)
+  const slaReportCards = [
+    {
+      label: 'Total Project SLA',
+      value: stats.totalSLA,
+      icon: <TrendingUp size={16} />,
+      accent: 'from-cyan-400 to-transparent',
+      bg: 'bg-cyan-100',
+      tone: 'text-cyan-700',
+      valueTone: 'text-cyan-700',
+    },
+    {
+      label: 'Total Laporan',
+      value: stats.totalReports,
+      icon: <FileText size={16} />,
+      accent: 'from-violet-400 to-transparent',
+      bg: 'bg-violet-100',
+      tone: 'text-violet-700',
+      valueTone: 'text-violet-700',
+    },
+    {
+      label: 'Billing Selesai',
+      value: `${stats.billingCompleted}/${stats.billingTotal}`,
+      icon: <FileCheck size={16} />,
+      accent: 'from-pertamina-red to-transparent',
+      bg: 'bg-pertamina-red-50',
+      tone: 'text-pertamina-red',
+      valueTone: 'text-pertamina-red',
+    },
+  ]
+
+  const cards = canViewCost ? costCards : slaReportCards
+
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+    <div className={`grid gap-3 ${canViewCost ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-1 md:grid-cols-3'}`}>
       {cards.map((c, i) => (
         <motion.div
           key={c.label}

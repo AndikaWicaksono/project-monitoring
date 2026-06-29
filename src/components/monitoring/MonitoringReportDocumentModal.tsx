@@ -30,7 +30,7 @@ const REVISION_CLS: Record<string, string> = {
 
 const ACTION_META: Record<ReportDocumentActionType, { label: string; icon: React.ReactNode; color: string }> = {
   CREATE:           { label: 'Dibuat',        icon: <Clock size={13} />,        color: 'bg-slate-500' },
-  SUBMIT:           { label: 'Disubmit',      icon: <Send size={13} />,         color: 'bg-blue-500' },
+  SUBMIT:           { label: 'Submit ke Doccon', icon: <Send size={13} />,       color: 'bg-blue-500' },
   START_REVIEW:     { label: 'Mulai Review',  icon: <Clock size={13} />,        color: 'bg-amber-500' },
   APPROVE:          { label: 'Disetujui',     icon: <CheckCircle2 size={13} />, color: 'bg-emerald-500' },
   REQUEST_REVISION: { label: 'Revisi Diminta', icon: <RotateCcw size={13} />,  color: 'bg-pertamina-red' },
@@ -63,7 +63,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
   const currentUser = users.find((u) => u.id === session?.userId)
   const canApprove = hasPermission('canApproveHandoff')
   const canEdit = hasPermission('canEditTask')
-  const canAdvanceDoccon = isDoccon || isAdminOSM || canApprove
+  const canAdvanceDoccon = isDoccon
 
   const existing = documentId ? store.getDocumentById(documentId) : undefined
   const project = existing ? store.getProjectById(existing.projectId) : (projectId ? store.getProjectById(projectId) : undefined)
@@ -77,6 +77,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
   const [docconPIC, setDocconPIC] = useState('')
   const [actionComment, setActionComment] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [showResubmitPanel, setShowResubmitPanel] = useState(false)
 
   useEffect(() => {
     if ((mode === 'edit' || mode === 'detail') && existing) {
@@ -92,6 +93,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
     }
     setErrors({})
     setActionComment('')
+    setShowResubmitPanel(false)
   }, [open, mode, documentId])
 
   function handleSave() {
@@ -138,6 +140,13 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
   function handleDocconAdvance(next: 'qc_review' | 'ready_to_sales' | 'delivered') {
     if (!documentId) return
     store.advanceDocconPhase(documentId, next)
+    onClose()
+  }
+
+  function handleResubmitToSales() {
+    if (!documentId) return
+    store.docconResubmitToSales(documentId)
+    setShowResubmitPanel(false)
     onClose()
   }
 
@@ -236,10 +245,25 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
                 {existing.salesFlagIssue && (
                   <div className="flex items-start gap-2 mt-2 rounded-lg bg-orange-50 border border-orange-200 px-3 py-2">
                     <Flag size={12} className="text-orange-600 mt-0.5 shrink-0" />
-                    <div>
-                      <div className="text-[11px] font-semibold text-orange-700">Flagged by Sales</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11px] font-semibold text-orange-700">Dikembalikan oleh Sales</div>
                       {existing.salesIssueNote && <div className="text-[11px] text-orange-600 mt-0.5">{existing.salesIssueNote}</div>}
                     </div>
+                  </div>
+                )}
+                {existing.docconSubStatus === 'delivered' && existing.salesAcceptedAt && !existing.salesFlagIssue && (
+                  <div className="flex items-center gap-2 mt-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
+                    <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
+                    <div>
+                      <div className="text-[11px] font-semibold text-emerald-700">Diterima Sales</div>
+                      <div className="text-[10px] text-emerald-600">{formatDateTime(existing.salesAcceptedAt)}</div>
+                    </div>
+                  </div>
+                )}
+                {existing.docconSubStatus === 'delivered' && !existing.salesAcceptedAt && !existing.salesFlagIssue && (
+                  <div className="flex items-center gap-2 mt-2 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2">
+                    <Clock size={12} className="text-blue-500 shrink-0" />
+                    <div className="text-[11px] text-blue-700 font-medium">Menunggu konfirmasi Sales</div>
                   </div>
                 )}
               </div>
@@ -297,7 +321,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
           <div className="border-t border-border-subtle pt-4">
             <div className="flex items-center justify-between mb-3">
               <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Attachment ({existing.attachments.length})</div>
-              {existing.status !== 'APPROVED' && (
+              {(existing.status !== 'APPROVED' || existing.salesFlagIssue) && (
                 <>
                   <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />
                   <Button size="sm" variant="ghost" onClick={() => fileInputRef.current?.click()} leftIcon={<Upload size={12} />}>Upload</Button>
@@ -347,7 +371,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
               />
               <div className="flex flex-wrap gap-2">
                 {status === 'DRAFT' && (
-                  <Button size="sm" onClick={() => handleWorkflow('submit')} leftIcon={<Send size={13} />}>Submit</Button>
+                  <Button size="sm" onClick={() => handleWorkflow('submit')} leftIcon={<Send size={13} />}>Submit ke Doccon</Button>
                 )}
                 {status === 'SUBMITTED' && canApprove && (
                   <Button size="sm" onClick={() => handleWorkflow('startReview')} leftIcon={<Clock size={13} />}>Mulai Review</Button>
@@ -366,7 +390,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
           )}
 
           {/* Doccon pipeline actions */}
-          {existing.currentPhase === 'doccon' && existing.docconSubStatus !== 'delivered' && canAdvanceDoccon && (
+          {existing.currentPhase === 'doccon' && (existing.docconSubStatus !== 'delivered' || existing.salesFlagIssue) && canAdvanceDoccon && (
             <div className="border-t border-border-subtle pt-4 space-y-3">
               <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Doccon Pipeline</div>
               <div className="flex items-center gap-2 rounded-xl border border-border-subtle bg-black/[0.02] px-4 py-3">
@@ -412,12 +436,38 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
                     Submit ke Sales
                   </Button>
                 )}
+                {existing.docconSubStatus === 'delivered' && existing.salesFlagIssue && !showResubmitPanel && (
+                  <Button
+                    size="sm"
+                    onClick={() => setShowResubmitPanel(true)}
+                    leftIcon={<RefreshCw size={13} />}
+                  >
+                    Kirim Ulang ke Sales
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Resubmit panel */}
+          {existing.currentPhase === 'doccon' && existing.docconSubStatus === 'delivered' && existing.salesFlagIssue && showResubmitPanel && canAdvanceDoccon && (
+            <div className="border-t border-border-subtle pt-4">
+              <div className="rounded-xl border border-red-200 bg-red-50/60 p-4 space-y-3">
+                <p className="text-[11px] text-red-700">
+                  Upload file revisi di bagian <strong>Attachment</strong> di atas, lalu klik Konfirmasi untuk mengirim ulang ke Sales.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => setShowResubmitPanel(false)}>Batal</Button>
+                  <Button size="sm" onClick={handleResubmitToSales} leftIcon={<Send size={12} />}>
+                    Konfirmasi Kirim Ulang
+                  </Button>
+                </div>
               </div>
             </div>
           )}
 
           {/* Delivered confirmation panel */}
-          {existing.currentPhase === 'doccon' && existing.docconSubStatus === 'delivered' && (
+          {existing.currentPhase === 'doccon' && existing.docconSubStatus === 'delivered' && !existing.salesFlagIssue && (
             <div className="border-t border-border-subtle pt-4">
               <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3">
                 <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />

@@ -16,15 +16,30 @@ import { MonitoringSLAPage } from './pages/monitoring/MonitoringSLAPage'
 import { MonitoringSLADetailPage } from './pages/monitoring/MonitoringSLADetailPage'
 import { MonitoringCostPage } from './pages/monitoring/MonitoringCostPage'
 import { MonitoringBAPPage } from './pages/monitoring/MonitoringBAPPage'
+import { SalesInboxPage } from './pages/SalesInboxPage'
+import { useMonitoringRole } from './hooks/useMonitoringRole'
 
 function App() {
   const view = useUIStore((s) => s.view)
+  const { isAdminOSM, isDoccon, isSales, canViewCost } = useMonitoringRole()
   useKeyboardShortcuts()
 
   function renderPage() {
     if (view === 'project-board') return <ProjectBoardPage />
     if (view === 'board') return <BoardPage />
+
+    // Sales: hanya boleh akses Sales Inbox
+    if (isSales) return <SalesInboxPage />
+
     if (view === 'monitoring-dashboard') return <MonitoringDashboardPage />
+
+    // Guard: admin_osm tidak boleh akses SLA & Report
+    if ((view === 'monitoring-sla' || view === 'monitoring-sla-detail') && isAdminOSM) return <MonitoringDashboardPage />
+    if ((view === 'monitoring-report' || view === 'monitoring-report-detail') && isAdminOSM) return <MonitoringDashboardPage />
+
+    // Guard: hanya admin_osm & kadiv yang boleh akses Cost
+    if (view === 'monitoring-cost' && !canViewCost) return <MonitoringDashboardPage />
+
     if (view === 'monitoring-report') return <MonitoringReportPage />
     if (view === 'monitoring-report-detail') return <MonitoringReportDetailPage />
     if (view === 'monitoring-sla') return <MonitoringSLAPage />

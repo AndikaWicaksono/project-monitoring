@@ -23,11 +23,14 @@ import {
 import { useUIStore } from '../../store/useUIStore'
 import { useTeamStore } from '../../store/useTeamStore'
 import { useTaskStore } from '../../store/useTaskStore'
+import { useMonitoringReportStore } from '../../store/useMonitoringReportStore'
+import { useMonitoringSLAStore } from '../../store/useMonitoringSLAStore'
 import { Tooltip } from '../ui/Tooltip'
 import { classNames } from '../../utils/helpers'
 import { UserMenu } from '../auth/UserMenu'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useMonitoringRole } from '../../hooks/useMonitoringRole'
+import { ShoppingBag } from 'lucide-react'
 
 export function Sidebar() {
   const collapsed = useUIStore((s) => s.sidebarCollapsed)
@@ -38,7 +41,7 @@ export function Sidebar() {
   const setView = useUIStore((s) => s.setView)
   const openModal = useUIStore((s) => s.openModal)
   const { can } = usePermissions()
-  const { isMonitoringOnly } = useMonitoringRole()
+  const { isMonitoringOnly, isSales } = useMonitoringRole()
   const teamCreatePerm = can('team.create')
 
   return (
@@ -131,8 +134,11 @@ export function Sidebar() {
       )}
 
       <div className="mt-2 flex-1 overflow-y-auto px-3 pb-4">
+        {/* Sales Inbox — hanya untuk role sales */}
+        {isSales && <SalesNavSection collapsed={collapsed} />}
+
         {/* Monitoring Section */}
-        <MonitoringNavSection collapsed={collapsed} />
+        {!isSales && <MonitoringNavSection collapsed={collapsed} />}
 
         {!isMonitoringOnly && (
           <>
@@ -193,13 +199,18 @@ function NavItem({
   icon,
   label,
   onClick,
+  badge,
 }: {
   collapsed: boolean
   active: boolean
   icon: React.ReactNode
   label: string
   onClick: () => void
+  badge?: number
 }) {
+  const hasBadge = !!badge && badge > 0
+  const badgeLabel = badge && badge > 99 ? '99+' : String(badge ?? 0)
+
   const button = (
     <button
       onClick={onClick}
@@ -212,19 +223,32 @@ function NavItem({
     >
       <span
         className={classNames(
-          'grid h-7 w-7 place-items-center rounded-md',
+          'relative grid h-7 w-7 shrink-0 place-items-center rounded-md',
           active ? 'bg-pertamina-red/15 text-pertamina-red' : 'text-ink-secondary',
         )}
       >
         {icon}
+        {/* Badge overlay pada icon — hanya saat collapsed */}
+        {collapsed && hasBadge && (
+          <span className="absolute -top-1 -right-1 h-3.5 min-w-[14px] rounded-full bg-pertamina-red text-white text-[8px] font-bold leading-none flex items-center justify-center px-0.5 shadow-sm ring-1 ring-white">
+            {badgeLabel}
+          </span>
+        )}
       </span>
-      {!collapsed && <span className="truncate">{label}</span>}
-      {!collapsed && active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-pertamina-red shadow-glow" />}
+      {!collapsed && <span className="truncate flex-1">{label}</span>}
+      {!collapsed && hasBadge && (
+        <span className="ml-auto shrink-0 rounded-full bg-pertamina-red text-white text-[9px] font-bold leading-none flex items-center justify-center h-4 min-w-[16px] px-1 shadow-sm">
+          {badgeLabel}
+        </span>
+      )}
+      {!collapsed && !hasBadge && active && (
+        <span className="ml-auto h-1.5 w-1.5 rounded-full bg-pertamina-red shadow-glow" />
+      )}
     </button>
   )
   if (collapsed)
     return (
-      <Tooltip content={label} side="right">
+      <Tooltip content={`${label}${hasBadge ? ` (${badge})` : ''}`} side="right">
         {button}
       </Tooltip>
     )
@@ -359,6 +383,7 @@ function MonitoringNavSection({ collapsed }: { collapsed: boolean }) {
   const view = useUIStore((s) => s.view)
   const setView = useUIStore((s) => s.setView)
   const setMobileOpen = useUIStore((s) => s.setMobileSidebarOpen)
+  const { isAdminOSM, isDoccon, isEngineerOS, canViewCost } = useMonitoringRole()
 
   const isMonitoringActive = view.startsWith('monitoring-')
   const [open, setOpen] = useState(isMonitoringActive)
@@ -367,12 +392,57 @@ function MonitoringNavSection({ collapsed }: { collapsed: boolean }) {
     if (isMonitoringActive) setOpen(true)
   }, [isMonitoringActive])
 
-  const items = [
-    { viewKey: 'monitoring-dashboard' as const, icon: <Activity size={16} />, label: 'Dashboard Monitoring' },
-    { viewKey: 'monitoring-sla' as const, icon: <TrendingUp size={16} />, label: 'SLA Monitoring' },
-    { viewKey: 'monitoring-report' as const, icon: <FileText size={16} />, label: 'Report Project' },
-    { viewKey: 'monitoring-cost' as const, icon: <DollarSign size={16} />, label: 'Cost Monitoring' },
+  // ── Badge data ───────────────────────────────────────────────────────────────
+  const { projects: slaProjects, components, monthlyRecords } = useMonitoringSLAStore()
+  const documents = useMonitoringReportStore((s) => s.documents)
+
+  // Engineer: jumlah komponen SLA di bawah target
+  const slaBadge = useMemo(() => {
+    if (!isEngineerOS) return 0
+    const YEAR = new Date().getFullYear()
+    let count = 0
+    for (const proj of slaProjects) {
+      for (const comp of components.filter((c) => c.projectId === proj.id)) {
+        const latest = monthlyRecords
+          .filter((r) => r.componentId === comp.id && r.year === YEAR)
+          .sort((a, b) => b.month - a.month)[0]
+        if (latest && latest.achievement < proj.targetSLA) count++
+      }
+    }
+    return count
+  }, [isEngineerOS, slaProjects, components, monthlyRecords])
+
+  // Engineer: dokumen dalam fase engineer yang DRAFT/REVISION_REQUIRED
+  // Doccon: dokumen yang dikembalikan Sales (salesFlagIssue)
+  const reportBadge = useMemo(() => {
+    if (isEngineerOS) {
+      return documents.filter((d) => {
+        const phase = d.currentPhase ?? 'engineer'
+        return phase === 'engineer' && (d.status === 'DRAFT' || d.status === 'REVISION_REQUIRED')
+      }).length
+    }
+    if (isDoccon) {
+      return documents.filter((d) => d.salesFlagIssue === true).length
+    }
+    return 0
+  }, [isEngineerOS, isDoccon, documents])
+
+  const totalBadge = slaBadge + reportBadge
+  // ────────────────────────────────────────────────────────────────────────────
+
+  const allItems = [
+    { viewKey: 'monitoring-dashboard' as const, icon: <Activity size={16} />,   label: 'Dashboard Monitoring', showFor: 'all',    badge: 0           },
+    { viewKey: 'monitoring-sla'       as const, icon: <TrendingUp size={16} />,  label: 'SLA Monitoring',       showFor: 'doccon', badge: slaBadge    },
+    { viewKey: 'monitoring-report'    as const, icon: <FileText size={16} />,    label: 'Report Project',       showFor: 'doccon', badge: reportBadge },
+    { viewKey: 'monitoring-cost'      as const, icon: <DollarSign size={16} />,  label: 'Cost Monitoring',      showFor: 'admin',  badge: 0           },
   ]
+
+  const items = allItems.filter((item) => {
+    if (item.showFor === 'all')    return true
+    if (item.showFor === 'doccon') return !isAdminOSM          // doccon & engineer_os bisa lihat SLA/Report
+    if (item.showFor === 'admin')  return canViewCost           // admin_osm + kadiv bisa lihat Cost
+    return true
+  })
 
   // In icon-only (collapsed) mode: show a divider then all items as icon-only NavItems with tooltips
   if (collapsed) {
@@ -387,6 +457,7 @@ function MonitoringNavSection({ collapsed }: { collapsed: boolean }) {
               active={view === item.viewKey}
               icon={item.icon}
               label={item.label}
+              badge={item.badge}
               onClick={() => {
                 setView(item.viewKey)
                 setMobileOpen(false)
@@ -420,6 +491,12 @@ function MonitoringNavSection({ collapsed }: { collapsed: boolean }) {
           <Activity size={16} />
         </span>
         <span className="flex-1 truncate text-left font-medium">Monitoring</span>
+        {/* Badge total — selalu tampil jika ada item pending */}
+        {totalBadge > 0 && (
+          <span className="shrink-0 rounded-full bg-pertamina-red text-white text-[9px] font-bold leading-none flex items-center justify-center h-4 min-w-[16px] px-1 shadow-sm">
+            {totalBadge > 99 ? '99+' : totalBadge}
+          </span>
+        )}
         <motion.span
           animate={{ rotate: open ? 180 : 0 }}
           transition={{ duration: 0.22, ease: 'easeOut' }}
@@ -447,6 +524,7 @@ function MonitoringNavSection({ collapsed }: { collapsed: boolean }) {
                   active={view === item.viewKey}
                   icon={item.icon}
                   label={item.label}
+                  badge={item.badge}
                   onClick={() => {
                     setView(item.viewKey)
                     setMobileOpen(false)
@@ -457,6 +535,35 @@ function MonitoringNavSection({ collapsed }: { collapsed: boolean }) {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  )
+}
+
+function SalesNavSection({ collapsed }: { collapsed: boolean }) {
+  const view = useUIStore((s) => s.view)
+  const setView = useUIStore((s) => s.setView)
+  const setMobileOpen = useUIStore((s) => s.setMobileSidebarOpen)
+  const documents = useMonitoringReportStore((s) => s.documents)
+
+  const pendingCount = documents.filter(
+    (d) => d.docconSubStatus === 'delivered' && !d.salesAcceptedAt && !d.salesFlagIssue,
+  ).length
+
+  return (
+    <div className="mb-2 mt-4">
+      {!collapsed && (
+        <div className="mb-2 px-1">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-ink-tertiary">Sales</span>
+        </div>
+      )}
+      <NavItem
+        collapsed={collapsed}
+        active={view === 'sales-inbox'}
+        icon={<ShoppingBag size={16} />}
+        label="Sales Inbox"
+        badge={pendingCount}
+        onClick={() => { setView('sales-inbox'); setMobileOpen(false) }}
+      />
     </div>
   )
 }

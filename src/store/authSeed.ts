@@ -157,4 +157,18 @@ export const SEED_USERS: User[] = [
     createdBy: 'usr_super',
     lastLoginAt: null,
   },
+  {
+    id: 'usr_sales',
+    name: 'Bayu Pratama',
+    email: 'sales@pertamina.id',
+    passwordHash: hashPassword('sales123'),
+    role: 'sales',
+    teamId: null,
+    departmentId: null,
+    avatarColor: '#10B981',
+    active: true,
+    createdAt: nowIso(),
+    createdBy: 'usr_super',
+    lastLoginAt: null,
+  },
 ]

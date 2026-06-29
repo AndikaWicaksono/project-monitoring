@@ -27,20 +27,28 @@ export function MonitoringSLAPage() {
   const [search, setSearch] = useState('')
   const [deptFilter, setDeptFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<SLAStatus | ''>('')
+  const [sortBy, setSortBy] = useState<'kode-asc' | 'kode-desc' | 'nama-asc' | 'nama-desc'>('kode-asc')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const departments = useMemo(() => [...new Set(projects.map((p) => p.department).filter(Boolean))].sort(), [projects])
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    return projects.filter((p) => {
+    const list = projects.filter((p) => {
       if (deptFilter && p.department !== deptFilter) return false
       const avg = computeProjectGrandAvg(components, monthlyRecords, p.id, YEAR)
       if (statusFilter && slaStatusCalc(avg, p.targetSLA) !== statusFilter) return false
       if (q && !p.kodeProject.toLowerCase().includes(q) && !p.namaProject.toLowerCase().includes(q) && !p.department.toLowerCase().includes(q)) return false
       return true
     })
-  }, [projects, components, monthlyRecords, search, deptFilter, statusFilter])
+    return [...list].sort((a, b) => {
+      if (sortBy === 'kode-asc')  return a.kodeProject.localeCompare(b.kodeProject)
+      if (sortBy === 'kode-desc') return b.kodeProject.localeCompare(a.kodeProject)
+      if (sortBy === 'nama-asc')  return a.namaProject.localeCompare(b.namaProject)
+      if (sortBy === 'nama-desc') return b.namaProject.localeCompare(a.namaProject)
+      return 0
+    })
+  }, [projects, components, monthlyRecords, search, deptFilter, statusFilter, sortBy])
 
   function openDetail(projectId: string) {
     setSlaDetailProjectId(projectId)
@@ -98,6 +106,13 @@ export function MonitoringSLAPage() {
             <option value="">Semua Status</option>
             <option value="TERCAPAI">Tercapai</option>
             <option value="TIDAK_TERCAPAI">Tidak Tercapai</option>
+          </select>
+
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} className="input-base text-xs w-auto py-1.5 pr-7">
+            <option value="kode-asc">Kode A→Z</option>
+            <option value="kode-desc">Kode Z→A</option>
+            <option value="nama-asc">Nama A→Z</option>
+            <option value="nama-desc">Nama Z→A</option>
           </select>
 
           <span className="text-[11px] text-ink-tertiary ml-auto">{filtered.length} project</span>

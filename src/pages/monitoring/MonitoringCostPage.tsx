@@ -71,10 +71,11 @@ export function MonitoringCostPage() {
   const deleteCost = useMonitoringCostStore((s) => s.deleteCost)
   const deleteRealization = useMonitoringCostStore((s) => s.deleteRealization)
   const openModal = useUIStore((s) => s.openModal)
-  const { canDeleteMonitoring } = useMonitoringRole()
+  const { canEditCost } = useMonitoringRole()
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<MonitoringCostStatus | ''>('')
+  const [sortBy, setSortBy] = useState<'kode-asc' | 'kode-desc' | 'nama-asc' | 'nama-desc'>('kode-asc')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null)
   const [panelTab, setPanelTab] = useState<'breakdown' | 'realizations'>('breakdown')
@@ -84,13 +85,20 @@ export function MonitoringCostPage() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    return costs.filter((c) => {
+    const list = costs.filter((c) => {
       const effStatus = getEffectiveCostStatus(c.startDate, c.endDate, c.status === 'cancelled')
       if (statusFilter && effStatus !== statusFilter) return false
       if (q && !c.projectCode.toLowerCase().includes(q) && !c.projectName.toLowerCase().includes(q) && !c.projectClient.toLowerCase().includes(q)) return false
       return true
     })
-  }, [costs, search, statusFilter])
+    return [...list].sort((a, b) => {
+      if (sortBy === 'kode-asc')  return a.projectCode.localeCompare(b.projectCode)
+      if (sortBy === 'kode-desc') return b.projectCode.localeCompare(a.projectCode)
+      if (sortBy === 'nama-asc')  return a.projectName.localeCompare(b.projectName)
+      if (sortBy === 'nama-desc') return b.projectName.localeCompare(a.projectName)
+      return 0
+    })
+  }, [costs, search, statusFilter, sortBy])
 
   const totalContractValue = useMemo(() => filtered.reduce((s, c) => s + c.projectValue, 0), [filtered])
   const totalActualCost = useMemo(() =>
@@ -162,9 +170,15 @@ export function MonitoringCostPage() {
             <option value="cancelled">Cancelled</option>
             <option value="future">Future</option>
           </select>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} className="input-base text-xs w-auto py-1.5 pr-7">
+            <option value="kode-asc">Kode A→Z</option>
+            <option value="kode-desc">Kode Z→A</option>
+            <option value="nama-asc">Nama A→Z</option>
+            <option value="nama-desc">Nama Z→A</option>
+          </select>
           <span className="text-[11px] text-ink-tertiary ml-auto">{filtered.length} data</span>
           <Button variant="ghost" size="sm" onClick={handleExport} leftIcon={<Download size={13} />}>Export</Button>
-          <Button size="sm" onClick={() => openModal({ type: 'monitoring-cost-create' })} leftIcon={<Plus size={13} />}>Tambah</Button>
+          {canEditCost && <Button size="sm" onClick={() => openModal({ type: 'monitoring-cost-create' })} leftIcon={<Plus size={13} />}>Tambah</Button>}
         </div>
 
         {/* Table */}
@@ -234,8 +248,8 @@ export function MonitoringCostPage() {
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
                           <button onClick={() => openModal({ type: 'monitoring-cost-detail', costId: c.id })} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Detail"><Eye size={13} /></button>
-                          <button onClick={() => openModal({ type: 'monitoring-cost-edit', costId: c.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>
-                          {canDeleteMonitoring && <button onClick={() => setConfirmDeleteId(c.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>}
+                          {canEditCost && <button onClick={() => openModal({ type: 'monitoring-cost-edit', costId: c.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>}
+                          {canEditCost && <button onClick={() => setConfirmDeleteId(c.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>}
                         </div>
                       </td>
                     </tr>
@@ -269,7 +283,7 @@ export function MonitoringCostPage() {
                                   )}
                                 </button>
                               </div>
-                              {panelTab === 'realizations' && (
+                              {panelTab === 'realizations' && canEditCost && (
                                 <button
                                   onClick={() => openModal({ type: 'monitoring-cost-realization-create', costId: c.id })}
                                   className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 transition"
@@ -398,8 +412,8 @@ export function MonitoringCostPage() {
                                         <td className="px-3 py-2.5 tabular-nums text-ink-primary whitespace-nowrap">{formatCurrency(real.realisasiBiaya)}</td>
                                         <td className="px-3 py-2.5">
                                           <div className="flex items-center gap-1">
-                                            <button onClick={() => openModal({ type: 'monitoring-cost-realization-edit', realizationId: real.id, costId: real.projectId })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={11} /></button>
-                                            {canDeleteMonitoring && <button onClick={() => setConfirmDeleteRealId(real.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={11} /></button>}
+                                            {canEditCost && <button onClick={() => openModal({ type: 'monitoring-cost-realization-edit', realizationId: real.id, costId: real.projectId })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={11} /></button>}
+                                            {canEditCost && <button onClick={() => setConfirmDeleteRealId(real.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={11} /></button>}
                                           </div>
                                         </td>
                                       </tr>

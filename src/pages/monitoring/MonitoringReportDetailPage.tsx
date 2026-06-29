@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowLeft, Plus, Eye, Pencil, Trash2, Paperclip, CheckCircle2, ChevronLeft, ChevronRight, Calendar, AlertTriangle, Flag, User, ArrowRight } from 'lucide-react'
+import { ArrowLeft, Plus, Eye, Pencil, Trash2, Paperclip, CheckCircle2, ChevronLeft, ChevronRight, Calendar, AlertTriangle, Flag, User, ArrowRight, Clock } from 'lucide-react'
 import { useMonitoringReportStore } from '../../store/useMonitoringReportStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useMonitoringRole } from '../../hooks/useMonitoringRole'
@@ -413,8 +413,18 @@ export function MonitoringReportDetailPage() {
                         <div className="mt-1 flex gap-1 flex-wrap">
                           <DependencyBadge doc={doc} />
                           {doc.salesFlagIssue && (
-                            <span className="chip bg-orange-100 text-orange-700 text-[9px] flex items-center gap-0.5">
-                              <Flag size={8} />Flagged by Sales
+                            <span className="chip bg-orange-100 text-orange-700 text-[9px] flex items-center gap-0.5" title={doc.salesIssueNote}>
+                              <Flag size={8} />Dikembalikan Sales
+                            </span>
+                          )}
+                          {doc.docconSubStatus === 'delivered' && doc.salesAcceptedAt && !doc.salesFlagIssue && (
+                            <span className="chip bg-emerald-100 text-emerald-700 text-[9px] flex items-center gap-0.5">
+                              <CheckCircle2 size={8} />Diterima Sales
+                            </span>
+                          )}
+                          {doc.docconSubStatus === 'delivered' && !doc.salesAcceptedAt && !doc.salesFlagIssue && (
+                            <span className="chip bg-blue-50 text-blue-600 text-[9px] flex items-center gap-0.5">
+                              <Clock size={8} />Menunggu Sales
                             </span>
                           )}
                           {doc.hasConflict && doc.currentPhase === 'engineer' && (

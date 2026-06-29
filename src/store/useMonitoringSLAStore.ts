@@ -13,11 +13,11 @@ function mrec(id: string, compId: string, projId: string, month: number, year: n
   return { id, componentId: compId, projectId: projId, month, year, achievement: ach, remark, createdAt: T, updatedAt: T, lockedAt: T, lockedByName: 'System', reconfirmRequested: false, reconfirmNote: '' }
 }
 
-// 2026 records — Jan-Apr locked, May unlocked
+// 2026 records — Jan-May locked (past), Jun current (unlocked)
 function mrec26(id: string, compId: string, projId: string, month: number, ach: number, lockedByName?: string, remark = ''): SLAMonthlyRecord {
-  const isLocked = month < 5
+  const isLocked = month <= 5
   const mm = String(month).padStart(2, '0')
-  const lastDays = [31, 28, 31, 30, 31]
+  const lastDays = [31, 28, 31, 30, 31, 30]
   const lockTs = isLocked ? `2026-${mm}-${lastDays[month - 1]}T23:59:00.000Z` : null
   return {
     id, componentId: compId, projectId: projId, month, year: 2026, achievement: ach, remark,
@@ -211,7 +211,96 @@ const SEED_RECORDS: SLAMonthlyRecord[] = [
   mrec26('xr072','c-p26-mo','sla-ps026',2, 99.88,'Dimas Pratama'),
   mrec26('xr073','c-p26-mo','sla-ps026',3, 98.44,'Dimas Pratama','Panel monitor bermasalah Mar'),
   mrec26('xr074','c-p26-mo','sla-ps026',4, 99.11,'Dimas Pratama','Backlight failure beberapa unit'),
-  mrec26('xr075','c-p26-mo','sla-ps026',5, 99.88),
+  mrec26('xr075','c-p26-mo','sla-ps026',5, 99.88,'Dimas Pratama'),
+
+  // ── PS-024-00 Juni (target 99) ────────────────────────────────────────────
+  mrec26('xr076','c-p24-r1','sla-ps024',6, 99.67),
+  mrec26('xr077','c-p24-r2','sla-ps024',6, 99.88),
+  mrec26('xr078','c-p24-r3','sla-ps024',6, 98.22,undefined,'Perbaikan infrastruktur R3 ongoing'),
+  mrec26('xr079','c-p24-rt','sla-ps024',6, 99.33),
+  mrec26('xr080','c-p24-ig','sla-ps024',6, 99.71),
+
+  // ── PS-025-00 Juni (target 98) ────────────────────────────────────────────
+  mrec26('xr081','c-p25-in','sla-ps025',6, 98.66),
+  mrec26('xr082','c-p25-mn','sla-ps025',6, 97.33,undefined,'Backlog tiket maintenance belum selesai'),
+  mrec26('xr083','c-p25-rp','sla-ps025',6, 99.22),
+  mrec26('xr084','c-p25-it','sla-ps025',6, 98.77),
+
+  // ── PS-026-00 Juni (target 99.5) ─────────────────────────────────────────
+  mrec26('xr085','c-p26-a3','sla-ps026',6, 99.88),
+  mrec26('xr086','c-p26-a4','sla-ps026',6,100.00),
+  mrec26('xr087','c-p26-lc','sla-ps026',6, 99.55),
+  mrec26('xr088','c-p26-up','sla-ps026',6, 98.23,undefined,'Penggantian baterai UPS Juni'),
+  mrec26('xr089','c-p26-sc','sla-ps026',6, 99.99),
+  mrec26('xr090','c-p26-mo','sla-ps026',6, 99.44),
+
+  // ── MS-0003 Network Infrastructure Region 2026 (target 98) ───────────────
+  // Region I
+  mrec26('m3r001','c-r1','ms0003',1, 99.91,'Budi Santoso'), mrec26('m3r002','c-r1','ms0003',2, 99.85,'Budi Santoso'),
+  mrec26('m3r003','c-r1','ms0003',3, 99.98,'Budi Santoso'), mrec26('m3r004','c-r1','ms0003',4,100.00,'Budi Santoso'),
+  mrec26('m3r005','c-r1','ms0003',5, 99.92,'Budi Santoso'), mrec26('m3r006','c-r1','ms0003',6, 99.88),
+  // Region II
+  mrec26('m3r007','c-r2','ms0003',1, 99.44,'Budi Santoso'), mrec26('m3r008','c-r2','ms0003',2, 99.77,'Budi Santoso'),
+  mrec26('m3r009','c-r2','ms0003',3, 99.55,'Budi Santoso'), mrec26('m3r010','c-r2','ms0003',4, 99.88,'Budi Santoso'),
+  mrec26('m3r011','c-r2','ms0003',5, 99.66,'Budi Santoso'), mrec26('m3r012','c-r2','ms0003',6, 99.72),
+  // Region III
+  mrec26('m3r013','c-r3','ms0003',1, 99.88,'Budi Santoso'), mrec26('m3r014','c-r3','ms0003',2,100.00,'Budi Santoso'),
+  mrec26('m3r015','c-r3','ms0003',3, 99.95,'Budi Santoso'), mrec26('m3r016','c-r3','ms0003',4, 99.97,'Budi Santoso'),
+  mrec26('m3r017','c-r3','ms0003',5,100.00,'Budi Santoso'), mrec26('m3r018','c-r3','ms0003',6, 99.91),
+  // Regional Transmisi
+  mrec26('m3r019','c-rt','ms0003',1, 98.55,'Budi Santoso'), mrec26('m3r020','c-rt','ms0003',2, 98.77,'Budi Santoso'),
+  mrec26('m3r021','c-rt','ms0003',3, 98.44,'Budi Santoso'), mrec26('m3r022','c-rt','ms0003',4, 98.88,'Budi Santoso'),
+  mrec26('m3r023','c-rt','ms0003',5, 98.65,'Budi Santoso'), mrec26('m3r024','c-rt','ms0003',6, 98.78),
+  // IOGM
+  mrec26('m3r025','c-iogm','ms0003',1, 99.33,'Budi Santoso'), mrec26('m3r026','c-iogm','ms0003',2, 99.22,'Budi Santoso'),
+  mrec26('m3r027','c-iogm','ms0003',3, 99.55,'Budi Santoso'), mrec26('m3r028','c-iogm','ms0003',4, 99.44,'Budi Santoso'),
+  mrec26('m3r029','c-iogm','ms0003',5, 99.66,'Budi Santoso'), mrec26('m3r030','c-iogm','ms0003',6, 99.38),
+
+  // ── MS-0026 Equipment Procurement 2026 (target 99) ───────────────────────
+  // Printer Colour A3
+  mrec26('m26r001','c-pca3','ms0026',1,100.00,'Dewi Rahayu'), mrec26('m26r002','c-pca3','ms0026',2, 99.80,'Dewi Rahayu'),
+  mrec26('m26r003','c-pca3','ms0026',3,100.00,'Dewi Rahayu'), mrec26('m26r004','c-pca3','ms0026',4, 99.90,'Dewi Rahayu'),
+  mrec26('m26r005','c-pca3','ms0026',5,100.00,'Dewi Rahayu'), mrec26('m26r006','c-pca3','ms0026',6, 99.75),
+  // LCD Projector
+  mrec26('m26r007','c-lcd1','ms0026',1, 99.80,'Dewi Rahayu'), mrec26('m26r008','c-lcd1','ms0026',2,100.00,'Dewi Rahayu'),
+  mrec26('m26r009','c-lcd1','ms0026',3, 99.50,'Dewi Rahayu'), mrec26('m26r010','c-lcd1','ms0026',4, 99.90,'Dewi Rahayu'),
+  mrec26('m26r011','c-lcd1','ms0026',5,100.00,'Dewi Rahayu'), mrec26('m26r012','c-lcd1','ms0026',6, 99.80),
+  // LCD Projector Type 2
+  mrec26('m26r013','c-lcd2','ms0026',1,100.00,'Dewi Rahayu'), mrec26('m26r014','c-lcd2','ms0026',2, 99.90,'Dewi Rahayu'),
+  mrec26('m26r015','c-lcd2','ms0026',3,100.00,'Dewi Rahayu'), mrec26('m26r016','c-lcd2','ms0026',4, 99.80,'Dewi Rahayu'),
+  mrec26('m26r017','c-lcd2','ms0026',5, 99.90,'Dewi Rahayu'), mrec26('m26r018','c-lcd2','ms0026',6,100.00),
+  // Printer AIO
+  mrec26('m26r019','c-aio','ms0026',1, 99.50,'Dewi Rahayu'), mrec26('m26r020','c-aio','ms0026',2, 99.20,'Dewi Rahayu'),
+  mrec26('m26r021','c-aio','ms0026',3, 99.80,'Dewi Rahayu'), mrec26('m26r022','c-aio','ms0026',4, 99.50,'Dewi Rahayu'),
+  mrec26('m26r023','c-aio','ms0026',5, 99.70,'Dewi Rahayu'), mrec26('m26r024','c-aio','ms0026',6, 99.33),
+  // Scanner
+  mrec26('m26r025','c-scan','ms0026',1,100.00,'Dewi Rahayu'), mrec26('m26r026','c-scan','ms0026',2, 99.90,'Dewi Rahayu'),
+  mrec26('m26r027','c-scan','ms0026',3,100.00,'Dewi Rahayu'), mrec26('m26r028','c-scan','ms0026',4,100.00,'Dewi Rahayu'),
+  mrec26('m26r029','c-scan','ms0026',5, 99.90,'Dewi Rahayu'), mrec26('m26r030','c-scan','ms0026',6,100.00),
+  // UPS (target 99 — sering di bawah target)
+  mrec26('m26r031','c-ups','ms0026',1, 98.50,'Dewi Rahayu','Baterai UPS degradasi Jan'), mrec26('m26r032','c-ups','ms0026',2, 98.80,'Dewi Rahayu'),
+  mrec26('m26r033','c-ups','ms0026',3, 99.10,'Dewi Rahayu'), mrec26('m26r034','c-ups','ms0026',4, 98.70,'Dewi Rahayu','Gangguan switching UPS Apr'),
+  mrec26('m26r035','c-ups','ms0026',5, 99.20,'Dewi Rahayu'), mrec26('m26r036','c-ups','ms0026',6, 98.90),
+
+  // ── MS-0030 Data Center Maintenance 2026 (target 95) ─────────────────────
+  // DC Primary
+  mrec26('m30r001','c-dc1','ms0030',1, 99.99,'Ahmad Fauzi'), mrec26('m30r002','c-dc1','ms0030',2,100.00,'Ahmad Fauzi'),
+  mrec26('m30r003','c-dc1','ms0030',3, 99.95,'Ahmad Fauzi'), mrec26('m30r004','c-dc1','ms0030',4,100.00,'Ahmad Fauzi'),
+  mrec26('m30r005','c-dc1','ms0030',5, 99.99,'Ahmad Fauzi'), mrec26('m30r006','c-dc1','ms0030',6, 99.97),
+  // DC Secondary
+  mrec26('m30r007','c-dc2','ms0030',1, 98.11,'Ahmad Fauzi'), mrec26('m30r008','c-dc2','ms0030',2, 97.88,'Ahmad Fauzi'),
+  mrec26('m30r009','c-dc2','ms0030',3, 98.55,'Ahmad Fauzi'), mrec26('m30r010','c-dc2','ms0030',4, 97.99,'Ahmad Fauzi'),
+  mrec26('m30r011','c-dc2','ms0030',5, 98.33,'Ahmad Fauzi'), mrec26('m30r012','c-dc2','ms0030',6, 98.11),
+
+  // ── MS-0004 Security System Management 2026 (target 99.5) ────────────────
+  // CCTV System
+  mrec26('m4r001','c-cctv','ms0004',1,100.00,'Rina Kartika'), mrec26('m4r002','c-cctv','ms0004',2, 99.90,'Rina Kartika'),
+  mrec26('m4r003','c-cctv','ms0004',3,100.00,'Rina Kartika'), mrec26('m4r004','c-cctv','ms0004',4, 99.80,'Rina Kartika'),
+  mrec26('m4r005','c-cctv','ms0004',5,100.00,'Rina Kartika'), mrec26('m4r006','c-cctv','ms0004',6, 99.90),
+  // Access Control
+  mrec26('m4r007','c-access','ms0004',1, 99.85,'Rina Kartika'), mrec26('m4r008','c-access','ms0004',2,100.00,'Rina Kartika'),
+  mrec26('m4r009','c-access','ms0004',3, 99.95,'Rina Kartika'), mrec26('m4r010','c-access','ms0004',4, 99.80,'Rina Kartika'),
+  mrec26('m4r011','c-access','ms0004',5, 99.90,'Rina Kartika'), mrec26('m4r012','c-access','ms0004',6,100.00),
 ]
 
 // ── Store ─────────────────────────────────────────────────────────────────────
