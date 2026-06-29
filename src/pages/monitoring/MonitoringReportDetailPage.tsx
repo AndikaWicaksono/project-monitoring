@@ -11,11 +11,14 @@ import type { ReportDocument, ReportDocumentStatus, BillingDocumentStatus, DocPh
 type ActiveTab = 'customer' | 'vendor' | 'billing' | 'sla'
 
 const DOC_STATUS_META: Record<ReportDocumentStatus, { label: string; cls: string }> = {
-  DRAFT:             { label: 'Draft',          cls: 'bg-slate-100 text-slate-700' },
-  SUBMITTED:         { label: 'Submitted',       cls: 'bg-blue-100 text-blue-700' },
-  UNDER_REVIEW:      { label: 'Under Review',    cls: 'bg-amber-100 text-amber-700' },
-  REVISION_REQUIRED: { label: 'Revisi Diminta',  cls: 'bg-red-100 text-red-700' },
-  APPROVED:          { label: 'Disetujui',        cls: 'bg-emerald-100 text-emerald-700' },
+  DRAFT:             { label: 'Draft',            cls: 'bg-slate-100 text-slate-700' },
+  SUBMITTED:         { label: 'Submitted',         cls: 'bg-blue-100 text-blue-700' },
+  UNDER_REVIEW:      { label: 'Under Review',      cls: 'bg-amber-100 text-amber-700' },
+  REVISION_REQUIRED: { label: 'Revisi Diminta',    cls: 'bg-red-100 text-red-700' },
+  APPROVED:          { label: 'Disetujui',          cls: 'bg-emerald-100 text-emerald-700' },
+  COMPILING:         { label: 'Kompilasi Doccon',   cls: 'bg-violet-100 text-violet-700' },
+  PENDING_KADIV:     { label: 'Menunggu Kadiv',     cls: 'bg-blue-100 text-blue-700' },
+  KADIV_APPROVED:    { label: 'Disetujui Kadiv',    cls: 'bg-teal-100 text-teal-700' },
 }
 
 const BILLING_STATUS_META: Record<BillingDocumentStatus, { label: string; cls: string }> = {

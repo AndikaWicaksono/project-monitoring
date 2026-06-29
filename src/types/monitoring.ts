@@ -5,12 +5,37 @@
 // ---------- Report Project Monitoring ----------
 
 export type ReportDocumentType = 'customer' | 'vendor'
-export type ReportDocumentStatus = 'DRAFT' | 'SUBMITTED' | 'UNDER_REVIEW' | 'REVISION_REQUIRED' | 'APPROVED'
+export type ReportDocumentStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'          // Engineer submitted ke Doccon
+  | 'UNDER_REVIEW'       // Keep backward compat
+  | 'COMPILING'          // Doccon sedang susun customer report
+  | 'PENDING_KADIV'      // Menunggu approval Kadiv
+  | 'REVISION_REQUIRED'
+  | 'KADIV_APPROVED'     // Kadiv sudah approve
+  | 'APPROVED'           // Fully done
 export type ReportDocumentRevision = 'R0' | 'R1' | 'R2' | 'R3' | 'R4'
-export type ReportDocumentActionType = 'CREATE' | 'SUBMIT' | 'START_REVIEW' | 'APPROVE' | 'REQUEST_REVISION' | 'RESUBMIT'
+export type ReportDocumentActionType =
+  | 'CREATE' | 'SUBMIT' | 'START_REVIEW' | 'APPROVE' | 'REQUEST_REVISION' | 'RESUBMIT'  // keep existing
+  | 'DOCCON_COMPILE'      // Doccon mulai kompilasi
+  | 'SUBMIT_KADIV'        // Doccon submit ke Kadiv
+  | 'KADIV_APPROVE'       // Kadiv approve
+  | 'KADIV_REJECT'        // Kadiv minta revisi
+  | 'CUSTOMER_NOTIFIED'   // Doccon catat email ke customer dikirim
+  | 'CUSTOMER_CONFIRMED'  // Doccon catat customer konfirmasi via email
+  | 'VENDOR_CONFIRMED'    // Doccon catat vendor konfirmasi via email
+  | 'SUBMIT_SALES'        // Doccon kirim ke Sales
 
 // E2E phase tracking (feature: end-to-end document pipeline)
-export type DocPhase = 'engineer' | 'customer' | 'doccon'
+export type DocPhase =
+  | 'engineer'        // Customer doc: Engineer drafting
+  | 'doccon'          // Customer doc: Doccon assembling | Vendor doc: Doccon inputting
+  | 'kadiv'           // Both: Kadiv approval
+  | 'customer_email'  // Customer doc: menunggu konfirmasi customer (via email)
+  | 'vendor_confirm'  // Vendor doc: menunggu konfirmasi vendor (via email)
+  | 'sales'           // Customer doc: sudah dikirim ke Sales
+  | 'completed'       // Vendor doc: selesai
+  | 'customer'        // Keep backward compat
 export type EngineerSubStatus = 'draft' | 'ready_for_review' | 'submitted'
 export type CustomerSubStatus = 'under_review' | 'approved' | 'revisions_required'
 export type DocconSubStatus = 'compiling' | 'qc_review' | 'ready_to_sales' | 'delivered'
@@ -94,6 +119,12 @@ export interface ReportDocument {
   salesAcceptedAt?: string | null
   salesFlagIssue?: boolean
   salesIssueNote?: string
+  // New workflow timestamps
+  kadivApprovedAt?: string | null
+  kadivApprovedByName?: string | null
+  customerConfirmedAt?: string | null
+  vendorConfirmedAt?: string | null
+  salesSubmittedAt?: string | null
 }
 
 // ---------- Billing Tracker (embedded in Report Project) ----------

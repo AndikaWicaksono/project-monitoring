@@ -64,6 +64,12 @@ function phaseDefaults(
       return { ...base, currentPhase: 'engineer', engineerSubStatus: 'draft', customerSubStatus: 'revisions_required', ...overrides }
     case 'APPROVED':
       return { ...base, currentPhase: 'doccon', engineerSubStatus: 'submitted', customerSubStatus: 'approved', docconSubStatus: 'delivered', ...overrides }
+    case 'COMPILING':
+      return { ...base, currentPhase: 'doccon', engineerSubStatus: 'submitted', ...overrides }
+    case 'PENDING_KADIV':
+      return { ...base, currentPhase: 'kadiv', engineerSubStatus: 'submitted', ...overrides }
+    case 'KADIV_APPROVED':
+      return { ...base, currentPhase: 'customer_email', engineerSubStatus: 'submitted', customerSubStatus: 'approved', ...overrides }
   }
 }
 
@@ -158,6 +164,7 @@ const SEED_DOCUMENTS: ReportDocument[] = [
       engineerPIC: 'Sari Dewi', customerPIC: 'Finance PGN', docconPIC: 'Sari Dewi',
       engineerStartedAt: '2025-02-28T08:00:00.000Z',
       deadlineToSales: '2025-03-15',
+      currentPhase: 'doccon' as DocPhase,
     }),
   },
   // rp002 — Customer docs
@@ -198,6 +205,7 @@ const SEED_DOCUMENTS: ReportDocument[] = [
       engineerPIC: 'Rina Kartika', customerPIC: 'Procurement Saka', docconPIC: 'Rina Kartika',
       engineerStartedAt: '2025-02-12T08:00:00.000Z',
       deadlineToSales: '2025-03-01',
+      currentPhase: 'doccon' as DocPhase,
     }),
   },
   // rp003 — Customer docs
@@ -453,6 +461,7 @@ function makeDoc(
   docconPIC: string,
   actDefs: ActDef[],
 ): ReportDocument {
+  const phaseOverride = docType === 'vendor' ? { currentPhase: 'doccon' as DocPhase } : {}
   return {
     ...phaseDefaults(status, {
       engineerPIC, customerPIC: 'Manager PGN', docconPIC,
@@ -463,6 +472,7 @@ function makeDoc(
       customerApprovedAt: status === 'APPROVED' && tanggalFeedback ? `${tanggalFeedback}T11:00:00.000Z` : null,
       docconReceivedAt: status === 'APPROVED' && tanggalFeedback ? `${tanggalFeedback}T13:00:00.000Z` : null,
       docconDeliveredAt: null, deadlineToSales: null,
+      ...phaseOverride,
     }),
     id, projectId, docType, judul, deskripsi: '', period, status, revision,
     tanggalSubmit, tanggalFeedback, attachments: [],
@@ -980,6 +990,15 @@ interface MonitoringReportState {
   advanceDocconPhase: (id: string, subStatus: DocconSubStatus) => void
   recordSalesFeedback: (id: string, flagIssue: boolean, note: string) => void
   docconResubmitToSales: (id: string) => void
+
+  // New workflow functions (redesign)
+  docconCompile: (id: string, byUserId: string, byName: string) => void
+  submitToKadiv: (id: string, byUserId: string, byName: string) => void
+  kadivApprove: (id: string, byUserId: string, byName: string, comment?: string) => void
+  kadivReject: (id: string, byUserId: string, byName: string, comment: string) => void
+  recordCustomerConfirmed: (id: string, byUserId: string, byName: string) => void
+  recordVendorConfirmed: (id: string, byUserId: string, byName: string, comment?: string) => void
+  submitToSales: (id: string, byUserId: string, byName: string) => void
 }
 
 function makeActivity(action: ReportDocumentActivity['action'], byUserId: string, byName: string, comment: string): ReportDocumentActivity {
@@ -991,6 +1010,8 @@ const LEGACY_STATUS_MAP: Record<string, ReportDocumentStatus> = {
   CREATE: 'DRAFT', UNDER_APPROVAL: 'UNDER_REVIEW', UNDER_REVISION: 'REVISION_REQUIRED',
   DRAFT: 'DRAFT', SUBMITTED: 'SUBMITTED', UNDER_REVIEW: 'UNDER_REVIEW',
   REVISION_REQUIRED: 'REVISION_REQUIRED', APPROVED: 'APPROVED',
+  // New statuses — passthrough
+  COMPILING: 'COMPILING', PENDING_KADIV: 'PENDING_KADIV', KADIV_APPROVED: 'KADIV_APPROVED',
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -1042,8 +1063,10 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
       // ── Report Documents ──
       addDocument: (data) => {
         const now = nowIso()
+        const defaultPhase: DocPhase = data.docType === 'vendor' ? 'doccon' : 'engineer'
         const doc: ReportDocument = {
           ...phaseDefaults('DRAFT', { engineerStartedAt: now }),
+          currentPhase: defaultPhase,
           ...data,
           id: uid('rd'),
           status: 'DRAFT',
@@ -1229,6 +1252,125 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
             updatedAt: now,
           }),
         }))
+      },
+
+      // ── New Workflow Functions (redesign) ──
+      docconCompile: (id, byUserId, byName) => {
+        const activity = makeActivity('DOCCON_COMPILE', byUserId, byName, '')
+        const now = nowIso()
+        set((s) => ({
+          documents: s.documents.map((d) => d.id !== id ? d : {
+            ...d,
+            status: 'COMPILING' as ReportDocumentStatus,
+            currentPhase: 'doccon' as DocPhase,
+            activities: [...d.activities, activity],
+            updatedAt: now,
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_submitted', message: `Doccon mulai kompilasi dokumen`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+
+      submitToKadiv: (id, byUserId, byName) => {
+        const activity = makeActivity('SUBMIT_KADIV', byUserId, byName, '')
+        const now = nowIso()
+        set((s) => ({
+          documents: s.documents.map((d) => d.id !== id ? d : {
+            ...d,
+            status: 'PENDING_KADIV' as ReportDocumentStatus,
+            currentPhase: 'kadiv' as DocPhase,
+            activities: [...d.activities, activity],
+            updatedAt: now,
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_submitted', message: `Dokumen dikirim ke Kadiv untuk approval`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+
+      kadivApprove: (id, byUserId, byName, comment = '') => {
+        const activity = makeActivity('KADIV_APPROVE', byUserId, byName, comment)
+        const now = nowIso()
+        set((s) => ({
+          documents: s.documents.map((d) => {
+            if (d.id !== id) return d
+            const nextPhase: DocPhase = d.docType === 'vendor' ? 'vendor_confirm' : 'customer_email'
+            return {
+              ...d,
+              status: 'KADIV_APPROVED' as ReportDocumentStatus,
+              currentPhase: nextPhase,
+              kadivApprovedAt: now,
+              kadivApprovedByName: byName,
+              activities: [...d.activities, activity],
+              updatedAt: now,
+            }
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_approved', message: `Kadiv menyetujui dokumen`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+
+      kadivReject: (id, byUserId, byName, comment) => {
+        const activity = makeActivity('KADIV_REJECT', byUserId, byName, comment)
+        const now = nowIso()
+        set((s) => ({
+          documents: s.documents.map((d) => {
+            if (d.id !== id) return d
+            // Vendor: back to doccon; Customer: back to engineer
+            const prevPhase: DocPhase = d.docType === 'vendor' ? 'doccon' : 'engineer'
+            return {
+              ...d,
+              status: 'REVISION_REQUIRED' as ReportDocumentStatus,
+              currentPhase: prevPhase,
+              activities: [...d.activities, activity],
+              updatedAt: now,
+            }
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_revision', message: `Kadiv meminta revisi dokumen`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+
+      recordCustomerConfirmed: (id, byUserId, byName) => {
+        const activity = makeActivity('CUSTOMER_CONFIRMED', byUserId, byName, '')
+        const now = nowIso()
+        set((s) => ({
+          documents: s.documents.map((d) => d.id !== id ? d : {
+            ...d,
+            status: 'APPROVED' as ReportDocumentStatus,
+            currentPhase: 'sales' as DocPhase,
+            customerConfirmedAt: now,
+            activities: [...d.activities, activity],
+            updatedAt: now,
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_approved', message: `Customer konfirmasi — dokumen disetujui`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+
+      recordVendorConfirmed: (id, byUserId, byName, comment = '') => {
+        const activity = makeActivity('VENDOR_CONFIRMED', byUserId, byName, comment)
+        const now = nowIso()
+        set((s) => ({
+          documents: s.documents.map((d) => d.id !== id ? d : {
+            ...d,
+            status: 'APPROVED' as ReportDocumentStatus,
+            currentPhase: 'completed' as DocPhase,
+            vendorConfirmedAt: now,
+            activities: [...d.activities, activity],
+            updatedAt: now,
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_approved', message: `Vendor konfirmasi — dokumen selesai`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+
+      submitToSales: (id, byUserId, byName) => {
+        const activity = makeActivity('SUBMIT_SALES', byUserId, byName, '')
+        const now = nowIso()
+        set((s) => ({
+          documents: s.documents.map((d) => d.id !== id ? d : {
+            ...d,
+            currentPhase: 'sales' as DocPhase,
+            salesSubmittedAt: now,
+            activities: [...d.activities, activity],
+            updatedAt: now,
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_submitted', message: `Dokumen dikirim ke Sales`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
       },
 
       // ── Billing Attachments ──
