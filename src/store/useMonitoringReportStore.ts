@@ -18,13 +18,13 @@ const T2 = '2025-03-05T10:00:00.000Z'
 const T_TODAY = '2026-06-26T08:00:00.000Z'
 
 const SEED_PROJECTS: ReportProject[] = [
-  { id: 'rp001', kodeProject: 'PGN-IT-001', client: 'PT Perusahaan Gas Negara', namaKontrak: 'Kontrak Jasa Pemeliharaan Jaringan IT 2025', department: 'IT Infrastructure', picDocon: 'Sari Dewi', picLaporan: 'Budi Santoso', salesCustomer: 'Andi Wijaya', emailTujuan: 'docon@pgn.co.id', catatan: '', kontrakMulai: '2025-01', kontrakAkhir: null, createdAt: T0, updatedAt: T0, createdByUserId: 'system', createdByName: 'System' },
-  { id: 'rp002', kodeProject: 'PGN-SEC-002', client: 'PT Saka Energi Indonesia', namaKontrak: 'Kontrak Security System Management 2025', department: 'IT Security', picDocon: 'Rina Kartika', picLaporan: 'Ahmad Fauzi', salesCustomer: 'Dewi Rahayu', emailTujuan: 'sec@sakaindonesia.co.id', catatan: '', kontrakMulai: '2025-02', kontrakAkhir: null, createdAt: T1, updatedAt: T1, createdByUserId: 'system', createdByName: 'System' },
-  { id: 'rp003', kodeProject: 'PGN-DC-003', client: 'PT Gagas Energi Indonesia', namaKontrak: 'Kontrak Data Center Operations Q1 2025', department: 'IT Infrastructure', picDocon: 'Hendra Putra', picLaporan: 'Lisa Andriani', salesCustomer: 'Rudi Setiawan', emailTujuan: 'dc@gagas.co.id', catatan: '', kontrakMulai: '2025-03', kontrakAkhir: null, createdAt: T2, updatedAt: T2, createdByUserId: 'system', createdByName: 'System' },
-  { id: 'rp004', kodeProject: 'PS-024-00', client: 'PT PGN Tbk', namaKontrak: 'Pekerjaan Jasa Operasi dan Pemeliharaan Terintegrasi Gas Management System (PJOPTGMS)', department: 'ICS', picDocon: 'Anita', picLaporan: 'Nyaklia', salesCustomer: 'Bayu Pratama', emailTujuan: 'osm@pgn.co.id', catatan: 'Project PJOPTGMS — laporan bulanan 5 dokumen', kontrakMulai: '2025-12', kontrakAkhir: null, createdAt: '2025-12-01T08:00:00.000Z', updatedAt: '2025-12-01T08:00:00.000Z', createdByUserId: 'system', createdByName: 'System' },
-  { id: 'rp005', kodeProject: 'PS-025-01', client: 'PT PGN Tbk', namaKontrak: 'Demonstrasi Alur Dokumen OSM — Pain Point Visibility 2026', department: 'OSM', picDocon: 'Andika Wicaksono', picLaporan: 'Andika Wicaksono', salesCustomer: 'Bayu Pratama', emailTujuan: 'osm@pgn.co.id', catatan: 'Project demo 7 skenario bottleneck dokumen OSM', kontrakMulai: '2026-06', kontrakAkhir: null, createdAt: T_TODAY, updatedAt: T_TODAY, createdByUserId: 'system', createdByName: 'System' },
-  { id: 'rp-p025', kodeProject: 'PS-025-00', client: 'PT PGN Tbk', namaKontrak: 'Sistem Informasi Manajemen Aset (SIMA)', department: 'ICS', picDocon: 'Rini Astuti', picLaporan: 'Budi Santoso', salesCustomer: 'Bayu Pratama', emailTujuan: 'ics@pgn.co.id', catatan: 'Project SIMA — laporan bulanan', kontrakMulai: '2026-01', kontrakAkhir: null, createdAt: '2026-01-01T08:00:00.000Z', updatedAt: '2026-01-01T08:00:00.000Z', createdByUserId: 'system', createdByName: 'System' },
-  { id: 'rp-p026', kodeProject: 'PS-026-00', client: 'PT PGN Tbk', namaKontrak: 'End User Support (EUS)', department: 'EUS', picDocon: 'Sari Wijaya', picLaporan: 'Dimas Pratama', salesCustomer: 'Bayu Pratama', emailTujuan: 'eus@pgn.co.id', catatan: 'Project EUS — laporan bulanan', kontrakMulai: '2026-01', kontrakAkhir: null, createdAt: '2026-01-01T08:00:00.000Z', updatedAt: '2026-01-01T08:00:00.000Z', createdByUserId: 'system', createdByName: 'System' },
+  { id: 'rp001', kodeProject: 'PGN-IT-001', client: 'PT Perusahaan Gas Negara', namaKontrak: 'Kontrak Jasa Pemeliharaan Jaringan IT 2025', department: 'IT Infrastructure', picDocon: 'Sari Dewi', picLaporan: 'Budi Santoso', salesCustomer: 'Andi Wijaya', emailTujuan: 'docon@pgn.co.id', catatan: '', kontrakMulai: '2025-01', kontrakAkhir: null, excludedMonths: [], createdAt: T0, updatedAt: T0, createdByUserId: 'system', createdByName: 'System' },
+  { id: 'rp002', kodeProject: 'PGN-SEC-002', client: 'PT Saka Energi Indonesia', namaKontrak: 'Kontrak Security System Management 2025', department: 'IT Security', picDocon: 'Rina Kartika', picLaporan: 'Ahmad Fauzi', salesCustomer: 'Dewi Rahayu', emailTujuan: 'sec@sakaindonesia.co.id', catatan: '', kontrakMulai: '2025-02', kontrakAkhir: null, excludedMonths: [], createdAt: T1, updatedAt: T1, createdByUserId: 'system', createdByName: 'System' },
+  { id: 'rp003', kodeProject: 'PGN-DC-003', client: 'PT Gagas Energi Indonesia', namaKontrak: 'Kontrak Data Center Operations Q1 2025', department: 'IT Infrastructure', picDocon: 'Hendra Putra', picLaporan: 'Lisa Andriani', salesCustomer: 'Rudi Setiawan', emailTujuan: 'dc@gagas.co.id', catatan: '', kontrakMulai: '2025-03', kontrakAkhir: null, excludedMonths: [], createdAt: T2, updatedAt: T2, createdByUserId: 'system', createdByName: 'System' },
+  { id: 'rp004', kodeProject: 'PS-024-00', client: 'PT PGN Tbk', namaKontrak: 'Pekerjaan Jasa Operasi dan Pemeliharaan Terintegrasi Gas Management System (PJOPTGMS)', department: 'ICS', picDocon: 'Anita', picLaporan: 'Nyaklia', salesCustomer: 'Bayu Pratama', emailTujuan: 'osm@pgn.co.id', catatan: 'Project PJOPTGMS — laporan bulanan 5 dokumen', kontrakMulai: '2025-12', kontrakAkhir: null, excludedMonths: [], createdAt: '2025-12-01T08:00:00.000Z', updatedAt: '2025-12-01T08:00:00.000Z', createdByUserId: 'system', createdByName: 'System' },
+  { id: 'rp005', kodeProject: 'PS-025-01', client: 'PT PGN Tbk', namaKontrak: 'Demonstrasi Alur Dokumen OSM — Pain Point Visibility 2026', department: 'OSM', picDocon: 'Andika Wicaksono', picLaporan: 'Andika Wicaksono', salesCustomer: 'Bayu Pratama', emailTujuan: 'osm@pgn.co.id', catatan: 'Project demo 7 skenario bottleneck dokumen OSM', kontrakMulai: '2026-06', kontrakAkhir: null, excludedMonths: [], createdAt: T_TODAY, updatedAt: T_TODAY, createdByUserId: 'system', createdByName: 'System' },
+  { id: 'rp-p025', kodeProject: 'PS-025-00', client: 'PT PGN Tbk', namaKontrak: 'Sistem Informasi Manajemen Aset (SIMA)', department: 'ICS', picDocon: 'Rini Astuti', picLaporan: 'Budi Santoso', salesCustomer: 'Bayu Pratama', emailTujuan: 'ics@pgn.co.id', catatan: 'Project SIMA — laporan bulanan', kontrakMulai: '2026-01', kontrakAkhir: null, excludedMonths: [], createdAt: '2026-01-01T08:00:00.000Z', updatedAt: '2026-01-01T08:00:00.000Z', createdByUserId: 'system', createdByName: 'System' },
+  { id: 'rp-p026', kodeProject: 'PS-026-00', client: 'PT PGN Tbk', namaKontrak: 'End User Support (EUS)', department: 'EUS', picDocon: 'Sari Wijaya', picLaporan: 'Dimas Pratama', salesCustomer: 'Bayu Pratama', emailTujuan: 'eus@pgn.co.id', catatan: 'Project EUS — laporan bulanan', kontrakMulai: '2026-01', kontrakAkhir: null, excludedMonths: [], createdAt: '2026-01-01T08:00:00.000Z', updatedAt: '2026-01-01T08:00:00.000Z', createdByUserId: 'system', createdByName: 'System' },
 ]
 
 function act(id: string, action: ReportDocumentActivity['action'], byName: string, comment: string, ts: string): ReportDocumentActivity {
@@ -944,6 +944,7 @@ interface MonitoringReportState {
   updateProject: (id: string, patch: Partial<Omit<ReportProject, 'id' | 'createdAt'>>) => void
   deleteProject: (id: string) => void
   endProjectAt: (id: string, selectedPeriod: string) => void
+  excludeProjectMonth: (id: string, month: string) => void
   getProjectById: (id: string) => ReportProject | undefined
 
   // Report document CRUD
@@ -1004,7 +1005,7 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
       // ── Projects ──
       addProject: (data) => {
         const now = nowIso()
-        const record: ReportProject = { ...data, id: uid('rp'), createdAt: now, updatedAt: now }
+        const record: ReportProject = { excludedMonths: [], ...data, id: uid('rp'), createdAt: now, updatedAt: now }
         set((s) => ({ projects: [record, ...s.projects] }))
         useLogStore.getState().addLog({ type: 'monitoring_report_created', message: `Project laporan "${data.kodeProject}" dibuat`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
         return record
@@ -1025,6 +1026,16 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
         const kontrakAkhir = prevReportMonth(selectedPeriod)
         set((s) => ({ projects: s.projects.map((p) => p.id === id ? { ...p, kontrakAkhir, updatedAt: nowIso() } : p) }))
         useLogStore.getState().addLog({ type: 'monitoring_report_edited', message: `Project laporan dikeluarkan dari periode ${selectedPeriod} ke atas (kontrak berakhir ${kontrakAkhir})`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+      excludeProjectMonth: (id, month) => {
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id === id
+              ? { ...p, excludedMonths: [...(p.excludedMonths ?? []).filter((m) => m !== month), month], updatedAt: nowIso() }
+              : p
+          ),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_edited', message: `Project laporan dikecualikan dari periode ${month}`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
       },
       getProjectById: (id) => get().projects.find((p) => p.id === id),
 

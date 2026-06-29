@@ -19,8 +19,9 @@ export function useMonitoringRole() {
     isDoccon,
     isEngineerOS,
     isKadiv,
-    canDeleteMonitoring: roleId !== 'doccon_osm' && roleId !== 'engineer_os',
-    canEditMonitoring:   !isEngineerOS,
+    canDeleteMonitoring:    roleId !== 'doccon_osm' && roleId !== 'engineer_os',
+    canManageProjectPeriod: !isEngineerOS,  // doccon, admin, kadiv, super_admin — bukan engineer
+    canEditMonitoring:      !isEngineerOS,
     canUnlockRecord:     isAdminOSM || roleId === 'super_admin',
     // Cost: kadiv bisa lihat (view-only), hanya admin_osm yang bisa edit/tambah/hapus
     canViewCost:         isAdminOSM || isKadiv,

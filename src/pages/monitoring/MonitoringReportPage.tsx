@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   Plus, Search, Download, Eye, Pencil, Trash2, Filter,
-  FileText, ChevronLeft, ChevronRight, Archive,
+  FileText, ChevronLeft, ChevronRight, Archive, CalendarX,
   AlertTriangle, Clock, CheckCircle2, AlertCircle,
   LayoutGrid, List,
 } from 'lucide-react'
@@ -179,20 +179,21 @@ function BottleneckCard({
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export function MonitoringReportPage() {
-  const { projects, documents, billingDocuments, deleteProject, endProjectAt } = useMonitoringReportStore()
+  const { projects, documents, billingDocuments, deleteProject, endProjectAt, excludeProjectMonth } = useMonitoringReportStore()
   const openModal = useUIStore((s) => s.openModal)
   const setView = useUIStore((s) => s.setView)
   const setReportDetailProjectId = useUIStore((s) => s.setReportDetailProjectId)
   const selectedMonth = useUIStore((s) => s.selectedReportMonth)
   const setSelectedMonth = useUIStore((s) => s.setSelectedReportMonth)
-  const { canDeleteMonitoring } = useMonitoringRole()
+  const { canDeleteMonitoring, canManageProjectPeriod } = useMonitoringRole()
 
   const [search, setSearch]       = useState('')
   const [deptFilter, setDeptFilter] = useState('')
   const [sortBy, setSortBy]       = useState<'kode-asc' | 'kode-desc' | 'nama-asc' | 'nama-desc'>('kode-asc')
   const [viewMode, setViewMode]   = useState<'table' | 'card'>('table')
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  const [confirmEndId, setConfirmEndId]       = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId]         = useState<string | null>(null)
+  const [confirmEndId, setConfirmEndId]               = useState<string | null>(null)
+  const [confirmExcludeMonthId, setConfirmExcludeMonthId] = useState<string | null>(null)
 
   const departments = useMemo(
     () => [...new Set(projects.map((p) => p.department).filter(Boolean))].sort(),
@@ -204,6 +205,7 @@ export function MonitoringReportPage() {
     const list = projects.filter((p) => {
       if (selectedMonth < p.kontrakMulai) return false
       if (p.kontrakAkhir !== null && selectedMonth > p.kontrakAkhir) return false
+      if ((p.excludedMonths ?? []).includes(selectedMonth)) return false
       if (deptFilter && p.department !== deptFilter) return false
       if (q && !p.kodeProject.toLowerCase().includes(q) && !p.client.toLowerCase().includes(q) && !p.namaKontrak.toLowerCase().includes(q)) return false
       return true
@@ -509,23 +511,32 @@ export function MonitoringReportPage() {
                             >
                               <Pencil size={13} />
                             </button>
-                            {canDeleteMonitoring && (
+                            {canManageProjectPeriod && (
                               <>
+                                <button
+                                  onClick={() => setConfirmExcludeMonthId(p.id)}
+                                  className="rounded p-1.5 text-ink-tertiary hover:text-blue-600 hover:bg-blue-50 transition"
+                                  title={`Hapus dari bulan ${selectedMonth} saja`}
+                                >
+                                  <CalendarX size={13} />
+                                </button>
                                 <button
                                   onClick={() => setConfirmEndId(p.id)}
                                   className="rounded p-1.5 text-ink-tertiary hover:text-amber-600 hover:bg-amber-50 transition"
-                                  title="Keluarkan dari periode ini"
+                                  title="Hapus dari bulan ini & seterusnya"
                                 >
                                   <Archive size={13} />
                                 </button>
-                                <button
-                                  onClick={() => setConfirmDeleteId(p.id)}
-                                  className="rounded p-1.5 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition"
-                                  title="Hapus Permanen"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
                               </>
+                            )}
+                            {canDeleteMonitoring && (
+                              <button
+                                onClick={() => setConfirmDeleteId(p.id)}
+                                className="rounded p-1.5 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition"
+                                title="Hapus Permanen"
+                              >
+                                <Trash2 size={13} />
+                              </button>
                             )}
                           </div>
                         </td>
@@ -675,23 +686,32 @@ export function MonitoringReportPage() {
                         >
                           <Pencil size={12} />
                         </button>
-                        {canDeleteMonitoring && (
+                        {canManageProjectPeriod && (
                           <>
+                            <button
+                              onClick={() => setConfirmExcludeMonthId(p.id)}
+                              className="rounded p-1.5 text-ink-tertiary hover:text-blue-600 hover:bg-blue-50 transition bg-white/80 shadow-sm"
+                              title={`Hapus dari bulan ${selectedMonth} saja`}
+                            >
+                              <CalendarX size={12} />
+                            </button>
                             <button
                               onClick={() => setConfirmEndId(p.id)}
                               className="rounded p-1.5 text-ink-tertiary hover:text-amber-600 hover:bg-amber-50 transition bg-white/80 shadow-sm"
-                              title="Keluarkan dari periode ini"
+                              title="Hapus dari bulan ini & seterusnya"
                             >
                               <Archive size={12} />
                             </button>
-                            <button
-                              onClick={() => setConfirmDeleteId(p.id)}
-                              className="rounded p-1.5 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition bg-white/80 shadow-sm"
-                              title="Hapus Permanen"
-                            >
-                              <Trash2 size={12} />
-                            </button>
                           </>
+                        )}
+                        {canDeleteMonitoring && (
+                          <button
+                            onClick={() => setConfirmDeleteId(p.id)}
+                            className="rounded p-1.5 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition bg-white/80 shadow-sm"
+                            title="Hapus Permanen"
+                          >
+                            <Trash2 size={12} />
+                          </button>
                         )}
                       </div>
                     </div>
@@ -703,11 +723,30 @@ export function MonitoringReportPage() {
         )}
       </div>
 
+      {/* ── Confirm: hapus bulan ini saja ── */}
+      {confirmExcludeMonthId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="glass rounded-2xl shadow-modal p-6 w-full max-w-sm mx-4">
+            <h3 className="text-base font-semibold text-ink-primary mb-2">Hapus dari bulan ini saja?</h3>
+            <p className="text-sm text-ink-secondary mb-1">
+              Project tidak akan muncul di <strong>{reportMonthLabel(selectedMonth)}</strong>, tetapi tetap muncul di bulan lainnya.
+            </p>
+            <p className="text-sm text-ink-secondary mb-6">Data dokumen bulan ini tidak terhapus.</p>
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setConfirmExcludeMonthId(null)}>Batal</Button>
+              <Button size="sm" onClick={() => { excludeProjectMonth(confirmExcludeMonthId, selectedMonth); setConfirmExcludeMonthId(null) }}>
+                Hapus Bulan Ini
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Confirm: keluarkan dari periode ── */}
       {confirmEndId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="glass rounded-2xl shadow-modal p-6 w-full max-w-sm mx-4">
-            <h3 className="text-base font-semibold text-ink-primary mb-2">Keluarkan dari periode ini?</h3>
+            <h3 className="text-base font-semibold text-ink-primary mb-2">Hapus dari bulan ini & seterusnya?</h3>
             <p className="text-sm text-ink-secondary mb-1">
               Project tidak akan muncul di <strong>{reportMonthLabel(selectedMonth)}</strong> dan bulan berikutnya.
             </p>
@@ -715,7 +754,7 @@ export function MonitoringReportPage() {
             <div className="flex gap-2 justify-end">
               <Button variant="ghost" size="sm" onClick={() => setConfirmEndId(null)}>Batal</Button>
               <Button size="sm" onClick={() => { endProjectAt(confirmEndId, selectedMonth); setConfirmEndId(null) }}>
-                Keluarkan
+                Hapus & Seterusnya
               </Button>
             </div>
           </div>

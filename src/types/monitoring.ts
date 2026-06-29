@@ -46,6 +46,7 @@ export interface ReportProject {
   catatan: string
   kontrakMulai: string       // period YYYY-MM, project mulai muncul di list
   kontrakAkhir: string | null  // period YYYY-MM, project berhenti muncul (null = masih aktif)
+  excludedMonths: string[]     // YYYY-MM list, bulan yang dikecualikan satu per satu
   createdAt: string
   updatedAt: string
   createdByUserId: string
