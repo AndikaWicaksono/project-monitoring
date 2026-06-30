@@ -4,6 +4,7 @@ import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
 import { useMonitoringCostStore } from '../../store/useMonitoringCostStore'
+import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import type { MonitoringCostRealizationStatus } from '../../types/monitoring'
 
 interface Props {
@@ -16,6 +17,7 @@ interface Props {
 
 export function MonitoringCostRealizationModal({ open, onClose, mode, costId, realizationId }: Props) {
   const store = useMonitoringCostStore()
+  const { costSatker } = useMonitoringRole()
 
   const cost = store.getCostById(costId)
   const existing = realizationId ? store.realizations.find((r) => r.id === realizationId) : undefined
@@ -37,12 +39,12 @@ export function MonitoringCostRealizationModal({ open, onClose, mode, costId, re
       setStatus(existing.status); setVendor(existing.vendor)
       setPeriod(existing.period ?? ''); setTanggalRealisasi(existing.tanggalRealisasi ?? '')
     } else {
-      setItemBiaya(''); setSatuanKerja(''); setPic('')
+      setItemBiaya(''); setSatuanKerja(costSatker ?? ''); setPic('')
       setRealisasiBiaya('0'); setStatus('POPAY'); setVendor('')
       setPeriod(''); setTanggalRealisasi('')
     }
     setErrors({})
-  }, [open, mode, realizationId])
+  }, [open, mode, realizationId, costSatker])
 
   function validate() {
     const e: Record<string, string> = {}
@@ -92,7 +94,19 @@ export function MonitoringCostRealizationModal({ open, onClose, mode, costId, re
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Input label="Satuan Kerja" value={satuanKerja} onChange={(e) => setSatuanKerja(e.target.value)} placeholder="Unit kerja" />
+          <div>
+            <Input
+              label="Satuan Kerja"
+              value={satuanKerja}
+              onChange={(e) => !costSatker && setSatuanKerja(e.target.value)}
+              placeholder="Unit kerja"
+              readOnly={!!costSatker}
+              className={costSatker ? 'bg-black/[0.03] cursor-default text-ink-secondary font-medium' : ''}
+            />
+            {costSatker && (
+              <p className="mt-1 text-[11px] text-ink-tertiary">Otomatis sesuai role Anda</p>
+            )}
+          </div>
           <Input label="PIC" value={pic} onChange={(e) => setPic(e.target.value)} placeholder="Nama PIC" />
         </div>
 

@@ -1,30 +1,43 @@
 import { usePermissions } from './usePermissions'
 
-const MONITORING_ROLES = new Set(['admin_osm', 'doccon_osm', 'engineer_os', 'sales'])
+const MONITORING_ROLES = new Set(['admin_osm', 'admin_dmo', 'admin_scs', 'doccon_osm', 'engineer_os', 'sales'])
+
+const COST_SATKER_MAP: Record<string, string> = {
+  admin_osm: 'OSM',
+  admin_dmo: 'DMO',
+  admin_scs: 'SCS',
+}
 
 export function useMonitoringRole() {
   const { role } = usePermissions()
   const roleId = role?.id ?? ''
 
   const isAdminOSM   = roleId === 'admin_osm'
+  const isAdminDMO   = roleId === 'admin_dmo'
+  const isAdminSCS   = roleId === 'admin_scs'
   const isDoccon     = roleId === 'doccon_osm'
   const isEngineerOS = roleId === 'engineer_os'
   const isSales      = roleId === 'sales'
   const isKadiv      = roleId === 'team_admin'
+  const isCostAdmin  = isAdminOSM || isAdminDMO || isAdminSCS
 
   return {
     isMonitoringOnly:    MONITORING_ROLES.has(roleId),
     isSales,
     isAdminOSM,
+    isAdminDMO,
+    isAdminSCS,
+    isCostAdmin,
     isDoccon,
     isEngineerOS,
     isKadiv,
     canDeleteMonitoring:    roleId !== 'doccon_osm' && roleId !== 'engineer_os',
-    canManageProjectPeriod: !isEngineerOS,  // doccon, admin, kadiv, super_admin — bukan engineer
+    canManageProjectPeriod: !isEngineerOS,
     canEditMonitoring:      !isEngineerOS,
     canUnlockRecord:     isAdminOSM || roleId === 'super_admin',
-    // Cost: kadiv bisa lihat (view-only), hanya admin_osm yang bisa edit/tambah/hapus
-    canViewCost:         isAdminOSM || isKadiv,
-    canEditCost:         isAdminOSM,
+    canViewCost:         isCostAdmin || isKadiv,
+    canEditCost:         isCostAdmin,
+    // Satker yang sesuai dengan role admin cost (null = bukan cost admin)
+    costSatker:          COST_SATKER_MAP[roleId] ?? null,
   }
 }

@@ -383,7 +383,7 @@ function MonitoringNavSection({ collapsed }: { collapsed: boolean }) {
   const view = useUIStore((s) => s.view)
   const setView = useUIStore((s) => s.setView)
   const setMobileOpen = useUIStore((s) => s.setMobileSidebarOpen)
-  const { isAdminOSM, isDoccon, isEngineerOS, canViewCost } = useMonitoringRole()
+  const { isAdminOSM, isCostAdmin, isDoccon, isEngineerOS, canViewCost } = useMonitoringRole()
 
   const isMonitoringActive = view.startsWith('monitoring-')
   const [open, setOpen] = useState(isMonitoringActive)
@@ -439,7 +439,7 @@ function MonitoringNavSection({ collapsed }: { collapsed: boolean }) {
 
   const items = allItems.filter((item) => {
     if (item.showFor === 'all')    return true
-    if (item.showFor === 'doccon') return !isAdminOSM          // doccon & engineer_os bisa lihat SLA/Report
+    if (item.showFor === 'doccon') return !isCostAdmin          // hanya non-cost-admin (doccon, engineer) lihat SLA/Report
     if (item.showFor === 'admin')  return canViewCost           // admin_osm + kadiv bisa lihat Cost
     return true
   })

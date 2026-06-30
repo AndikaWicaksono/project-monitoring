@@ -173,8 +173,36 @@ export const SEED_ROLES: MasterRole[] = [
     scopeRestriction: 'any',
     permissions: {
       ...none(),
-      canEditTask: true,       // workflow submit/resubmit di monitoring dokumen
-      canApproveHandoff: true, // workflow approve di monitoring dokumen
+      canEditTask: true,
+      canApproveHandoff: true,
+    },
+  },
+  {
+    id: 'admin_dmo',
+    name: 'Admin DMO',
+    description: 'Admin operasional Monitoring DMO. Akses penuh modul Cost Monitoring untuk satuan kerja DMO.',
+    color: '#059669',
+    rank: 44,
+    isSystem: true,
+    scopeRestriction: 'any',
+    permissions: {
+      ...none(),
+      canEditTask: true,
+      canApproveHandoff: true,
+    },
+  },
+  {
+    id: 'admin_scs',
+    name: 'Admin SCS',
+    description: 'Admin operasional Monitoring SCS. Akses penuh modul Cost Monitoring untuk satuan kerja SCS.',
+    color: '#D97706',
+    rank: 43,
+    isSystem: true,
+    scopeRestriction: 'any',
+    permissions: {
+      ...none(),
+      canEditTask: true,
+      canApproveHandoff: true,
     },
   },
   {
