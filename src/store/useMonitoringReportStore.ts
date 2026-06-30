@@ -1005,6 +1005,12 @@ function makeActivity(action: ReportDocumentActivity['action'], byUserId: string
   return { id: uid('rda'), action, byUserId, byName, comment, timestamp: nowIso() }
 }
 
+const REVISION_ORDER = ['R0', 'R1', 'R2', 'R3', 'R4'] as const
+function bumpRevision(current: string): ReportDocumentRevision {
+  const idx = REVISION_ORDER.indexOf(current as typeof REVISION_ORDER[number])
+  return (idx >= 0 && idx < REVISION_ORDER.length - 1 ? REVISION_ORDER[idx + 1] : current) as ReportDocumentRevision
+}
+
 // Status migration for localStorage backward compat
 const LEGACY_STATUS_MAP: Record<string, ReportDocumentStatus> = {
   CREATE: 'DRAFT', UNDER_APPROVAL: 'UNDER_REVIEW', UNDER_REVISION: 'REVISION_REQUIRED',
@@ -1149,6 +1155,7 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
             const wasApproved = d.status === 'APPROVED' || d.customerApprovedAt != null
             return {
               ...d, status: 'REVISION_REQUIRED' as ReportDocumentStatus,
+              revision: bumpRevision(d.revision),
               tanggalFeedback: now,
               currentPhase: 'engineer' as DocPhase,
               engineerSubStatus: 'draft' as EngineerSubStatus,
@@ -1317,6 +1324,7 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
             return {
               ...d,
               status: 'REVISION_REQUIRED' as ReportDocumentStatus,
+              revision: bumpRevision(d.revision),
               currentPhase: prevPhase,
               activities: [...d.activities, activity],
               updatedAt: now,

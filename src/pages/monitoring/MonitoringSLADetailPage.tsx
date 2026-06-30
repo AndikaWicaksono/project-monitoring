@@ -31,6 +31,8 @@ export function MonitoringSLADetailPage() {
   const [confirmDeleteRecId, setConfirmDeleteRecId] = useState<string | null>(null)
   const [reconfirmRecId, setReconfirmRecId] = useState<string | null>(null)
   const [reconfirmNote, setReconfirmNote] = useState('')
+  const [confirmingRecId, setConfirmingRecId] = useState<string | null>(null)
+  const [engineerComment, setEngineerComment] = useState('')
   const [expandedComp] = useState<string | null>(null)
 
   const yearOptions = [2023, 2024, 2025, 2026]
@@ -60,9 +62,11 @@ export function MonitoringSLADetailPage() {
     setReconfirmNote('')
   }
 
-  function handleClearReconfirm(recordId: string) {
-    clearReconfirm(recordId)
-    toast.success('Status reconfirm telah diselesaikan')
+  function handleClearReconfirm(recordId: string, comment: string) {
+    clearReconfirm(recordId, comment)
+    setConfirmingRecId(null)
+    setEngineerComment('')
+    toast.success('Konfirmasi terkirim ke Doccon')
   }
 
   return (
@@ -332,19 +336,26 @@ export function MonitoringSLADetailPage() {
                 {failedRecords.map((rec) => {
                   const comp = components.find((c) => c.id === rec.componentId)
                   return (
-                    <div key={rec.id} className="flex items-center justify-between rounded-lg border border-red-100 bg-red-50/60 px-3 py-2">
-                      <div className="text-xs">
-                        <span className="font-medium text-ink-primary">{comp?.componentName}</span>
-                        <span className="text-ink-tertiary ml-2">{slaMonthLabel(rec.month)} {rec.year}</span>
-                        <span className="text-pertamina-red ml-2 font-semibold">{rec.achievement}%</span>
-                        <span className="text-ink-muted ml-1">(target {project.targetSLA}%)</span>
+                    <div key={rec.id} className="rounded-lg border border-red-100 bg-red-50/60 px-3 py-2 space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-xs">
+                          <span className="font-medium text-ink-primary">{comp?.componentName}</span>
+                          <span className="text-ink-tertiary ml-2">{slaMonthLabel(rec.month)} {rec.year}</span>
+                          <span className="text-pertamina-red ml-2 font-semibold">{rec.achievement}%</span>
+                          <span className="text-ink-muted ml-1">(target {project.targetSLA}%)</span>
+                        </div>
+                        <button
+                          onClick={() => { setReconfirmRecId(rec.id); setReconfirmNote('') }}
+                          className="ml-3 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700 hover:bg-amber-100 transition whitespace-nowrap shrink-0"
+                        >
+                          Minta Reconfirm
+                        </button>
                       </div>
-                      <button
-                        onClick={() => { setReconfirmRecId(rec.id); setReconfirmNote('') }}
-                        className="ml-3 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700 hover:bg-amber-100 transition whitespace-nowrap"
-                      >
-                        Minta Reconfirm
-                      </button>
+                      {rec.engineerReconfirmNote && (
+                        <p className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1">
+                          <span className="font-semibold">Balasan Engineer:</span> {rec.engineerReconfirmNote}
+                        </p>
+                      )}
                     </div>
                   )
                 })}
@@ -359,26 +370,67 @@ export function MonitoringSLADetailPage() {
                 </p>
                 {pendingReconfirm.map((rec) => {
                   const comp = components.find((c) => c.id === rec.componentId)
+                  const isConfirming = confirmingRecId === rec.id
                   return (
-                    <div key={rec.id} className="flex items-start justify-between rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 gap-2">
-                      <div className="text-xs flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <RotateCcw size={11} className="text-amber-500 shrink-0" />
-                          <span className="font-medium text-ink-primary">{comp?.componentName}</span>
-                          <span className="text-ink-tertiary">{slaMonthLabel(rec.month)} {rec.year}</span>
-                          <span className="text-pertamina-red font-semibold">{rec.achievement}%</span>
+                    <div key={rec.id} className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2.5 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="text-xs flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <RotateCcw size={11} className="text-amber-500 shrink-0" />
+                            <span className="font-medium text-ink-primary">{comp?.componentName}</span>
+                            <span className="text-ink-tertiary">{slaMonthLabel(rec.month)} {rec.year}</span>
+                            <span className="text-pertamina-red font-semibold">{rec.achievement}%</span>
+                          </div>
+                          {rec.reconfirmNote && (
+                            <p className="mt-1 text-ink-secondary italic ml-4 text-[11px]">
+                              <span className="font-medium not-italic text-ink-tertiary">Catatan Doccon:</span> {rec.reconfirmNote}
+                            </p>
+                          )}
                         </div>
-                        {rec.reconfirmNote && (
-                          <p className="mt-1 text-ink-secondary italic ml-4">{rec.reconfirmNote}</p>
+                        {(isDoccon || canUnlockRecord) && !isEngineerOS && (
+                          <button
+                            onClick={() => handleClearReconfirm(rec.id, '')}
+                            className="shrink-0 rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 transition flex items-center gap-1"
+                          >
+                            <CheckCircle2 size={11} /> Selesai
+                          </button>
+                        )}
+                        {isEngineerOS && !isConfirming && (
+                          <button
+                            onClick={() => { setConfirmingRecId(rec.id); setEngineerComment('') }}
+                            className="shrink-0 rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 transition flex items-center gap-1"
+                          >
+                            <CheckCircle2 size={11} /> Konfirmasi
+                          </button>
                         )}
                       </div>
-                      {(isDoccon || canUnlockRecord || isEngineerOS) && (
-                        <button
-                          onClick={() => handleClearReconfirm(rec.id)}
-                          className="shrink-0 rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 transition flex items-center gap-1"
-                        >
-                          <CheckCircle2 size={11} /> {isEngineerOS ? 'Konfirmasi' : 'Selesai'}
-                        </button>
+
+                      {/* Inline comment form for engineer */}
+                      {isEngineerOS && isConfirming && (
+                        <div className="border-t border-amber-200 pt-2 space-y-2">
+                          <p className="text-[11px] text-ink-secondary font-medium">Tambahkan komentar verifikasi Anda:</p>
+                          <textarea
+                            value={engineerComment}
+                            onChange={(e) => setEngineerComment(e.target.value)}
+                            rows={2}
+                            placeholder="Contoh: Data sudah dicek, angka 87% sudah sesuai kondisi lapangan bulan Juni..."
+                            className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs text-ink-primary placeholder-ink-muted resize-none focus:outline-none focus:ring-1 focus:ring-amber-400"
+                          />
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => { setConfirmingRecId(null); setEngineerComment('') }}
+                              className="rounded-md border border-border-subtle px-2.5 py-1 text-[11px] font-medium text-ink-secondary hover:bg-black/[0.04] transition"
+                            >
+                              Batal
+                            </button>
+                            <button
+                              onClick={() => handleClearReconfirm(rec.id, engineerComment.trim())}
+                              className="rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 transition flex items-center gap-1"
+                            >
+                              <CheckCircle2 size={11} /> Kirim Konfirmasi
+                            </button>
+                          </div>
+                        </div>
                       )}
                     </div>
                   )

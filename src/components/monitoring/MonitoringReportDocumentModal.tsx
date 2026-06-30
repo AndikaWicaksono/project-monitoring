@@ -479,7 +479,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
             const panels: React.ReactNode[] = []
 
             // ── Customer doc — Engineer submit ke Doccon ──
-            if (!isVendor && st === 'DRAFT' && phase === 'engineer' && (isEngineerOS || canEdit)) {
+            if (!isVendor && st === 'DRAFT' && phase === 'engineer' && isEngineerOS) {
               panels.push(
                 <div key="eng-submit" className="border-t border-border-subtle pt-4 space-y-3">
                   <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Aksi Engineer</div>
@@ -490,7 +490,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
             }
 
             // ── Customer doc — Engineer resubmit after Kadiv rejection ──
-            if (!isVendor && st === 'REVISION_REQUIRED' && phase === 'engineer' && (isEngineerOS || canEdit)) {
+            if (!isVendor && st === 'REVISION_REQUIRED' && phase === 'engineer' && isEngineerOS) {
               panels.push(
                 <div key="eng-resubmit" className="border-t border-border-subtle pt-4 space-y-3">
                   <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Perbaikan Diperlukan</div>
@@ -655,8 +655,10 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
             }
 
             // Legacy doccon pipeline actions (for backward compat with docconSubStatus-based flow)
+            // Vendor docs never use this pipeline — they end at vendor_confirm, not Sales
             const isLegacyDocconPhase = existing.currentPhase === 'doccon' &&
               existing.docconSubStatus != null &&
+              existing.docType !== 'vendor' &&
               !existing.kadivApprovedAt &&
               !['COMPILING','PENDING_KADIV','KADIV_APPROVED'].includes(st)
 
@@ -718,7 +720,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
             }
 
             // Legacy resubmit panel
-            if (existing.currentPhase === 'doccon' && existing.docconSubStatus === 'delivered' && existing.salesFlagIssue && showResubmitPanel && canAdvanceDoccon) {
+            if (existing.currentPhase === 'doccon' && existing.docType !== 'vendor' && existing.docconSubStatus === 'delivered' && existing.salesFlagIssue && showResubmitPanel && canAdvanceDoccon) {
               panels.push(
                 <div key="legacy-resubmit" className="border-t border-border-subtle pt-4">
                   <div className="rounded-xl border border-red-200 bg-red-50/60 p-4 space-y-3">
@@ -737,7 +739,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
             }
 
             // Legacy delivered confirmation panel (no flag)
-            if (existing.currentPhase === 'doccon' && existing.docconSubStatus === 'delivered' && !existing.salesFlagIssue && !existing.kadivApprovedAt) {
+            if (existing.currentPhase === 'doccon' && existing.docType !== 'vendor' && existing.docconSubStatus === 'delivered' && !existing.salesFlagIssue && !existing.kadivApprovedAt) {
               panels.push(
                 <div key="legacy-delivered" className="border-t border-border-subtle pt-4">
                   <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3">
@@ -815,26 +817,34 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
             value={deadlineToSales}
             onChange={(e) => setDeadlineToSales(e.target.value)}
           />
-          <div className="grid grid-cols-3 gap-3">
-            <Input
-              label="PIC Engineer"
-              value={engineerPIC}
-              onChange={(e) => setEngineerPIC(e.target.value)}
-              placeholder="Nama engineer"
-            />
-            <Input
-              label="PIC Customer"
-              value={customerPIC}
-              onChange={(e) => setCustomerPIC(e.target.value)}
-              placeholder="Nama customer PIC"
-            />
-            <Input
-              label="PIC Doccon"
-              value={docconPIC}
-              onChange={(e) => setDocconPIC(e.target.value)}
-              placeholder="Nama doccon PIC"
-            />
-          </div>
+          {(() => {
+            const activeDocType = docType ?? existing?.docType
+            const isVendorForm = activeDocType === 'vendor'
+            return (
+              <div className={isVendorForm ? 'grid grid-cols-2 gap-3' : 'grid grid-cols-3 gap-3'}>
+                {!isVendorForm && (
+                  <Input
+                    label="PIC Engineer"
+                    value={engineerPIC}
+                    onChange={(e) => setEngineerPIC(e.target.value)}
+                    placeholder="Nama engineer"
+                  />
+                )}
+                <Input
+                  label={isVendorForm ? 'PIC Vendor' : 'PIC Customer'}
+                  value={customerPIC}
+                  onChange={(e) => setCustomerPIC(e.target.value)}
+                  placeholder={isVendorForm ? 'Nama vendor PIC' : 'Nama customer PIC'}
+                />
+                <Input
+                  label="PIC Doccon"
+                  value={docconPIC}
+                  onChange={(e) => setDocconPIC(e.target.value)}
+                  placeholder="Nama doccon PIC"
+                />
+              </div>
+            )
+          })()}
           {mode === 'create' && (
             <div className="rounded-lg border border-border-subtle bg-black/[0.02] px-4 py-3 text-xs text-ink-secondary">
               Dokumen akan dibuat dengan status <strong>Draft (R0)</strong>. Setelah disimpan, buka detail untuk upload attachment dan submit approval.

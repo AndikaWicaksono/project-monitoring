@@ -10,13 +10,9 @@ const DEMO_ACCOUNTS = [
   { email: 'admin@pertamina.id', password: 'admin123', label: 'Super Admin' },
   { email: 'aditya@pertamina.id', password: 'itd123', label: 'Admin Tim ITD' },
   { email: 'bayu@pertamina.id', password: 'net123', label: 'Admin Tim NET' },
-  { email: 'rina@pertamina.id', password: 'member123', label: 'Member ITD' },
-  { email: 'sari@pertamina.id', password: 'member123', label: 'Member BIZ' },
-  { email: 'tamu@pertamina.id', password: 'tamu123', label: 'Viewer' },
   { email: 'admin.osm@pertamina.id', password: 'osm123', label: 'Admin OSM' },
   { email: 'doccon.osm@pertamina.id', password: 'osm123', label: 'Doccon OSM' },
   { email: 'engineer.os@pertamina.id', password: 'eos123', label: 'Engineer OS' },
-  { email: 'sales@pertamina.id', password: 'sales123', label: 'Sales' },
 ]
 
 export function LoginPage() {

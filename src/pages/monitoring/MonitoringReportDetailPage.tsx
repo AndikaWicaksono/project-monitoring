@@ -40,7 +40,22 @@ const REVISION_CLS: Record<string, string> = {
 
 // ── Phase stepper ──────────────────────────────────────────────────────────
 
-const PHASE_STEPS: { key: DocPhase; label: string }[] = [
+const NEW_CUSTOMER_PHASES: { key: DocPhase; label: string }[] = [
+  { key: 'engineer',      label: 'Engineer' },
+  { key: 'doccon',        label: 'Doccon' },
+  { key: 'kadiv',         label: 'Kadiv' },
+  { key: 'customer_email', label: 'Customer' },
+  { key: 'sales',         label: 'Sales' },
+]
+
+const NEW_VENDOR_PHASES: { key: DocPhase; label: string }[] = [
+  { key: 'doccon',        label: 'Doccon' },
+  { key: 'kadiv',         label: 'Kadiv' },
+  { key: 'vendor_confirm', label: 'Vendor' },
+  { key: 'completed',     label: 'Selesai' },
+]
+
+const LEGACY_PHASES: { key: DocPhase; label: string }[] = [
   { key: 'engineer', label: 'Engineer' },
   { key: 'customer', label: 'Customer' },
   { key: 'doccon',   label: 'Doccon' },
@@ -48,31 +63,35 @@ const PHASE_STEPS: { key: DocPhase; label: string }[] = [
 
 function PhaseStepperMini({ doc }: { doc: ReportDocument }) {
   const current = doc.currentPhase ?? 'engineer'
-  const isDone = (phase: DocPhase) => {
-    if (phase === 'engineer') return current === 'customer' || current === 'doccon'
-    if (phase === 'customer') return current === 'doccon'
-    if (phase === 'doccon') return doc.docconSubStatus === 'delivered'
-    return false
-  }
-  const isActive = (phase: DocPhase) => phase === current
+
+  const steps =
+    doc.docType === 'vendor' ? NEW_VENDOR_PHASES :
+    current === 'customer'   ? LEGACY_PHASES :
+    NEW_CUSTOMER_PHASES
+
+  const currentIdx = steps.findIndex((s) => s.key === current)
 
   return (
-    <div className="flex items-center gap-1 mt-1.5">
-      {PHASE_STEPS.map((step, idx) => {
-        const done = isDone(step.key)
-        const active = isActive(step.key)
+    <div className="flex items-center gap-0.5 mt-1.5">
+      {steps.map((step, idx) => {
+        const done   = currentIdx >= 0 && idx < currentIdx
+        const active = step.key === current
         return (
-          <div key={step.key} className="flex items-center gap-1">
-            <div className={classNames(
-              'flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-medium',
-              done ? 'bg-emerald-100 text-emerald-700' :
-              active ? 'bg-pertamina-red/10 text-pertamina-red' :
-              'bg-black/[0.04] text-ink-muted',
-            )}>
-              {done && <CheckCircle2 size={8} />}
-              {step.label}
-            </div>
-            {idx < 2 && <ArrowRight size={8} className="text-ink-muted shrink-0" />}
+          <div key={step.key} className="flex items-center gap-0.5">
+            {active ? (
+              <div className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold bg-pertamina-red/10 text-pertamina-red whitespace-nowrap">
+                <div className="w-1.5 h-1.5 rounded-full bg-pertamina-red/70 shrink-0" />
+                {step.label}
+              </div>
+            ) : (
+              <div
+                className={classNames('w-2 h-2 rounded-full shrink-0', done ? 'bg-emerald-400' : 'bg-black/[0.12]')}
+                title={step.label}
+              />
+            )}
+            {idx < steps.length - 1 && (
+              <div className={classNames('w-2 h-px shrink-0', idx < currentIdx ? 'bg-emerald-300' : 'bg-black/[0.08]')} />
+            )}
           </div>
         )
       })}

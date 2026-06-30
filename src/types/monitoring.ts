@@ -194,7 +194,8 @@ export interface SLAMonthlyRecord {
   lockedAt: string | null
   lockedByName: string | null
   reconfirmRequested: boolean
-  reconfirmNote: string
+  reconfirmNote: string        // catatan dari Doccon saat minta reconfirm
+  engineerReconfirmNote: string // balasan Engineer setelah konfirmasi
 }
 
 // ---------- Cost Monitoring ----------

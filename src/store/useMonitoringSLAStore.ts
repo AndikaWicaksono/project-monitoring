@@ -10,7 +10,7 @@ const T = '2025-01-01T00:00:00.000Z'
 const T26 = '2026-01-01T00:00:00.000Z'
 
 function mrec(id: string, compId: string, projId: string, month: number, year: number, ach: number, remark = ''): SLAMonthlyRecord {
-  return { id, componentId: compId, projectId: projId, month, year, achievement: ach, remark, createdAt: T, updatedAt: T, lockedAt: T, lockedByName: 'System', reconfirmRequested: false, reconfirmNote: '' }
+  return { id, componentId: compId, projectId: projId, month, year, achievement: ach, remark, createdAt: T, updatedAt: T, lockedAt: T, lockedByName: 'System', reconfirmRequested: false, reconfirmNote: '', engineerReconfirmNote: '' }
 }
 
 // 2026 records — Jan-May locked (past), Jun current (unlocked)
@@ -27,6 +27,7 @@ function mrec26(id: string, compId: string, projId: string, month: number, ach: 
     lockedByName: isLocked ? (lockedByName ?? null) : null,
     reconfirmRequested: false,
     reconfirmNote: '',
+    engineerReconfirmNote: '',
   }
 }
 
@@ -330,7 +331,7 @@ interface MonitoringSLAState {
   lockRecord: (id: string, byName: string) => void
   unlockRecord: (id: string) => void
   requestReconfirm: (id: string, note: string) => void
-  clearReconfirm: (id: string) => void
+  clearReconfirm: (id: string, engineerNote: string) => void
 }
 
 export const useMonitoringSLAStore = create<MonitoringSLAState>()(
@@ -382,7 +383,7 @@ export const useMonitoringSLAStore = create<MonitoringSLAState>()(
 
       addMonthlyRecord: (data, submittedByName) => {
         const now = nowIso()
-        const record: SLAMonthlyRecord = { ...data, id: uid('sla-rec'), createdAt: now, updatedAt: now, lockedAt: now, lockedByName: submittedByName ?? null, reconfirmRequested: false, reconfirmNote: '' }
+        const record: SLAMonthlyRecord = { ...data, id: uid('sla-rec'), createdAt: now, updatedAt: now, lockedAt: now, lockedByName: submittedByName ?? null, reconfirmRequested: false, reconfirmNote: '', engineerReconfirmNote: '' }
         set((s) => ({ monthlyRecords: [...s.monthlyRecords, record] }))
         return record
       },
@@ -405,8 +406,8 @@ export const useMonitoringSLAStore = create<MonitoringSLAState>()(
       requestReconfirm: (id, note) => {
         set((s) => ({ monthlyRecords: s.monthlyRecords.map((r) => r.id === id ? { ...r, reconfirmRequested: true, reconfirmNote: note, updatedAt: nowIso() } : r) }))
       },
-      clearReconfirm: (id) => {
-        set((s) => ({ monthlyRecords: s.monthlyRecords.map((r) => r.id === id ? { ...r, reconfirmRequested: false, reconfirmNote: '', updatedAt: nowIso() } : r) }))
+      clearReconfirm: (id, engineerNote) => {
+        set((s) => ({ monthlyRecords: s.monthlyRecords.map((r) => r.id === id ? { ...r, reconfirmRequested: false, reconfirmNote: '', engineerReconfirmNote: engineerNote, updatedAt: nowIso() } : r) }))
       },
     }),
     {

@@ -15,7 +15,19 @@ export function DocconSalesWarningPanel() {
   const flaggedDocs = useMemo(
     () =>
       documents
-        .filter((d) => d.salesFlagIssue)
+        .filter((d) => {
+          if (!d.salesFlagIssue) return false
+          // Only legacy pipeline docs — new workflow handles sales differently
+          if (d.currentPhase !== 'doccon' || d.docconSubStatus !== 'delivered') return false
+          // Parent project must still exist and still be active (kontrakAkhir null or not yet passed)
+          const project = reportProjects.find((p) => p.id === d.projectId)
+          if (!project) return false
+          if (project.kontrakAkhir) {
+            const thisMonth = new Date().toISOString().slice(0, 7)
+            if (project.kontrakAkhir < thisMonth) return false
+          }
+          return true
+        })
         .map((d) => ({
           ...d,
           projectCode: reportProjects.find((p) => p.id === d.projectId)?.kodeProject ?? '—',

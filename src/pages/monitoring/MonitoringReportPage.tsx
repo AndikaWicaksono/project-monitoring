@@ -65,28 +65,37 @@ function computeBottleneck(docs: ReportDocument[]) {
 // ── Phase pipeline bar ───────────────────────────────────────────────────────
 
 function PipelineBar({ docs }: { docs: ReportDocument[] }) {
-  const eng  = docs.filter(d => (d.currentPhase ?? 'engineer') === 'engineer').length
-  const cust = docs.filter(d => d.currentPhase === 'customer').length
-  const doc  = docs.filter(d => d.currentPhase === 'doccon' && d.docconSubStatus !== 'delivered').length
-  const done = docs.filter(d => d.docconSubStatus === 'delivered').length
+  const eng = docs.filter(d => (d.currentPhase ?? 'engineer') === 'engineer').length
+  const cust = docs.filter(d => d.currentPhase === 'customer').length  // legacy only
+  const inProgress = docs.filter(d => {
+    const phase = d.currentPhase
+    if (phase === 'doccon' && d.docconSubStatus !== 'delivered') return true
+    if (phase === 'kadiv' || phase === 'customer_email' || phase === 'vendor_confirm') return true
+    return false
+  }).length
+  const done = docs.filter(d =>
+    d.docconSubStatus === 'delivered' ||   // legacy pipeline
+    d.currentPhase === 'sales' ||           // customer new flow
+    d.currentPhase === 'completed'          // vendor new flow
+  ).length
   const total = docs.length
   if (!total) return <span className="text-xs text-ink-muted">—</span>
 
   const pct = (n: number) => `${Math.round((n / total) * 100)}%`
   const tooltip = [
-    eng  > 0 && `Eng: ${eng}`,
-    cust > 0 && `Customer: ${cust}`,
-    doc  > 0 && `Doccon: ${doc}`,
-    done > 0 && `Done: ${done}`,
+    eng        > 0 && `Engineer: ${eng}`,
+    cust       > 0 && `Customer: ${cust}`,
+    inProgress > 0 && `Proses: ${inProgress}`,
+    done       > 0 && `Selesai: ${done}`,
   ].filter(Boolean).join(' · ')
 
   return (
     <div className="flex items-center gap-2" title={tooltip}>
       <div className="flex h-1.5 w-14 rounded-full overflow-hidden gap-px bg-black/[0.06] flex-shrink-0">
-        {eng  > 0 && <div className="bg-blue-400 flex-shrink-0"    style={{ width: pct(eng) }} />}
-        {cust > 0 && <div className="bg-violet-400 flex-shrink-0"  style={{ width: pct(cust) }} />}
-        {doc  > 0 && <div className="bg-amber-400 flex-shrink-0"   style={{ width: pct(doc) }} />}
-        {done > 0 && <div className="bg-emerald-400 flex-shrink-0" style={{ width: pct(done) }} />}
+        {eng        > 0 && <div className="bg-blue-400 flex-shrink-0"    style={{ width: pct(eng) }} />}
+        {cust       > 0 && <div className="bg-violet-400 flex-shrink-0"  style={{ width: pct(cust) }} />}
+        {inProgress > 0 && <div className="bg-amber-400 flex-shrink-0"   style={{ width: pct(inProgress) }} />}
+        {done       > 0 && <div className="bg-emerald-400 flex-shrink-0" style={{ width: pct(done) }} />}
       </div>
       <span className="text-[10px] tabular-nums whitespace-nowrap">
         <span className={classNames('font-medium', done === total ? 'text-emerald-600' : 'text-ink-primary')}>{done}</span>
