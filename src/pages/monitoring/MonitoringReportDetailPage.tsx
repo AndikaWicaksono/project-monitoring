@@ -464,7 +464,7 @@ export function MonitoringReportDetailPage() {
                 onClick={() => openModal({ type: 'monitoring-billing-create', projectId: project.id })}
                 leftIcon={<Plus size={13} />}
               >
-                Tambah Billing
+                Tambah Document
               </Button>
             ) : null}
           </div>
@@ -626,7 +626,7 @@ export function MonitoringReportDetailPage() {
                   onClick={() => openModal({ type: 'monitoring-billing-create', projectId: project.id })}
                   leftIcon={<Plus size={13} />}
                 >
-                  Tambah Billing Pertama
+                  Tambah Document Pertama
                 </Button>
               </div>
             )}
