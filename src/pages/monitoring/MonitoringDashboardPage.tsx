@@ -5,12 +5,13 @@ import { MonitoringStatsOverview } from '../../components/monitoring/dashboard/M
 import { SLAAchievementTrendChart } from '../../components/monitoring/dashboard/SLAAchievementTrendChart'
 import { ProjectMonitoringTrendChart } from '../../components/monitoring/dashboard/ProjectMonitoringTrendChart'
 import { ReportStatusDistributionChart } from '../../components/monitoring/dashboard/ReportStatusDistributionChart'
+import { DocconWorkloadChart } from '../../components/monitoring/dashboard/DocconWorkloadChart'
 import { CostActualVsBudgetChart } from '../../components/monitoring/dashboard/CostActualVsBudgetChart'
 import { CostLeadingLaggingChart } from '../../components/monitoring/dashboard/CostLeadingLaggingChart'
 import { CostTopOverBudgetCard } from '../../components/monitoring/dashboard/CostTopOverBudgetCard'
 
 export function MonitoringDashboardPage() {
-  const { isCostAdmin, isDoccon, isEngineerOS, canViewCost } = useMonitoringRole()
+  const { isCostAdmin, isDoccon, isEngineerOS, isKadiv, isKadep, canViewCost } = useMonitoringRole()
 
   // cost admin (OSM/DMO/SCS) → Cost only; doccon & engineer → SLA & Report; kadiv/kadep → keduanya
   const showSLAReport = !isCostAdmin
@@ -33,6 +34,7 @@ export function MonitoringDashboardPage() {
       {showSLAReport && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <ReportStatusDistributionChart />
+          {(isKadiv || isKadep) && <DocconWorkloadChart />}
         </div>
       )}
 
