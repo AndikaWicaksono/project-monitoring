@@ -16,12 +16,13 @@ import { MonitoringSLAPage } from './pages/monitoring/MonitoringSLAPage'
 import { MonitoringSLADetailPage } from './pages/monitoring/MonitoringSLADetailPage'
 import { MonitoringCostPage } from './pages/monitoring/MonitoringCostPage'
 import { MonitoringBAPPage } from './pages/monitoring/MonitoringBAPPage'
+import { MonitoringAssignmentPage } from './pages/monitoring/MonitoringAssignmentPage'
 import { SalesInboxPage } from './pages/SalesInboxPage'
 import { useMonitoringRole } from './hooks/useMonitoringRole'
 
 function App() {
   const view = useUIStore((s) => s.view)
-  const { isAdminOSM, isDoccon, isSales, canViewCost } = useMonitoringRole()
+  const { isAdminOSM, isDoccon, isSales, canViewCost, isKadep, isKadiv } = useMonitoringRole()
   useKeyboardShortcuts()
 
   function renderPage() {
@@ -46,6 +47,10 @@ function App() {
     if (view === 'monitoring-sla-detail') return <MonitoringSLADetailPage />
     if (view === 'monitoring-cost') return <MonitoringCostPage />
     if (view === 'monitoring-bap') return <MonitoringBAPPage />
+    if (view === 'monitoring-assignment') {
+      if (!isKadep && !isKadiv) return <MonitoringDashboardPage />
+      return <MonitoringAssignmentPage />
+    }
     return <DashboardPage />
   }
 

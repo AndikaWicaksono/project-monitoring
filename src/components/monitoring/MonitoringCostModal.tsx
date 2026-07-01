@@ -124,6 +124,7 @@ export function MonitoringCostModal({ open, onClose, mode, costId }: Props) {
     if (!form.projectCode.trim()) e.projectCode = 'Kode project wajib diisi'
     if (!form.projectClient.trim()) e.projectClient = 'Client wajib diisi'
     if (!form.projectName.trim()) e.projectName = 'Nama project wajib diisi'
+    if (form.year < 2000 || form.year > 2099) e.year = 'Tahun harus antara 2000–2099'
     if (form.projectValue < 0) e.projectValue = 'Nilai kontrak harus ≥ 0'
     if (form.tkdn < 0 || form.tkdn > 100) e.tkdn = 'TKDN harus 0–100'
     if (form.startDate && form.endDate && form.startDate >= form.endDate) e.endDate = 'End Date harus setelah Start Date'
@@ -275,10 +276,25 @@ export function MonitoringCostModal({ open, onClose, mode, costId }: Props) {
               {errors.projectCode && <p className="text-[11px] text-pertamina-red mt-1">{errors.projectCode}</p>}
             </div>
             <Input label="Project ID" value={form.projectId} onChange={(e) => setField('projectId', e.target.value)} placeholder="ID sistem" readOnly={isReadonly} />
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-ink-secondary">Tahun *</span>
-              <input type="number" value={form.year} onChange={(e) => setField('year', Number(e.target.value))} className="input-base" readOnly={isReadonly} />
-            </label>
+            <div>
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-medium text-ink-secondary">Tahun *</span>
+                <input
+                  type="number"
+                  value={form.year}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/\D/g, '').slice(0, 4)
+                    const n = parseInt(raw, 10)
+                    if (!isNaN(n)) setField('year', Math.min(Math.max(n, 2000), 2099))
+                  }}
+                  min={2000}
+                  max={2099}
+                  className="input-base"
+                  readOnly={isReadonly}
+                />
+              </label>
+              {errors.year && <p className="text-[11px] text-pertamina-red mt-1">{errors.year}</p>}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

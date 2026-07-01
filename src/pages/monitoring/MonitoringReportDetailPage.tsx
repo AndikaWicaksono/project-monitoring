@@ -138,52 +138,81 @@ function daysBetween(a: string | null | undefined, b: string | null | undefined)
 }
 
 function SLAComplianceTab({ docs }: { docs: ReportDocument[] }) {
-  const allDocs = docs
+  // Deteksi apakah doc menggunakan flow baru (ada kadivApprovedAt atau phase baru)
+  const isNewFlow = (d: ReportDocument) =>
+    d.kadivApprovedAt != null ||
+    ['kadiv', 'customer_email', 'vendor_confirm', 'sales', 'completed'].includes(d.currentPhase ?? '')
 
-  const engineerSLA = 5
-  const customerSLA = 3
-  const docconSLA = 2
+  // ── Phase 1: Engineer (SLA ≤5 hari)
+  // Hanya customer doc; vendor doc diinput langsung oleh Doccon, bukan Engineer
+  // Ukur: engineerStartedAt → engineerSubmittedAt
+  const ENG_SLA = 5
+  const engDocs = docs.filter((d) => d.docType === 'customer')
+  const engDone = engDocs.filter((d) => d.engineerStartedAt && d.engineerSubmittedAt)
+  const engOnTime = engDone.filter((d) => (daysBetween(d.engineerStartedAt, d.engineerSubmittedAt) ?? 999) <= ENG_SLA)
+  const engPct = engDone.length ? Math.round((engOnTime.length / engDone.length) * 100) : null
 
-  const engineerDone = allDocs.filter((d) => d.engineerSubmittedAt && d.engineerStartedAt)
-  const engOnTime = engineerDone.filter((d) => {
-    const days = daysBetween(d.engineerStartedAt, d.engineerSubmittedAt)
-    return days !== null && days <= engineerSLA
+  // ── Phase 2: Doccon → Kadiv (SLA ≤3 hari)
+  // New flow: docconReceivedAt → kadivApprovedAt
+  // Legacy:   docconReceivedAt → docconDeliveredAt
+  const DK_SLA = 3
+  const dkDone = docs.filter((d) => {
+    if (isNewFlow(d)) return !!(d.docconReceivedAt && d.kadivApprovedAt)
+    return !!(d.docconReceivedAt && d.docconDeliveredAt)
   })
-  const engPct = engineerDone.length ? Math.round((engOnTime.length / engineerDone.length) * 100) : null
-
-  const customerDone = allDocs.filter((d) => d.customerApprovedAt && d.customerReceivedAt)
-  const custOnTime = customerDone.filter((d) => {
-    const days = daysBetween(d.customerReceivedAt, d.customerApprovedAt)
-    return days !== null && days <= customerSLA
+  const dkOnTime = dkDone.filter((d) => {
+    const end = isNewFlow(d) ? d.kadivApprovedAt : d.docconDeliveredAt
+    return (daysBetween(d.docconReceivedAt, end) ?? 999) <= DK_SLA
   })
-  const custPct = customerDone.length ? Math.round((custOnTime.length / customerDone.length) * 100) : null
+  const dkPct = dkDone.length ? Math.round((dkOnTime.length / dkDone.length) * 100) : null
 
-  const docconDone = allDocs.filter((d) => d.docconDeliveredAt && d.docconReceivedAt)
-  const docconOnTime = docconDone.filter((d) => {
-    const days = daysBetween(d.docconReceivedAt, d.docconDeliveredAt)
-    return days !== null && days <= docconSLA
+  // ── Phase 3: Konfirmasi (SLA ≤2 hari)
+  // New flow customer: kadivApprovedAt → customerConfirmedAt
+  // New flow vendor:   kadivApprovedAt → vendorConfirmedAt
+  // Legacy:            customerReceivedAt → customerApprovedAt
+  const CONF_SLA = 2
+  const confDone = docs.filter((d) => {
+    if (isNewFlow(d)) {
+      if (!d.kadivApprovedAt) return false
+      return !!(d.customerConfirmedAt ?? d.vendorConfirmedAt)
+    }
+    return !!(d.customerReceivedAt && d.customerApprovedAt)
   })
-  const docconPct = docconDone.length ? Math.round((docconOnTime.length / docconDone.length) * 100) : null
+  const confOnTime = confDone.filter((d) => {
+    if (isNewFlow(d)) {
+      const end = d.customerConfirmedAt ?? d.vendorConfirmedAt
+      return (daysBetween(d.kadivApprovedAt, end) ?? 999) <= CONF_SLA
+    }
+    return (daysBetween(d.customerReceivedAt, d.customerApprovedAt) ?? 999) <= CONF_SLA
+  })
+  const confPct = confDone.length ? Math.round((confOnTime.length / confDone.length) * 100) : null
 
   const slaRows = [
-    { label: 'Engineer', sla: engineerSLA, pct: engPct, done: engineerDone.length, onTime: engOnTime.length },
-    { label: 'Customer', sla: customerSLA, pct: custPct, done: customerDone.length, onTime: custOnTime.length },
-    { label: 'Doccon',   sla: docconSLA,   pct: docconPct, done: docconDone.length, onTime: docconOnTime.length },
+    { label: 'Engineer',       sublabel: 'Submit ke Doccon',          sla: ENG_SLA,  pct: engPct,  done: engDone.length,  onTime: engOnTime.length },
+    { label: 'Doccon → Kadiv', sublabel: 'Terima s/d Kadiv Approve', sla: DK_SLA,   pct: dkPct,   done: dkDone.length,   onTime: dkOnTime.length },
+    { label: 'Konfirmasi',     sublabel: 'Kadiv Approve s/d Confirm', sla: CONF_SLA, pct: confPct, done: confDone.length, onTime: confOnTime.length },
   ]
 
   return (
     <div className="p-5 space-y-5">
       <div className="grid grid-cols-3 gap-4">
-        {slaRows.map(({ label, sla, pct, done, onTime }) => (
+        {slaRows.map(({ label, sublabel, sla, pct, done, onTime }) => (
           <div key={label} className="surface rounded-xl p-4 space-y-2">
-            <div className="text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary">{label} Phase</div>
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary">{label} Phase</div>
+              <div className="text-[10px] text-ink-muted mt-0.5">{sublabel}</div>
+            </div>
             <div className="text-2xl font-bold text-ink-primary">
               {pct !== null ? `${pct}%` : <span className="text-ink-muted text-base">N/A</span>}
             </div>
             <div className="text-[10px] text-ink-tertiary">On-time (SLA ≤{sla} hari)</div>
             <div className="h-1.5 rounded-full bg-black/[0.06] overflow-hidden">
               <div
-                className={classNames('h-full rounded-full transition-all', pct !== null && pct >= 80 ? 'bg-emerald-500' : pct !== null && pct >= 50 ? 'bg-amber-500' : 'bg-red-500')}
+                className={classNames(
+                  'h-full rounded-full transition-all',
+                  pct === null ? 'bg-transparent' :
+                  pct >= 80 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500'
+                )}
                 style={{ width: pct !== null ? `${pct}%` : '0%' }}
               />
             </div>
@@ -201,27 +230,57 @@ function SLAComplianceTab({ docs }: { docs: ReportDocument[] }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border-subtle bg-black/[0.02]">
-                {['Dokumen', 'Engineer (SLA 5d)', 'Customer (SLA 3d)', 'Doccon (SLA 2d)', 'Deadline Sales'].map((h) => (
+                {[
+                  'Dokumen',
+                  `Engineer (≤${ENG_SLA}h)`,
+                  `Doccon→Kadiv (≤${DK_SLA}h)`,
+                  `Konfirmasi (≤${CONF_SLA}h)`,
+                  'Deadline Sales',
+                ].map((h) => (
                   <th key={h} className="text-left px-4 py-2 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {allDocs.map((doc) => {
-                const eDays = daysBetween(doc.engineerStartedAt, doc.engineerSubmittedAt)
-                const cDays = daysBetween(doc.customerReceivedAt, doc.customerApprovedAt)
-                const dDays = daysBetween(doc.docconReceivedAt, doc.docconDeliveredAt)
+              {docs.map((doc) => {
+                const newFlow = isNewFlow(doc)
+                const isVendor = doc.docType === 'vendor'
+
+                // Engineer: hanya customer doc
+                const eDays = !isVendor ? daysBetween(doc.engineerStartedAt, doc.engineerSubmittedAt) : null
+
+                // Doccon→Kadiv
+                const dkEnd = newFlow ? doc.kadivApprovedAt : doc.docconDeliveredAt
+                const dkDays = daysBetween(doc.docconReceivedAt, dkEnd)
+
+                // Konfirmasi
+                let confDays: number | null = null
+                if (newFlow) {
+                  const confEnd = doc.customerConfirmedAt ?? doc.vendorConfirmedAt
+                  confDays = daysBetween(doc.kadivApprovedAt, confEnd)
+                } else {
+                  confDays = daysBetween(doc.customerReceivedAt, doc.customerApprovedAt)
+                }
+
                 const cell = (days: number | null, sla: number) => {
                   if (days === null) return <span className="text-ink-muted">—</span>
                   const ok = days <= sla
-                  return <span className={classNames('chip text-[10px]', ok ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700')}>{days}d {ok ? '✓' : '!'}</span>
+                  return (
+                    <span className={classNames('chip text-[10px]', ok ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700')}>
+                      {days}h {ok ? '✓' : '!'}
+                    </span>
+                  )
                 }
+
                 return (
                   <tr key={doc.id} className="hover:bg-black/[0.02]">
-                    <td className="px-4 py-2.5 text-xs text-ink-primary max-w-[180px] truncate" title={doc.judul}>{doc.judul}</td>
-                    <td className="px-4 py-2.5">{cell(eDays, 5)}</td>
-                    <td className="px-4 py-2.5">{cell(cDays, 3)}</td>
-                    <td className="px-4 py-2.5">{cell(dDays, 2)}</td>
+                    <td className="px-4 py-2.5 text-xs max-w-[180px] truncate" title={doc.judul}>
+                      <div className="text-ink-primary truncate">{doc.judul}</div>
+                      <div className="text-[10px] text-ink-tertiary">{isVendor ? 'Vendor' : 'Customer'}</div>
+                    </td>
+                    <td className="px-4 py-2.5">{isVendor ? <span className="text-[10px] text-ink-muted">N/A</span> : cell(eDays, ENG_SLA)}</td>
+                    <td className="px-4 py-2.5">{cell(dkDays, DK_SLA)}</td>
+                    <td className="px-4 py-2.5">{cell(confDays, CONF_SLA)}</td>
                     <td className="px-4 py-2.5"><DeadlineBadge doc={doc} /></td>
                   </tr>
                 )
@@ -229,7 +288,7 @@ function SLAComplianceTab({ docs }: { docs: ReportDocument[] }) {
             </tbody>
           </table>
         </div>
-        {allDocs.length === 0 && (
+        {docs.length === 0 && (
           <div className="py-10 text-center text-xs text-ink-tertiary">Belum ada dokumen pada periode ini.</div>
         )}
       </div>
@@ -246,7 +305,7 @@ export function MonitoringReportDetailPage() {
   const reportDetailProjectId = useUIStore((s) => s.reportDetailProjectId)
   const selectedMonth = useUIStore((s) => s.selectedReportMonth)
   const setSelectedMonth = useUIStore((s) => s.setSelectedReportMonth)
-  const { canDeleteMonitoring } = useMonitoringRole()
+  const { canDeleteMonitoring, canEditMonitoring } = useMonitoringRole()
 
   const project = projects.find((p) => p.id === reportDetailProjectId)
   const [activeTab, setActiveTab] = useState<ActiveTab>('customer')
@@ -490,7 +549,7 @@ export function MonitoringReportDetailPage() {
                         <div className="flex items-center gap-1">
                           <button onClick={() => openModal({ type: 'monitoring-report-document-detail', documentId: doc.id })} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Detail"><Eye size={13} /></button>
                           <button onClick={() => openModal({ type: 'monitoring-report-document-edit', documentId: doc.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>
-                          {canDeleteMonitoring && <button onClick={() => setConfirmDeleteDocId(doc.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>}
+                          {canEditMonitoring && <button onClick={() => setConfirmDeleteDocId(doc.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus Dokumen"><Trash2 size={13} /></button>}
                         </div>
                       </td>
                     </tr>

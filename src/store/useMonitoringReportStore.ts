@@ -1409,20 +1409,10 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
           period: ((d as unknown) as Record<string, unknown>).period as string ?? '2025-01',
         }))
 
-        // Inject seed billing docs not yet in localStorage (by ID)
+        // Inject seed billing docs not yet in localStorage (by ID) — safe, billing rows aren't deleted by user
         const persistedBilling = p.billingDocuments ?? []
         const persistedBillingIds = new Set(persistedBilling.map((b) => b.id))
         const missingBilling = current.billingDocuments.filter((b) => !persistedBillingIds.has(b.id))
-
-        // Inject seed projects/docs not yet in localStorage
-        const persistedProjectIds = new Set((p.projects ?? []).map((pr) => pr.id))
-        const missingProjects = current.projects.filter((pr) => !persistedProjectIds.has(pr.id))
-        const missingProjectDocIds = new Set(missingProjects.map((pr) => pr.id))
-        // Also inject any seed docs for existing projects that aren't in localStorage yet
-        const persistedDocIds = new Set(migratedDocs.map((d) => d.id))
-        const missingDocs = current.documents.filter((d) =>
-          missingProjectDocIds.has(d.projectId) || !persistedDocIds.has(d.id)
-        )
 
         // Migrate old projects: add missing kontrakMulai/kontrakAkhir
         const migratedProjects = (p.projects ?? []).map((pr) => ({
@@ -1431,11 +1421,12 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
           kontrakAkhir: pr.kontrakAkhir ?? null,
         }))
 
+        // Use persisted projects/docs as-is — deleted projects stay deleted
         return {
           ...current,
           ...p,
-          projects: [...migratedProjects, ...missingProjects],
-          documents: [...migratedDocs, ...missingDocs],
+          projects: migratedProjects,
+          documents: migratedDocs,
           billingDocuments: [...persistedBilling, ...missingBilling],
         }
       },

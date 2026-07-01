@@ -66,9 +66,18 @@ export const useAuthStore = create<AuthState>()(
       ensureSeedUsers: () => {
         const existingIds = new Set(get().users.map((u) => u.id))
         const missing = SEED_USERS.filter((u) => !existingIds.has(u.id))
-        if (missing.length > 0) {
-          set((s) => ({ users: [...s.users, ...missing] }))
-        }
+        // Sync name & avatarColor from seed for existing users (allows seed renames to propagate)
+        const seedById = new Map(SEED_USERS.map((u) => [u.id, u]))
+        set((s) => ({
+          users: [
+            ...s.users.map((u) => {
+              const seed = seedById.get(u.id)
+              if (!seed) return u
+              return { ...u, name: seed.name, avatarColor: seed.avatarColor }
+            }),
+            ...missing,
+          ],
+        }))
       },
 
       logout: () => set({ session: null }),

@@ -105,7 +105,9 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
       setDocconPIC(existing.docconPIC ?? '')
     } else {
       setJudul(''); setDeskripsi('')
-      setDeadlineToSales(''); setEngineerPIC(''); setCustomerPIC(''); setDocconPIC('')
+      setDeadlineToSales(''); setEngineerPIC(''); setCustomerPIC('')
+      // Auto-fill PIC Doccon dengan nama user yang sedang login jika role doccon
+      setDocconPIC(isDoccon && currentUser ? currentUser.name : '')
     }
     setErrors({})
     setActionComment('')

@@ -415,21 +415,13 @@ export const useMonitoringSLAStore = create<MonitoringSLAState>()(
       merge: (persisted: unknown, current) => {
         const p = persisted as Partial<MonitoringSLAState>
         if (!p.projects?.length) return current
-
-        // Inject seed projects/components/records not yet in localStorage
-        const persistedProjIds = new Set((p.projects ?? []).map((pr) => pr.id))
-        const missingProjects = current.projects.filter((pr) => !persistedProjIds.has(pr.id))
-        const missingProjIds = new Set(missingProjects.map((pr) => pr.id))
-        const missingComponents = current.components.filter((c) => missingProjIds.has(c.projectId))
-        const missingCompIds = new Set(missingComponents.map((c) => c.id))
-        const missingRecords = current.monthlyRecords.filter((r) => missingCompIds.has(r.componentId))
-
+        // Use persisted data as-is — deleted projects stay deleted
         return {
           ...current,
           ...p,
-          projects: [...(p.projects ?? []), ...missingProjects],
-          components: [...(p.components ?? []), ...missingComponents],
-          monthlyRecords: [...(p.monthlyRecords ?? []), ...missingRecords],
+          projects:      p.projects      ?? current.projects,
+          components:    p.components    ?? current.components,
+          monthlyRecords: p.monthlyRecords ?? current.monthlyRecords,
         }
       },
     },

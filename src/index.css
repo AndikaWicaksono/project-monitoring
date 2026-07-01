@@ -19,7 +19,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background:
-    radial-gradient(1200px 600px at -10% -20%, rgba(227, 30, 36, 0.06), transparent 60%),
+    radial-gradient(1200px 600px at -10% -20%, rgba(37, 99, 235, 0.06), transparent 60%),
     radial-gradient(900px 500px at 110% 110%, rgba(0, 47, 108, 0.05), transparent 60%),
     #ffffff;
   color: #0f172a;
@@ -58,7 +58,7 @@ body::before {
 }
 
 ::selection {
-  background: rgba(227, 30, 36, 0.22);
+  background: rgba(37, 99, 235, 0.22);
   color: #0f172a;
 }
 
@@ -89,7 +89,7 @@ body::before {
     @apply inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-sm font-medium text-ink-secondary transition hover:text-ink-primary hover:border-border-strong hover:bg-black/[0.03];
   }
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-pertamina-red/30 bg-pertamina-red-50 px-3 py-2 text-sm font-medium text-pertamina-red transition hover:bg-pertamina-red-100;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-sm font-medium text-danger transition hover:bg-danger-100;
   }
   .chip {
     @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide;

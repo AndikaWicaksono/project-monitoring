@@ -19,7 +19,9 @@ import {
   DollarSign,
   Activity,
   ChevronDown,
+  ClipboardList,
 } from 'lucide-react'
+import logoPrime from '../../assets/logo-prime.png'
 import { useUIStore } from '../../store/useUIStore'
 import { useTeamStore } from '../../store/useTeamStore'
 import { useTaskStore } from '../../store/useTaskStore'
@@ -61,7 +63,7 @@ export function Sidebar() {
 
       <aside
         className={classNames(
-          'flex h-full shrink-0 flex-col border-r border-border-subtle bg-gradient-to-b from-white to-pertamina-red-50/40',
+          'flex h-full shrink-0 flex-col border-r border-border-subtle bg-gradient-to-b from-white to-pertamina-red-50/30',
           // Width: full on mobile, collapse-able on desktop
           'w-[260px]',
           collapsed ? 'lg:w-[72px]' : 'lg:w-[252px]',
@@ -73,8 +75,8 @@ export function Sidebar() {
       >
       <div className="flex items-center justify-between gap-2 border-b border-border-subtle/70 px-4 py-4">
         <div className="flex items-center gap-2 overflow-hidden">
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-pertamina-red to-pertamina-red-dark shadow-glow">
-            <span className="text-sm font-bold text-white">F</span>
+          <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg shadow-glow">
+            <img src={logoPrime} alt="PRIME" className="h-full w-full object-contain" />
           </div>
           <AnimatePresence>
             {!collapsed && (
@@ -84,8 +86,8 @@ export function Sidebar() {
                 exit={{ opacity: 0, x: -6 }}
                 className="overflow-hidden"
               >
-                <div className="text-sm font-semibold leading-tight text-ink-primary">FlowDesk</div>
-                <div className="text-[10px] uppercase tracking-widest text-pertamina-red font-semibold">PGN COM · Backlog</div>
+                <div className="text-sm font-semibold leading-tight text-ink-primary">PRIME</div>
+                <div className="text-[10px] uppercase tracking-widest text-pertamina-red font-semibold">PGN COM · Monitoring</div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -383,7 +385,7 @@ function MonitoringNavSection({ collapsed }: { collapsed: boolean }) {
   const view = useUIStore((s) => s.view)
   const setView = useUIStore((s) => s.setView)
   const setMobileOpen = useUIStore((s) => s.setMobileSidebarOpen)
-  const { isAdminOSM, isCostAdmin, isDoccon, isEngineerOS, canViewCost } = useMonitoringRole()
+  const { isAdminOSM, isCostAdmin, isDoccon, isEngineerOS, canViewCost, isKadep, isKadiv } = useMonitoringRole()
 
   const isMonitoringActive = view.startsWith('monitoring-')
   const [open, setOpen] = useState(isMonitoringActive)
@@ -431,16 +433,18 @@ function MonitoringNavSection({ collapsed }: { collapsed: boolean }) {
   // ────────────────────────────────────────────────────────────────────────────
 
   const allItems = [
-    { viewKey: 'monitoring-dashboard' as const, icon: <Activity size={16} />,   label: 'Dashboard Monitoring', showFor: 'all',    badge: 0           },
-    { viewKey: 'monitoring-sla'       as const, icon: <TrendingUp size={16} />,  label: 'SLA Monitoring',       showFor: 'doccon', badge: slaBadge    },
-    { viewKey: 'monitoring-report'    as const, icon: <FileText size={16} />,    label: 'Report Project',       showFor: 'doccon', badge: reportBadge },
-    { viewKey: 'monitoring-cost'      as const, icon: <DollarSign size={16} />,  label: 'Cost Monitoring',      showFor: 'admin',  badge: 0           },
+    { viewKey: 'monitoring-dashboard'  as const, icon: <Activity size={16} />,      label: 'Dashboard Monitoring',  showFor: 'all',        badge: 0           },
+    { viewKey: 'monitoring-assignment' as const, icon: <ClipboardList size={16} />, label: 'Master Data',      showFor: 'assignment', badge: 0           },
+    { viewKey: 'monitoring-sla'        as const, icon: <TrendingUp size={16} />,    label: 'SLA Monitoring',        showFor: 'doccon',     badge: slaBadge    },
+    { viewKey: 'monitoring-report'     as const, icon: <FileText size={16} />,      label: 'Report Project',        showFor: 'doccon',     badge: reportBadge },
+    { viewKey: 'monitoring-cost'       as const, icon: <DollarSign size={16} />,    label: 'Cost Monitoring',       showFor: 'admin',      badge: 0           },
   ]
 
   const items = allItems.filter((item) => {
-    if (item.showFor === 'all')    return true
-    if (item.showFor === 'doccon') return !isCostAdmin          // hanya non-cost-admin (doccon, engineer) lihat SLA/Report
-    if (item.showFor === 'admin')  return canViewCost           // admin_osm + kadiv bisa lihat Cost
+    if (item.showFor === 'all')        return true
+    if (item.showFor === 'assignment') return isKadep || isKadiv
+    if (item.showFor === 'doccon')     return !isCostAdmin       // non-cost-admin lihat SLA/Report
+    if (item.showFor === 'admin')      return canViewCost        // admin_osm + kadiv + kadep lihat Cost
     return true
   })
 
@@ -709,7 +713,7 @@ function TeamRow({
                   setMenuOpen(false)
                   onDelete()
                 }}
-                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs text-pertamina-red hover:bg-pertamina-red-50"
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs text-danger hover:bg-danger-50"
               >
                 <Trash2 size={12} /> Hapus Divisi
               </button>

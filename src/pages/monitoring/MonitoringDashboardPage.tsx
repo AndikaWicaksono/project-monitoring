@@ -10,17 +10,15 @@ import { CostLeadingLaggingChart } from '../../components/monitoring/dashboard/C
 import { CostTopOverBudgetCard } from '../../components/monitoring/dashboard/CostTopOverBudgetCard'
 
 export function MonitoringDashboardPage() {
-  const { isAdminOSM, isDoccon, isEngineerOS, canViewCost } = useMonitoringRole()
+  const { isCostAdmin, isDoccon, isEngineerOS, canViewCost } = useMonitoringRole()
 
-  // admin_osm → Cost; doccon_osm & engineer_os → SLA & Report; kadiv → keduanya
-  const showSLAReport = !isAdminOSM
+  // cost admin (OSM/DMO/SCS) → Cost only; doccon & engineer → SLA & Report; kadiv/kadep → keduanya
+  const showSLAReport = !isCostAdmin
   const showCost      = canViewCost
 
   return (
     <div className="absolute inset-0 overflow-y-auto p-5 space-y-4">
-      {/* Warning panel — engineer_os: SLA & dokumen pending */}
       {isEngineerOS && <EngineerWarningPanel />}
-      {/* Warning panel — doccon: dokumen dikembalikan Sales */}
       {isDoccon && <DocconSalesWarningPanel />}
 
       <MonitoringStatsOverview />
@@ -38,7 +36,6 @@ export function MonitoringDashboardPage() {
         </div>
       )}
 
-      {/* Cost Overview */}
       {showCost && (
         <div>
           <div className="mb-3 flex items-center gap-2">

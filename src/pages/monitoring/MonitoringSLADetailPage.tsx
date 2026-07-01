@@ -213,7 +213,7 @@ export function MonitoringSLADetailPage() {
                             >
                               <Pencil size={13} />
                             </button>
-                            {canDeleteMonitoring && (
+                            {canEditMonitoring && (
                               <button
                                 onClick={() => setConfirmDeleteCompId(comp.id)}
                                 className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition"
@@ -252,7 +252,7 @@ export function MonitoringSLADetailPage() {
                               {canEditMonitoring && !locked && (
                                 <button onClick={() => openModal({ type: 'monitoring-sla-monthly-edit', recordId: rec.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition"><Pencil size={11} /></button>
                               )}
-                              {canDeleteMonitoring && (
+                              {canEditMonitoring && (
                                 <button onClick={() => setConfirmDeleteRecId(rec.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition"><Trash2 size={11} /></button>
                               )}
                             </div>

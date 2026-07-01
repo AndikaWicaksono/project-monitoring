@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react'
 import {
-  Plus, Search, Download, Eye, Pencil, Trash2, Filter,
+  Plus, Search, Download, Eye, Pencil, Trash2, Filter, X,
   FileText, ChevronLeft, ChevronRight, Archive, CalendarX,
   AlertTriangle, Clock, CheckCircle2, AlertCircle,
   LayoutGrid, List,
 } from 'lucide-react'
 import { MonthPicker } from '../../components/ui/MonthPicker'
 import { useMonitoringReportStore } from '../../store/useMonitoringReportStore'
+import { useMonitoringAssignmentStore } from '../../store/useMonitoringAssignmentStore'
+import { useAuthStore } from '../../store/useAuthStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { Button } from '../../components/ui/Button'
@@ -125,6 +127,35 @@ function WarningBadge({ docs }: { docs: ReportDocument[] }) {
   return null
 }
 
+// ── Project status badge ─────────────────────────────────────────────────────
+
+function getProjectStatus(docs: ReportDocument[]): { label: string; cls: string } {
+  const today = new Date()
+  let hasOverdue = false, hasWarning = false, hasFlagged = false
+  let done = 0, inProgress = 0
+
+  for (const d of docs) {
+    if (d.salesFlagIssue) hasFlagged = true
+    if (d.deadlineToSales) {
+      const diff = Math.ceil((new Date(d.deadlineToSales).getTime() - today.getTime()) / 86400000)
+      if (diff < 0) hasOverdue = true
+      else if (diff <= 3) hasWarning = true
+    }
+    const isDone =
+      d.currentPhase === 'sales' || d.currentPhase === 'completed' || d.docconSubStatus === 'delivered'
+    if (isDone) done++
+    else if (d.status !== 'DRAFT') inProgress++
+  }
+
+  if (hasOverdue)               return { label: 'OVERDUE',     cls: 'bg-red-100 text-red-700' }
+  if (hasFlagged)               return { label: 'FLAGGED',     cls: 'bg-orange-100 text-orange-700' }
+  if (hasWarning)               return { label: 'WARNING',     cls: 'bg-amber-100 text-amber-700' }
+  if (docs.length === 0)        return { label: 'NOT STARTED', cls: 'bg-slate-100 text-slate-500' }
+  if (done === docs.length)     return { label: 'ON TRACK',    cls: 'bg-emerald-100 text-emerald-700' }
+  if (inProgress > 0 || done > 0) return { label: 'IN PROGRESS', cls: 'bg-blue-100 text-blue-700' }
+  return                               { label: 'NOT STARTED', cls: 'bg-slate-100 text-slate-500' }
+}
+
 // ── Bottleneck analytics card ────────────────────────────────────────────────
 
 function BottleneckCard({
@@ -142,7 +173,6 @@ function BottleneckCard({
   const ratio = avgNum !== null ? avgNum / slaNum : null
   const isOver  = ratio !== null && ratio > 1
   const isWarn  = ratio !== null && ratio >= 0.8 && !isOver
-  const isOK    = ratio !== null && !isOver && !isWarn
   const gaugeW  = ratio !== null ? `${Math.min(100, ratio * 100)}%` : '0%'
 
   const accentCls = {
@@ -194,12 +224,16 @@ export function MonitoringReportPage() {
   const setReportDetailProjectId = useUIStore((s) => s.setReportDetailProjectId)
   const selectedMonth = useUIStore((s) => s.selectedReportMonth)
   const setSelectedMonth = useUIStore((s) => s.setSelectedReportMonth)
-  const { canDeleteMonitoring, canManageProjectPeriod } = useMonitoringRole()
+  const { canDeleteMonitoring, canManageProjectPeriod, isDoccon, currentUserId } = useMonitoringRole()
+  const assignments = useMonitoringAssignmentStore((s) => s.assignments)
+  const users       = useAuthStore((s) => s.users)
 
-  const [search, setSearch]       = useState('')
-  const [deptFilter, setDeptFilter] = useState('')
-  const [sortBy, setSortBy]       = useState<'kode-asc' | 'kode-desc' | 'nama-asc' | 'nama-desc'>('kode-asc')
-  const [viewMode, setViewMode]   = useState<'table' | 'card'>('table')
+  const [search, setSearch]           = useState('')
+  const [deptFilter, setDeptFilter]   = useState('')
+  const [clientFilter, setClientFilter] = useState('')
+  const [picFilter, setPicFilter]     = useState('')
+  const [sortBy, setSortBy]           = useState<'kode-asc' | 'kode-desc' | 'nama-asc' | 'nama-desc'>('kode-asc')
+  const [viewMode, setViewMode]       = useState<'table' | 'card'>('table')
   const [confirmDeleteId, setConfirmDeleteId]         = useState<string | null>(null)
   const [confirmEndId, setConfirmEndId]               = useState<string | null>(null)
   const [confirmExcludeMonthId, setConfirmExcludeMonthId] = useState<string | null>(null)
@@ -209,6 +243,48 @@ export function MonitoringReportPage() {
     [projects],
   )
 
+  // Helper untuk resolve PIC (inline agar bisa dipakai di useMemo sebelum deklarasi fungsi)
+  function resolvePICInline(kodeProject: string, picLaporan: string) {
+    if (picLaporan) return picLaporan
+    const asgn = assignments.find((a) => a.kodeProject === kodeProject)
+    if (!asgn?.assignedDocconId) return ''
+    return users.find((u) => u.id === asgn.assignedDocconId)?.name ?? ''
+  }
+
+  // Opsi dropdown — computed dari project yang visible di periode ini (sebelum filter client/PIC)
+  const periodVisibleProjects = useMemo(() => {
+    return projects.filter((p) => {
+      if (selectedMonth < p.kontrakMulai) return false
+      if (p.kontrakAkhir !== null && selectedMonth > p.kontrakAkhir) return false
+      if ((p.excludedMonths ?? []).includes(selectedMonth)) return false
+      if (isDoccon && currentUserId) {
+        const asgn = assignments.find((a) => a.kodeProject === p.kodeProject)
+        if (!asgn || asgn.assignedDocconId !== currentUserId) return false
+      }
+      return true
+    })
+  }, [projects, selectedMonth, assignments, isDoccon, currentUserId])
+
+  const uniqueClients = useMemo(
+    () => [...new Set(periodVisibleProjects.map((p) => p.client).filter(Boolean))].sort(),
+    [periodVisibleProjects],
+  )
+
+  const uniquePICs = useMemo(
+    () => [...new Set(periodVisibleProjects.map((p) => resolvePICInline(p.kodeProject, p.picLaporan)).filter(Boolean))].sort(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [periodVisibleProjects, assignments, users],
+  )
+
+  const hasActiveFilter = !!(search || deptFilter || clientFilter || picFilter)
+
+  function resetFilters() {
+    setSearch('')
+    setDeptFilter('')
+    setClientFilter('')
+    setPicFilter('')
+  }
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     const list = projects.filter((p) => {
@@ -216,6 +292,17 @@ export function MonitoringReportPage() {
       if (p.kontrakAkhir !== null && selectedMonth > p.kontrakAkhir) return false
       if ((p.excludedMonths ?? []).includes(selectedMonth)) return false
       if (deptFilter && p.department !== deptFilter) return false
+      // Doccon hanya melihat project yang di-assign kepadanya oleh Kadep
+      if (isDoccon && currentUserId) {
+        const asgn = assignments.find((a) => a.kodeProject === p.kodeProject)
+        if (!asgn || asgn.assignedDocconId !== currentUserId) return false
+      }
+      if (clientFilter && p.client !== clientFilter) return false
+      if (picFilter) {
+        const asgn = assignments.find((a) => a.kodeProject === p.kodeProject)
+        const resolvedPIC = p.picLaporan || (asgn?.assignedDocconId ? users.find((u) => u.id === asgn.assignedDocconId)?.name ?? '' : '')
+        if (resolvedPIC !== picFilter) return false
+      }
       if (q && !p.kodeProject.toLowerCase().includes(q) && !p.client.toLowerCase().includes(q) && !p.namaKontrak.toLowerCase().includes(q)) return false
       return true
     })
@@ -226,7 +313,7 @@ export function MonitoringReportPage() {
       if (sortBy === 'nama-desc') return b.namaKontrak.localeCompare(a.namaKontrak)
       return 0
     })
-  }, [projects, search, deptFilter, selectedMonth, sortBy])
+  }, [projects, search, deptFilter, clientFilter, picFilter, selectedMonth, sortBy, assignments, isDoccon, currentUserId, users])
 
   const periodDocs = useMemo(
     () => documents.filter((d) => d.period === selectedMonth && filtered.some((p) => p.id === d.projectId)),
@@ -243,6 +330,10 @@ export function MonitoringReportPage() {
     return documents.filter((d) => d.projectId === projectId && d.docType === type && d.period === selectedMonth).length
   }
 
+  function resolvePIC(kodeProject: string, picLaporan: string) {
+    return resolvePICInline(kodeProject, picLaporan)
+  }
+
   function openDetail(projectId: string) {
     setReportDetailProjectId(projectId)
     setView('monitoring-report-detail')
@@ -255,7 +346,7 @@ export function MonitoringReportPage() {
         Client: p.client,
         'Nama Kontrak': p.namaKontrak,
         Department: p.department,
-        'PIC Laporan': p.picLaporan,
+        'PIC Laporan': resolvePIC(p.kodeProject, p.picLaporan),
         Periode: reportMonthLabel(selectedMonth),
         'Dok. Customer': docCount(p.id, 'customer'),
         'Dok. Vendor': docCount(p.id, 'vendor'),
@@ -323,7 +414,7 @@ export function MonitoringReportPage() {
               className="input-base pl-9 text-xs"
             />
           </div>
-          <Filter size={12} className="text-ink-tertiary" />
+          <Filter size={12} className="text-ink-tertiary shrink-0" />
           <select
             value={deptFilter}
             onChange={(e) => setDeptFilter(e.target.value)}
@@ -332,13 +423,38 @@ export function MonitoringReportPage() {
             <option value="">Semua Dept</option>
             {departments.map((d) => <option key={d} value={d}>{d}</option>)}
           </select>
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} className="input-base text-xs w-auto py-1.5 pr-7">
+          <select
+            value={clientFilter}
+            onChange={(e) => setClientFilter(e.target.value)}
+            className="input-base text-xs w-auto py-1.5 pr-7"
+          >
+            <option value="">Semua Client</option>
+            {uniqueClients.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select
+            value={picFilter}
+            onChange={(e) => setPicFilter(e.target.value)}
+            className="input-base text-xs w-auto py-1.5 pr-7"
+          >
+            <option value="">Semua PIC</option>
+            {uniquePICs.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+          {hasActiveFilter && (
+            <button
+              onClick={resetFilters}
+              className="flex items-center gap-1 rounded-full border border-pertamina-red/40 bg-pertamina-red-50 px-2.5 py-1 text-[11px] font-medium text-pertamina-red hover:bg-pertamina-red-100 transition shrink-0"
+            >
+              <X size={10} />
+              Reset
+            </button>
+          )}
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} className="input-base text-xs w-auto py-1.5 pr-7 ml-auto">
             <option value="kode-asc">Kode A→Z</option>
             <option value="kode-desc">Kode Z→A</option>
             <option value="nama-asc">Nama A→Z</option>
             <option value="nama-desc">Nama Z→A</option>
           </select>
-          <span className="text-[11px] text-ink-tertiary ml-auto">{filtered.length} project</span>
+          <span className="text-[11px] text-ink-tertiary">{filtered.length} project</span>
           {/* View toggle */}
           <div className="flex items-center rounded-lg border border-border-subtle overflow-hidden">
             <button
@@ -367,9 +483,6 @@ export function MonitoringReportPage() {
             </button>
           </div>
           <Button variant="ghost" size="sm" onClick={handleExport} leftIcon={<Download size={13} />}>Export</Button>
-          <Button size="sm" onClick={() => openModal({ type: 'monitoring-report-project-create' })} leftIcon={<Plus size={13} />}>
-            Tambah Project
-          </Button>
         </div>
 
         {/* ── Table view ── */}
@@ -380,13 +493,14 @@ export function MonitoringReportPage() {
                 <thead>
                   <tr className="border-b border-border-subtle bg-black/[0.02]">
                     {[
-                      { label: 'Project',       cls: 'min-w-[220px]' },
-                      { label: 'Client · Dept', cls: 'min-w-[140px]' },
-                      { label: 'PIC',           cls: 'min-w-[100px]' },
-                      { label: 'Dokumen',       cls: 'text-center'   },
-                      { label: 'Billing',       cls: 'min-w-[100px]' },
-                      { label: 'Status',        cls: 'min-w-[160px]' },
-                      { label: 'Aksi',          cls: ''              },
+                      { label: 'Project',       cls: 'min-w-[240px]' },
+                      { label: 'Client · Dept', cls: 'min-w-[130px]' },
+                      { label: 'PIC',           cls: 'min-w-[90px]'  },
+                      { label: 'Dokumen',       cls: 'min-w-[110px]' },
+                      { label: 'Billing',       cls: 'min-w-[110px]' },
+                      { label: 'Progress',      cls: 'min-w-[120px]' },
+                      { label: 'Status',        cls: 'min-w-[120px]' },
+                      { label: 'Aksi',          cls: 'w-[90px]'      },
                     ].map(({ label, cls }) => (
                       <th
                         key={label}
@@ -402,13 +516,30 @@ export function MonitoringReportPage() {
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
                   {filtered.map((p) => {
-                    const custDocs  = docCount(p.id, 'customer')
-                    const vendDocs  = docCount(p.id, 'vendor')
+                    const custDocs    = docCount(p.id, 'customer')
+                    const vendDocs    = docCount(p.id, 'vendor')
                     const billingDocs = billingDocuments.filter((b) => b.projectId === p.id)
                     const billingDone = billingDocs.filter((b) => b.status === 'COMPLETED').length
                     const billingPct  = billingDocs.length > 0 ? Math.round((billingDone / billingDocs.length) * 100) : 0
-                    const projDocs  = getProjectDocs(p.id)
-                    const totalDocs = custDocs + vendDocs
+                    const projDocs    = getProjectDocs(p.id)
+                    const totalDocs   = custDocs + vendDocs
+
+                    // Progress: done docs vs total
+                    const doneDocs = projDocs.filter((d) =>
+                      d.currentPhase === 'sales' || d.currentPhase === 'completed' || d.docconSubStatus === 'delivered'
+                    ).length
+                    const progressPct = totalDocs > 0 ? Math.round((doneDocs / totalDocs) * 100) : 0
+
+                    const status = getProjectStatus(projDocs)
+
+                    // "Update terakhir" from latest doc updatedAt or project updatedAt
+                    const lastUpdated = [
+                      p.updatedAt,
+                      ...projDocs.map((d) => d.updatedAt),
+                    ].filter(Boolean).sort().reverse()[0]
+                    const lastUpdatedLabel = lastUpdated
+                      ? new Date(lastUpdated).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                      : null
 
                     return (
                       <tr
@@ -416,27 +547,29 @@ export function MonitoringReportPage() {
                         className="hover:bg-black/[0.02] transition-colors cursor-pointer group"
                         onClick={() => openDetail(p.id)}
                       >
-                        {/* ① Project — kode chip + nama */}
+                        {/* ① Project */}
                         <td className="px-4 py-3">
                           <div className="flex flex-col gap-0.5">
-                            <span className="text-[10px] font-mono font-semibold text-pertamina-red tracking-wide">
+                            <span className="text-[11px] font-mono font-bold text-pertamina-red tracking-wide">
                               {p.kodeProject}
                             </span>
-                            <span
-                              className="text-xs font-medium text-ink-primary max-w-[240px] truncate leading-tight"
-                              title={p.namaKontrak}
-                            >
+                            <span className="text-xs font-medium text-ink-primary max-w-[260px] truncate leading-tight" title={p.namaKontrak}>
                               {p.namaKontrak}
                             </span>
+                            {lastUpdatedLabel && (
+                              <span className="text-[10px] text-ink-tertiary flex items-center gap-1 mt-0.5">
+                                <Clock size={9} className="shrink-0" /> Update terakhir: {lastUpdatedLabel}
+                              </span>
+                            )}
                           </div>
                         </td>
 
                         {/* ② Client · Dept */}
                         <td className="px-4 py-3">
                           <div className="flex flex-col gap-1">
-                            <span className="text-xs text-ink-primary whitespace-nowrap">{p.client}</span>
+                            <span className="text-xs font-medium text-ink-primary whitespace-nowrap">{p.client}</span>
                             {p.department && (
-                              <span className="chip bg-slate-100 text-slate-600 text-[9px] font-medium w-fit">
+                              <span className="chip bg-slate-100 text-slate-600 text-[9px] font-semibold w-fit">
                                 {p.department}
                               </span>
                             )}
@@ -445,65 +578,84 @@ export function MonitoringReportPage() {
 
                         {/* ③ PIC */}
                         <td className="px-4 py-3">
-                          <span className="text-xs text-ink-secondary whitespace-nowrap">{p.picLaporan || '—'}</span>
+                          <span className="text-xs text-ink-secondary">{resolvePIC(p.kodeProject, p.picLaporan) || '—'}</span>
                         </td>
 
-                        {/* ④ Dokumen — customer + vendor */}
+                        {/* ④ Dokumen */}
                         <td className="px-4 py-3">
-                          {totalDocs > 0 ? (
-                            <div className="flex items-center gap-2">
-                              {custDocs > 0 && (
-                                <div className="flex items-center gap-0.5">
-                                  <span className="text-xs font-semibold text-ink-primary tabular-nums">{custDocs}</span>
-                                  <span className="text-[9px] text-ink-muted uppercase tracking-wide">C</span>
-                                </div>
-                              )}
-                              {custDocs > 0 && vendDocs > 0 && (
-                                <span className="text-ink-muted/30 text-xs">·</span>
-                              )}
-                              {vendDocs > 0 && (
-                                <div className="flex items-center gap-0.5">
-                                  <span className="text-xs font-semibold text-ink-primary tabular-nums">{vendDocs}</span>
-                                  <span className="text-[9px] text-ink-muted uppercase tracking-wide">V</span>
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-ink-muted">—</span>
-                          )}
+                          <div className="flex flex-col gap-0.5">
+                            {custDocs > 0 ? (
+                              <div className="flex items-center gap-1">
+                                <FileText size={10} className="text-blue-400 shrink-0" />
+                                <span className="text-[11px] text-ink-secondary">
+                                  <span className="font-semibold text-ink-primary">{custDocs}</span> Customer
+                                </span>
+                              </div>
+                            ) : null}
+                            {vendDocs > 0 ? (
+                              <div className="flex items-center gap-1">
+                                <FileText size={10} className="text-violet-400 shrink-0" />
+                                <span className="text-[11px] text-ink-secondary">
+                                  <span className="font-semibold text-ink-primary">{vendDocs}</span> Vendor
+                                </span>
+                              </div>
+                            ) : null}
+                            {totalDocs === 0 && <span className="text-xs text-ink-muted">—</span>}
+                          </div>
                         </td>
 
                         {/* ⑤ Billing */}
                         <td className="px-4 py-3">
                           {billingDocs.length > 0 ? (
-                            <div className="flex items-center gap-2 min-w-[72px]">
-                              <div className="flex-1 h-1.5 rounded-full bg-black/[0.06] overflow-hidden">
+                            <div className="space-y-1 min-w-[90px]">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className={classNames(
+                                  'text-xs font-semibold tabular-nums',
+                                  billingPct === 100 ? 'text-emerald-600' : 'text-ink-primary'
+                                )}>{billingPct}%</span>
+                                <span className="text-[10px] text-ink-tertiary tabular-nums">{billingDone}/{billingDocs.length}</span>
+                              </div>
+                              <div className="h-1.5 rounded-full bg-black/[0.06] overflow-hidden">
                                 <div
                                   className={classNames(
                                     'h-full rounded-full transition-all',
-                                    billingPct === 100 ? 'bg-emerald-400' : billingPct >= 50 ? 'bg-pertamina-red' : 'bg-red-400',
+                                    billingPct === 100 ? 'bg-emerald-400' : billingPct >= 50 ? 'bg-pertamina-red/70' : 'bg-red-400',
                                   )}
                                   style={{ width: `${billingPct}%` }}
                                 />
                               </div>
-                              <span className="text-[10px] text-ink-tertiary whitespace-nowrap tabular-nums">
-                                {billingDone}/{billingDocs.length}
-                              </span>
                             </div>
                           ) : (
                             <span className="text-xs text-ink-muted">—</span>
                           )}
                         </td>
 
-                        {/* ⑥ Status — pipeline bar + warning badge */}
+                        {/* ⑥ Progress (pipeline) */}
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <PipelineBar docs={projDocs} />
-                            <WarningBadge docs={projDocs} />
-                          </div>
+                          {totalDocs > 0 ? (
+                            <div className="space-y-1 min-w-[90px]">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className={classNames(
+                                  'text-xs font-semibold tabular-nums',
+                                  progressPct === 100 ? 'text-emerald-600' : 'text-ink-primary'
+                                )}>{progressPct}%</span>
+                                <span className="text-[10px] text-ink-tertiary tabular-nums">{doneDocs}/{totalDocs}</span>
+                              </div>
+                              <PipelineBar docs={projDocs} />
+                            </div>
+                          ) : (
+                            <span className="text-xs text-ink-muted">—</span>
+                          )}
                         </td>
 
-                        {/* ⑦ Aksi */}
+                        {/* ⑦ Status */}
+                        <td className="px-4 py-3">
+                          <span className={classNames('chip text-[10px] font-semibold', status.cls)}>
+                            {status.label}
+                          </span>
+                        </td>
+
+                        {/* ⑧ Aksi */}
                         <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
@@ -561,7 +713,7 @@ export function MonitoringReportPage() {
                 <FileText size={32} className="mb-2 opacity-30" />
                 <p className="text-sm">
                   {projects.length === 0
-                    ? 'Belum ada project. Klik "Tambah Project" untuk membuat.'
+                    ? 'Belum ada project yang di-assign ke Anda.'
                     : 'Tidak ada data yang cocok dengan filter.'}
                 </p>
               </div>
@@ -577,7 +729,7 @@ export function MonitoringReportPage() {
                 <FileText size={32} className="mb-2 opacity-30" />
                 <p className="text-sm">
                   {projects.length === 0
-                    ? 'Belum ada project. Klik "Tambah Project" untuk membuat.'
+                    ? 'Belum ada project yang di-assign ke Anda.'
                     : 'Tidak ada data yang cocok dengan filter.'}
                 </p>
               </div>
@@ -629,8 +781,8 @@ export function MonitoringReportPage() {
                           {p.department && (
                             <span className="chip bg-slate-100 text-slate-600 text-[9px] font-medium">{p.department}</span>
                           )}
-                          {p.picLaporan && (
-                            <span className="chip bg-blue-50 text-blue-600 text-[9px] font-medium">{p.picLaporan}</span>
+                          {resolvePIC(p.kodeProject, p.picLaporan) && (
+                            <span className="chip bg-blue-50 text-blue-600 text-[9px] font-medium">{resolvePIC(p.kodeProject, p.picLaporan)}</span>
                           )}
                         </div>
 

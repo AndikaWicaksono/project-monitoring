@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Eye, EyeOff, LogIn, ShieldCheck } from 'lucide-react'
+import logoPrime from '../assets/logo-prime.png'
 import { useAuthStore } from '../store/useAuthStore'
 import { useRoleStore } from '../store/useRoleStore'
 import { classNames } from '../utils/helpers'
@@ -13,7 +14,10 @@ const DEMO_ACCOUNTS = [
   { email: 'admin.osm@pertamina.id', password: 'osm123', label: 'Admin OSM' },
   { email: 'admin.dmo@pertamina.id', password: 'dmo123', label: 'Admin DMO' },
   { email: 'admin.scs@pertamina.id', password: 'scs123', label: 'Admin SCS' },
-  { email: 'doccon.osm@pertamina.id', password: 'osm123', label: 'Doccon OSM' },
+  { email: 'kadep@pertamina.id', password: 'kadep123', label: 'Kadep SAR (Assign Doccon)' },
+  { email: 'doccon.osm@pertamina.id', password: 'osm123', label: 'Doccon — Resyah' },
+  { email: 'annita@pertamina.id', password: 'doccon123', label: 'Doccon — Annita' },
+  { email: 'addini@pertamina.id', password: 'doccon123', label: 'Doccon — Addini' },
   { email: 'engineer.os@pertamina.id', password: 'eos123', label: 'Engineer OS' },
 ]
 
@@ -64,20 +68,22 @@ export function LoginPage() {
         className="relative z-10 grid w-[920px] max-w-[95vw] grid-cols-1 lg:grid-cols-[1.05fr_1fr] overflow-hidden rounded-2xl bg-white shadow-modal border border-border-subtle"
       >
         {/* Left brand panel */}
-        <div className="relative hidden lg:flex flex-col justify-between p-8 bg-gradient-to-br from-pertamina-red via-pertamina-red-dark to-pertamina-red-700 text-white overflow-hidden">
+        <div className="relative hidden lg:flex flex-col justify-between p-8 bg-gradient-to-br from-[#0C1E3E] via-[#1E3A8A] to-[#2563EB] text-white overflow-hidden">
           <div className="absolute -top-20 -right-20 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
           <div className="absolute -bottom-24 -left-16 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
 
-          <div className="relative flex items-center gap-2">
-            <div className="grid h-10 w-10 place-items-center rounded-lg bg-white text-pertamina-red font-bold text-lg shadow-md">F</div>
+          <div className="relative flex items-center gap-3">
+            <div className="h-12 w-12 overflow-hidden rounded-xl bg-white/10 p-1.5 shadow-md backdrop-blur">
+              <img src={logoPrime} alt="PRIME" className="h-full w-full object-contain" />
+            </div>
             <div>
-              <div className="text-base font-semibold tracking-tight">FlowDesk</div>
-              <div className="text-[10px] uppercase tracking-[0.2em] opacity-80">PGN COM · Backlog Suite</div>
+              <div className="text-base font-bold tracking-tight">PRIME</div>
+              <div className="text-[10px] uppercase tracking-[0.2em] opacity-80">PGN COM · Monitoring</div>
             </div>
           </div>
 
           <div className="relative">
-            <div className="text-[10px] uppercase tracking-[0.25em] opacity-80 mb-2">Project Backlog Manager</div>
+            <div className="text-[10px] uppercase tracking-[0.25em] opacity-80 mb-2">Project Intelligence & Monitoring Engine</div>
             <h1 className="text-2xl font-semibold leading-tight">
               Selaraskan tim,<br />percepat eksekusi.
             </h1>
@@ -94,13 +100,13 @@ export function LoginPage() {
             </div>
           </div>
 
-          <div className="relative text-[11px] opacity-80">© {new Date().getFullYear()} Pertamina · Internal use</div>
+          <div className="relative text-[11px] opacity-80">© {new Date().getFullYear()} PGN COM · Internal use</div>
         </div>
 
         {/* Right form panel */}
         <div className="p-8 lg:p-10">
           <div className="mb-6">
-            <h2 className="text-xl font-semibold tracking-tight text-ink-primary">Masuk ke FlowDesk</h2>
+            <h2 className="text-xl font-semibold tracking-tight text-ink-primary">Masuk ke PRIME</h2>
             <p className="mt-1 text-[12px] text-ink-tertiary">Gunakan email & password korporat Anda.</p>
           </div>
 
@@ -146,7 +152,7 @@ export function LoginPage() {
               <motion.div
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="rounded-md border border-pertamina-red/30 bg-pertamina-red-50 px-3 py-2 text-[12px] text-pertamina-red"
+                className="rounded-md border border-danger/30 bg-danger-50 px-3 py-2 text-[12px] text-danger"
               >
                 {loginError}
               </motion.div>

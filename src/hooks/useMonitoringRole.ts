@@ -1,6 +1,9 @@
 import { usePermissions } from './usePermissions'
 
-const MONITORING_ROLES = new Set(['admin_osm', 'admin_dmo', 'admin_scs', 'doccon_osm', 'engineer_os', 'sales'])
+const MONITORING_ROLES = new Set([
+  'admin_osm', 'admin_dmo', 'admin_scs',
+  'doccon_osm', 'engineer_os', 'sales', 'kadep',
+])
 
 const COST_SATKER_MAP: Record<string, string> = {
   admin_osm: 'OSM',
@@ -9,7 +12,7 @@ const COST_SATKER_MAP: Record<string, string> = {
 }
 
 export function useMonitoringRole() {
-  const { role } = usePermissions()
+  const { role, user } = usePermissions()
   const roleId = role?.id ?? ''
 
   const isAdminOSM   = roleId === 'admin_osm'
@@ -19,6 +22,7 @@ export function useMonitoringRole() {
   const isEngineerOS = roleId === 'engineer_os'
   const isSales      = roleId === 'sales'
   const isKadiv      = roleId === 'team_admin'
+  const isKadep      = roleId === 'kadep'
   const isCostAdmin  = isAdminOSM || isAdminDMO || isAdminSCS
 
   return {
@@ -31,13 +35,16 @@ export function useMonitoringRole() {
     isDoccon,
     isEngineerOS,
     isKadiv,
-    canDeleteMonitoring:    roleId !== 'doccon_osm' && roleId !== 'engineer_os',
-    canManageProjectPeriod: !isEngineerOS,
-    canEditMonitoring:      !isEngineerOS,
+    isKadep,
+    canDeleteMonitoring:    roleId !== 'doccon_osm' && roleId !== 'engineer_os' && roleId !== 'kadep',
+    canManageProjectPeriod: !isEngineerOS && !isKadep,
+    canEditMonitoring:      !isEngineerOS && !isKadep,
     canUnlockRecord:     isAdminOSM || roleId === 'super_admin',
-    canViewCost:         isCostAdmin || isKadiv,
+    canViewCost:         isCostAdmin || isKadiv || isKadep,
     canEditCost:         isCostAdmin,
-    // Satker yang sesuai dengan role admin cost (null = bukan cost admin)
+    canAssignDoccon:     isKadep,
     costSatker:          COST_SATKER_MAP[roleId] ?? null,
+    currentUserId:       user?.id ?? null,
+    currentUserName:     user?.name ?? null,
   }
 }

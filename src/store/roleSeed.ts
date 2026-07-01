@@ -206,6 +206,19 @@ export const SEED_ROLES: MasterRole[] = [
     },
   },
   {
+    id: 'kadep',
+    name: 'Kepala Departemen SAR',
+    description: 'Kepala Departemen SAR — dapat assign project ke Doccon, melihat seluruh SLA, Report, dan Cost (read-only). Tidak dapat mengedit atau menghapus data monitoring.',
+    color: '#0891B2',
+    rank: 41,
+    isSystem: true,
+    scopeRestriction: 'any',
+    permissions: {
+      ...none(),
+      canApproveHandoff: true,
+    },
+  },
+  {
     id: 'doccon_osm',
     name: 'Doccon OSM',
     description: 'Document controller Monitoring OSM. Dapat membuat dan mengedit data monitoring. Tidak dapat menghapus atau approve. Tidak dapat mengakses Board Management.',

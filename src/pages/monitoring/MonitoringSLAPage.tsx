@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Plus, Search, Download, Eye, Pencil, Trash2, Filter } from 'lucide-react'
 import { useMonitoringSLAStore } from '../../store/useMonitoringSLAStore'
+import { useMonitoringAssignmentStore } from '../../store/useMonitoringAssignmentStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { Button } from '../../components/ui/Button'
@@ -22,7 +23,8 @@ export function MonitoringSLAPage() {
   const openModal = useUIStore((s) => s.openModal)
   const setView = useUIStore((s) => s.setView)
   const setSlaDetailProjectId = useUIStore((s) => s.setSlaDetailProjectId)
-  const { canDeleteMonitoring, canEditMonitoring } = useMonitoringRole()
+  const { canDeleteMonitoring, canEditMonitoring, isDoccon, currentUserId } = useMonitoringRole()
+  const assignments = useMonitoringAssignmentStore((s) => s.assignments)
 
   const [search, setSearch] = useState('')
   const [deptFilter, setDeptFilter] = useState('')
@@ -36,6 +38,11 @@ export function MonitoringSLAPage() {
     const q = search.toLowerCase()
     const list = projects.filter((p) => {
       if (deptFilter && p.department !== deptFilter) return false
+      // Doccon hanya melihat project yang di-assign kepadanya oleh Kadep
+      if (isDoccon && currentUserId) {
+        const asgn = assignments.find((a) => a.kodeProject === p.kodeProject)
+        if (!asgn || asgn.assignedDocconId !== currentUserId) return false
+      }
       const avg = computeProjectGrandAvg(components, monthlyRecords, p.id, YEAR)
       if (statusFilter && slaStatusCalc(avg, p.targetSLA) !== statusFilter) return false
       if (q && !p.kodeProject.toLowerCase().includes(q) && !p.namaProject.toLowerCase().includes(q) && !p.department.toLowerCase().includes(q)) return false
@@ -48,7 +55,7 @@ export function MonitoringSLAPage() {
       if (sortBy === 'nama-desc') return b.namaProject.localeCompare(a.namaProject)
       return 0
     })
-  }, [projects, components, monthlyRecords, search, deptFilter, statusFilter, sortBy])
+  }, [projects, components, monthlyRecords, search, deptFilter, statusFilter, sortBy, assignments, isDoccon, currentUserId])
 
   function openDetail(projectId: string) {
     setSlaDetailProjectId(projectId)
@@ -144,7 +151,7 @@ export function MonitoringSLAPage() {
                 const grand = computeProjectGrandAvg(components, monthlyRecords, p.id, YEAR)
                 const status = slaStatusCalc(grand, p.targetSLA)
                 return (
-                  <tr key={p.id} className="hover:bg-black/[0.02] transition-colors">
+                  <tr key={p.id} className="hover:bg-black/[0.02] transition-colors cursor-pointer group" onClick={() => openDetail(p.id)}>
                     <td className="px-4 py-3 text-xs font-medium text-ink-primary whitespace-nowrap">{p.kodeProject}</td>
                     <td className="px-4 py-3 text-xs text-ink-secondary max-w-[160px] truncate" title={p.namaProject}>{p.namaProject}</td>
                     <td className="px-4 py-3 text-xs text-ink-secondary whitespace-nowrap">{p.department}</td>
@@ -164,8 +171,8 @@ export function MonitoringSLAPage() {
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className={classNames('chip', SLA_STATUS_CLS[status])}>{status === 'TERCAPAI' ? 'Tercapai' : 'Tidak Tercapai'}</span>
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={() => openDetail(p.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Lihat Detail"><Eye size={13} /></button>
                         {canEditMonitoring && <button onClick={() => openModal({ type: 'monitoring-sla-project-edit', projectId: p.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>}
                         {canDeleteMonitoring && <button onClick={() => setConfirmDeleteId(p.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>}
