@@ -104,7 +104,7 @@ export function LoginPage() {
         </div>
 
         {/* Right form panel */}
-        <div className="p-8 lg:p-10">
+        <div className="max-h-[90vh] overflow-y-auto p-8 lg:p-10">
           <div className="mb-6">
             <h2 className="text-xl font-semibold tracking-tight text-ink-primary">Masuk ke PRIME</h2>
             <p className="mt-1 text-[12px] text-ink-tertiary">Gunakan email & password korporat Anda.</p>
