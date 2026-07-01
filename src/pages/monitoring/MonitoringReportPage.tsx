@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import {
   Plus, Search, Download, Eye, Pencil, Trash2, Filter, X,
   FileText, ChevronLeft, ChevronRight, Archive, CalendarX,
@@ -234,6 +234,7 @@ export function MonitoringReportPage() {
   const [picFilter, setPicFilter]     = useState('')
   const [sortBy, setSortBy]           = useState<'kode-asc' | 'kode-desc' | 'nama-asc' | 'nama-desc'>('kode-asc')
   const [viewMode, setViewMode]       = useState<'table' | 'card'>('table')
+  const [currentPage, setCurrentPage] = useState(1)
   const [confirmDeleteId, setConfirmDeleteId]         = useState<string | null>(null)
   const [confirmEndId, setConfirmEndId]               = useState<string | null>(null)
   const [confirmExcludeMonthId, setConfirmExcludeMonthId] = useState<string | null>(null)
@@ -314,6 +315,25 @@ export function MonitoringReportPage() {
       return 0
     })
   }, [projects, search, deptFilter, clientFilter, picFilter, selectedMonth, sortBy, assignments, isDoccon, currentUserId, users])
+
+  const PAGE_SIZE = 10
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  useEffect(() => { setCurrentPage(1) }, [search, deptFilter, clientFilter, picFilter, sortBy, selectedMonth])
+  const paginatedProjects = useMemo(
+    () => filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filtered, currentPage],
+  )
+  function getPageNumbers(current: number, total: number): (number | '...')[] {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+    const pages: (number | '...')[] = [1]
+    if (current > 3) pages.push('...')
+    const start = Math.max(2, current - 1)
+    const end   = Math.min(total - 1, current + 1)
+    for (let i = start; i <= end; i++) pages.push(i)
+    if (current < total - 2) pages.push('...')
+    pages.push(total)
+    return pages
+  }
 
   const periodDocs = useMemo(
     () => documents.filter((d) => d.period === selectedMonth && filtered.some((p) => p.id === d.projectId)),
@@ -515,7 +535,7 @@ export function MonitoringReportPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
-                  {filtered.map((p) => {
+                  {paginatedProjects.map((p) => {
                     const custDocs    = docCount(p.id, 'customer')
                     const vendDocs    = docCount(p.id, 'vendor')
                     const billingDocs = billingDocuments.filter((b) => b.projectId === p.id)
@@ -708,7 +728,7 @@ export function MonitoringReportPage() {
               </table>
             </div>
 
-            {filtered.length === 0 && (
+            {filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-ink-tertiary">
                 <FileText size={32} className="mb-2 opacity-30" />
                 <p className="text-sm">
@@ -716,6 +736,46 @@ export function MonitoringReportPage() {
                     ? 'Belum ada project yang di-assign ke Anda.'
                     : 'Tidak ada data yang cocok dengan filter.'}
                 </p>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-border-subtle bg-black/[0.015]">
+                <span className="text-[11px] text-ink-tertiary">
+                  Menampilkan {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} dari {filtered.length} project
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="rounded-lg border border-border px-2.5 py-1 text-[11px] font-medium text-ink-secondary hover:bg-black/[0.04] disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  >
+                    ← Prev
+                  </button>
+                  {getPageNumbers(currentPage, totalPages).map((pg, i) =>
+                    pg === '...' ? (
+                      <span key={`ellipsis-${i}`} className="px-1 text-[11px] text-ink-tertiary">…</span>
+                    ) : (
+                      <button
+                        key={pg}
+                        onClick={() => setCurrentPage(pg as number)}
+                        className={classNames(
+                          'rounded-lg border px-2.5 py-1 text-[11px] font-medium transition min-w-[28px]',
+                          currentPage === pg
+                            ? 'bg-pertamina-red text-white border-pertamina-red shadow-sm'
+                            : 'border-border text-ink-secondary hover:bg-black/[0.04]',
+                        )}
+                      >
+                        {pg}
+                      </button>
+                    ),
+                  )}
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="rounded-lg border border-border px-2.5 py-1 text-[11px] font-medium text-ink-secondary hover:bg-black/[0.04] disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  >
+                    Next →
+                  </button>
+                </div>
               </div>
             )}
           </>
