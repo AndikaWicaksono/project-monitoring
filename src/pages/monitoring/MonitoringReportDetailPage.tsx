@@ -333,8 +333,8 @@ export function MonitoringReportDetailPage() {
   const tabs: { key: ActiveTab; label: string; count: number }[] = [
     { key: 'customer', label: 'Report Customer', count: custDocs.length },
     { key: 'vendor',   label: 'Report Vendor',   count: vendDocs.length },
-    { key: 'billing',  label: 'Billing Tracker', count: billingDocs.length },
-    { key: 'sla',      label: 'SLA Compliance',  count: allPeriodDocs.length },
+    { key: 'billing',  label: 'Document Tracker',  count: billingDocs.length },
+    { key: 'sla',      label: 'Document Progress', count: allPeriodDocs.length },
   ]
 
   return (
