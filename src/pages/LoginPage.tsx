@@ -14,7 +14,7 @@ const DEMO_ACCOUNTS = [
   { email: 'admin.osm@pertamina.id', password: 'osm123', label: 'Admin OSM' },
   { email: 'admin.dmo@pertamina.id', password: 'dmo123', label: 'Admin DMO' },
   { email: 'admin.scs@pertamina.id', password: 'scs123', label: 'Admin SCS' },
-  { email: 'kadep@pertamina.id', password: 'kadep123', label: 'Kadep SAR (Assign Doccon)' },
+  { email: 'kadep@pertamina.id', password: 'kadep123', label: 'Jr. Analyst (Assign Doccon)' },
   { email: 'doccon.osm@pertamina.id', password: 'osm123', label: 'Doccon — Resyah' },
   { email: 'annita@pertamina.id', password: 'doccon123', label: 'Doccon — Annita' },
   { email: 'addini@pertamina.id', password: 'doccon123', label: 'Doccon — Addini' },

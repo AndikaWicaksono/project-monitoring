@@ -207,8 +207,8 @@ export const SEED_ROLES: MasterRole[] = [
   },
   {
     id: 'kadep',
-    name: 'Kepala Departemen SAR',
-    description: 'Kepala Departemen SAR — dapat assign project ke Doccon, melihat seluruh SLA, Report, dan Cost (read-only). Tidak dapat mengedit atau menghapus data monitoring.',
+    name: 'Jr. Analyst, Service Assurance and SLA Management',
+    description: 'Jr. Analyst, Service Assurance and SLA Management — dapat assign project ke Doccon, melihat seluruh SLA, Report, dan Cost (read-only). Tidak dapat mengedit atau menghapus data monitoring.',
     color: '#0891B2',
     rank: 41,
     isSystem: true,

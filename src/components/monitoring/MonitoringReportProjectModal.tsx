@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { TrendingUp, FileText } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
@@ -164,7 +164,7 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
               hint={isCreate ? 'Kode ini menghubungkan data Report dan SLA' : undefined}
               disabled={!isCreate}
             />
-            {errors.kodeProject && <p className="text-[11px] text-pertamina-red mt-1">{errors.kodeProject}</p>}
+            {errors.kodeProject && <p className="text-[11px] text-danger mt-1">{errors.kodeProject}</p>}
           </div>
           <div>
             <Input
@@ -173,7 +173,7 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
               onChange={(e) => setDepartment(e.target.value)}
               placeholder="Nama departemen"
             />
-            {errors.department && <p className="text-[11px] text-pertamina-red mt-1">{errors.department}</p>}
+            {errors.department && <p className="text-[11px] text-danger mt-1">{errors.department}</p>}
           </div>
         </div>
 
@@ -185,7 +185,7 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
             placeholder="Nama lengkap pekerjaan / kontrak"
             hint={isCreate ? 'Dipakai sebagai Nama Project di SLA dan Nama Kontrak di Report' : undefined}
           />
-          {errors.namaKontrak && <p className="text-[11px] text-pertamina-red mt-1">{errors.namaKontrak}</p>}
+          {errors.namaKontrak && <p className="text-[11px] text-danger mt-1">{errors.namaKontrak}</p>}
         </div>
 
         {/* ── Report section ───────────────────────────────────────────── */}
@@ -204,7 +204,7 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
                   onChange={(e) => setClient(e.target.value)}
                   placeholder="Nama perusahaan client"
                 />
-                {errors.client && <p className="text-[11px] text-pertamina-red mt-1">{errors.client}</p>}
+                {errors.client && <p className="text-[11px] text-danger mt-1">{errors.client}</p>}
               </div>
               <div>
                 <Input
@@ -213,7 +213,7 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
                   value={kontrakMulai}
                   onChange={(e) => setKontrakMulai(e.target.value)}
                 />
-                {errors.kontrakMulai && <p className="text-[11px] text-pertamina-red mt-1">{errors.kontrakMulai}</p>}
+                {errors.kontrakMulai && <p className="text-[11px] text-danger mt-1">{errors.kontrakMulai}</p>}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -259,7 +259,7 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
               placeholder="99"
               hint={isCreate ? 'Persentase pencapaian minimum yang harus dipenuhi setiap bulan' : undefined}
             />
-            {errors.targetSLA && <p className="text-[11px] text-pertamina-red mt-1">{errors.targetSLA}</p>}
+            {errors.targetSLA && <p className="text-[11px] text-danger mt-1">{errors.targetSLA}</p>}
           </div>
         </div>
 

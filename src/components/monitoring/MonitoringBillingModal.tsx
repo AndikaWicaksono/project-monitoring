@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+﻿import { useState, useEffect, useRef } from 'react'
 import { Paperclip, Upload, X } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
@@ -116,7 +116,7 @@ export function MonitoringBillingModal({ open, onClose, mode, projectId, billing
               onChange={(e) => setDocType(e.target.value)}
               placeholder="Contoh: BAP, Invoice, SPK…"
             />
-            {errors.docType && <p className="text-[11px] text-pertamina-red mt-1">{errors.docType}</p>}
+            {errors.docType && <p className="text-[11px] text-danger mt-1">{errors.docType}</p>}
           </div>
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium text-ink-secondary">Status *</span>
@@ -135,7 +135,7 @@ export function MonitoringBillingModal({ open, onClose, mode, projectId, billing
             onChange={(e) => setPic(e.target.value)}
             placeholder="Nama PIC dokumen"
           />
-          {errors.pic && <p className="text-[11px] text-pertamina-red mt-1">{errors.pic}</p>}
+          {errors.pic && <p className="text-[11px] text-danger mt-1">{errors.pic}</p>}
         </div>
 
         <div className="grid grid-cols-2 gap-4">

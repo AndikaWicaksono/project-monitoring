@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+﻿import { useState, useEffect, useRef } from 'react'
 import { CheckCircle2, Clock, RotateCcw, Send, RefreshCw, Paperclip, X, Upload, ArrowRight, Flag, User, FileText, Mail } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
@@ -804,7 +804,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
               placeholder="Contoh: Laporan Progress Bulan Januari 2025"
               autoFocus
             />
-            {errors.judul && <p className="text-[11px] text-pertamina-red mt-1">{errors.judul}</p>}
+            {errors.judul && <p className="text-[11px] text-danger mt-1">{errors.judul}</p>}
           </div>
           <Textarea
             label="Deskripsi"

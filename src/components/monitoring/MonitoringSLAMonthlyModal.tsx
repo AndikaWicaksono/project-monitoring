@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { Lock, Unlock, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { Modal } from '../ui/Modal'
@@ -266,7 +266,7 @@ export function MonitoringSLAMonthlyModal({ open, onClose, mode, componentId, pr
             hint="Toleransi hingga 4 angka desimal (0.0001)"
           />
           {errors.achievement
-            ? <p className="text-[11px] text-pertamina-red mt-1">{errors.achievement}</p>
+            ? <p className="text-[11px] text-danger mt-1">{errors.achievement}</p>
             : achievement !== '' && !isNaN(Number(achievement)) && Number(achievement) >= 0 && Number(achievement) <= 100 && (
               <p className="flex items-center gap-1 text-[11px] text-emerald-600 mt-1">
                 <CheckCircle2 size={11} /> Nilai valid
@@ -275,7 +275,7 @@ export function MonitoringSLAMonthlyModal({ open, onClose, mode, componentId, pr
           }
           {/* Feature a — preview SLA status real-time */}
           {project && achievement !== '' && !errors.achievement && (
-            <p className={`text-[11px] mt-1 font-medium ${Number(achievement) >= project.targetSLA ? 'text-emerald-600' : 'text-pertamina-red'}`}>
+            <p className={`text-[11px] mt-1 font-medium ${Number(achievement) >= project.targetSLA ? 'text-emerald-600' : 'text-danger'}`}>
               {Number(achievement) >= project.targetSLA
                 ? `✓ Memenuhi target SLA ${project.targetSLA}%`
                 : `⚠ Di bawah target SLA ${project.targetSLA}% (selisih ${(project.targetSLA - Number(achievement)).toFixed(4)}%)`

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { Check } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
@@ -153,7 +153,7 @@ export function MonitoringBAPModal({ open, onClose, mode, bapId }: Props) {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <Input label="Kode Project *" value={projectCode} onChange={(e) => setProjectCode(e.target.value)} placeholder="PGN-XXX-001" readOnly={isReadonly} />
-            {errors.projectCode && <p className="text-[11px] text-pertamina-red mt-1">{errors.projectCode}</p>}
+            {errors.projectCode && <p className="text-[11px] text-danger mt-1">{errors.projectCode}</p>}
           </div>
           <Input label="Project ID" value={projectId} onChange={(e) => setProjectId(e.target.value)} placeholder="ID sistem" readOnly={isReadonly} />
         </div>
@@ -161,11 +161,11 @@ export function MonitoringBAPModal({ open, onClose, mode, bapId }: Props) {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <Input label="Client *" value={client} onChange={(e) => setClient(e.target.value)} placeholder="Nama client" readOnly={isReadonly} />
-            {errors.client && <p className="text-[11px] text-pertamina-red mt-1">{errors.client}</p>}
+            {errors.client && <p className="text-[11px] text-danger mt-1">{errors.client}</p>}
           </div>
           <div>
             <Input label="PIC *" value={pic} onChange={(e) => setPic(e.target.value)} placeholder="Nama PIC" readOnly={isReadonly} />
-            {errors.pic && <p className="text-[11px] text-pertamina-red mt-1">{errors.pic}</p>}
+            {errors.pic && <p className="text-[11px] text-danger mt-1">{errors.pic}</p>}
           </div>
         </div>
 

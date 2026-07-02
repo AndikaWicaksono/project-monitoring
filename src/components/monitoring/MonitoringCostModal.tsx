@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Input, Textarea } from '../ui/Input'
@@ -273,7 +273,7 @@ export function MonitoringCostModal({ open, onClose, mode, costId }: Props) {
           <div className="grid grid-cols-3 gap-4">
             <div>
               <Input label="Kode Project *" value={form.projectCode} onChange={(e) => setField('projectCode', e.target.value)} placeholder="PGN-XXX-001" readOnly={isReadonly} />
-              {errors.projectCode && <p className="text-[11px] text-pertamina-red mt-1">{errors.projectCode}</p>}
+              {errors.projectCode && <p className="text-[11px] text-danger mt-1">{errors.projectCode}</p>}
             </div>
             <Input label="Project ID" value={form.projectId} onChange={(e) => setField('projectId', e.target.value)} placeholder="ID sistem" readOnly={isReadonly} />
             <div>
@@ -293,18 +293,18 @@ export function MonitoringCostModal({ open, onClose, mode, costId }: Props) {
                   readOnly={isReadonly}
                 />
               </label>
-              {errors.year && <p className="text-[11px] text-pertamina-red mt-1">{errors.year}</p>}
+              {errors.year && <p className="text-[11px] text-danger mt-1">{errors.year}</p>}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Input label="Nama Project *" value={form.projectName} onChange={(e) => setField('projectName', e.target.value)} placeholder="Nama project" readOnly={isReadonly} />
-              {errors.projectName && <p className="text-[11px] text-pertamina-red mt-1">{errors.projectName}</p>}
+              {errors.projectName && <p className="text-[11px] text-danger mt-1">{errors.projectName}</p>}
             </div>
             <div>
               <Input label="Client *" value={form.projectClient} onChange={(e) => setField('projectClient', e.target.value)} placeholder="Nama client" readOnly={isReadonly} />
-              {errors.projectClient && <p className="text-[11px] text-pertamina-red mt-1">{errors.projectClient}</p>}
+              {errors.projectClient && <p className="text-[11px] text-danger mt-1">{errors.projectClient}</p>}
             </div>
           </div>
 
@@ -318,7 +318,7 @@ export function MonitoringCostModal({ open, onClose, mode, costId }: Props) {
             <Input label="Start Date" type="date" value={form.startDate} onChange={(e) => setField('startDate', e.target.value)} readOnly={isReadonly} />
             <div>
               <Input label="End Date" type="date" value={form.endDate} onChange={(e) => setField('endDate', e.target.value)} readOnly={isReadonly} />
-              {errors.endDate && <p className="text-[11px] text-pertamina-red mt-1">{errors.endDate}</p>}
+              {errors.endDate && <p className="text-[11px] text-danger mt-1">{errors.endDate}</p>}
             </div>
           </div>
 
@@ -328,7 +328,7 @@ export function MonitoringCostModal({ open, onClose, mode, costId }: Props) {
                 <span className="mb-1.5 block text-xs font-medium text-ink-secondary">Nilai Kontrak (IDR) *</span>
                 <input type="text" inputMode="numeric" value={displayNums.projectValue} onChange={(e) => handleIDRChange('projectValue', e.target.value)} className="input-base" placeholder="0" readOnly={isReadonly} />
               </label>
-              {errors.projectValue && <p className="text-[11px] text-pertamina-red mt-1">{errors.projectValue}</p>}
+              {errors.projectValue && <p className="text-[11px] text-danger mt-1">{errors.projectValue}</p>}
             </div>
             <label className="block">
               <span className="mb-1.5 block text-xs font-medium text-ink-secondary">Cost Based (IDR)</span>
@@ -347,7 +347,7 @@ export function MonitoringCostModal({ open, onClose, mode, costId }: Props) {
                 <span className="mb-1.5 block text-xs font-medium text-ink-secondary">TKDN (%)</span>
                 <input type="text" inputMode="decimal" value={displayNums.tkdn} onChange={(e) => handleTKDNChange(e.target.value)} className="input-base" placeholder="0" readOnly={isReadonly} />
               </label>
-              {errors.tkdn && <p className="text-[11px] text-pertamina-red mt-1">{errors.tkdn}</p>}
+              {errors.tkdn && <p className="text-[11px] text-danger mt-1">{errors.tkdn}</p>}
             </div>
             <Input label="Amandemen" value={form.amandemen} onChange={(e) => setField('amandemen', e.target.value)} placeholder="Keterangan amandemen" readOnly={isReadonly} />
             <div>

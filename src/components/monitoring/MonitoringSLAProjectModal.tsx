@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Input, Textarea } from '../ui/Input'
@@ -88,21 +88,21 @@ export function MonitoringSLAProjectModal({ open, onClose, mode, projectId }: Pr
         <div className="grid grid-cols-2 gap-4">
           <div>
             <Input label="Kode Project *" value={kodeProject} onChange={(e) => setKodeProject(e.target.value)} placeholder="MS-XXXX" />
-            {errors.kodeProject && <p className="text-[11px] text-pertamina-red mt-1">{errors.kodeProject}</p>}
+            {errors.kodeProject && <p className="text-[11px] text-danger mt-1">{errors.kodeProject}</p>}
           </div>
           <div>
             <Input label="Target SLA (%) *" type="number" value={targetSLA} onChange={(e) => setTargetSLA(e.target.value)} placeholder="98" min={0} max={100} hint="0–100. Contoh: 98" />
-            {errors.targetSLA && <p className="text-[11px] text-pertamina-red mt-1">{errors.targetSLA}</p>}
+            {errors.targetSLA && <p className="text-[11px] text-danger mt-1">{errors.targetSLA}</p>}
           </div>
         </div>
         <div>
           <Input label="Nama Project *" value={namaProject} onChange={(e) => setNamaProject(e.target.value)} placeholder="Nama project" />
-          {errors.namaProject && <p className="text-[11px] text-pertamina-red mt-1">{errors.namaProject}</p>}
+          {errors.namaProject && <p className="text-[11px] text-danger mt-1">{errors.namaProject}</p>}
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <Input label="Department *" value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="Nama department" />
-            {errors.department && <p className="text-[11px] text-pertamina-red mt-1">{errors.department}</p>}
+            {errors.department && <p className="text-[11px] text-danger mt-1">{errors.department}</p>}
           </div>
           <Input label="PIC" value={pic} onChange={(e) => setPic(e.target.value)} placeholder="Nama PIC" />
         </div>

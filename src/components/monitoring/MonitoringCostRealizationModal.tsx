@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
@@ -90,7 +90,7 @@ export function MonitoringCostRealizationModal({ open, onClose, mode, costId, re
       <div className="space-y-4">
         <div>
           <Input label="Item Biaya *" value={itemBiaya} onChange={(e) => setItemBiaya(e.target.value)} placeholder="Nama item biaya" />
-          {errors.itemBiaya && <p className="text-[11px] text-pertamina-red mt-1">{errors.itemBiaya}</p>}
+          {errors.itemBiaya && <p className="text-[11px] text-danger mt-1">{errors.itemBiaya}</p>}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -123,7 +123,7 @@ export function MonitoringCostRealizationModal({ open, onClose, mode, costId, re
                 placeholder="0"
               />
             </label>
-            {errors.realisasiBiaya && <p className="text-[11px] text-pertamina-red mt-1">{errors.realisasiBiaya}</p>}
+            {errors.realisasiBiaya && <p className="text-[11px] text-danger mt-1">{errors.realisasiBiaya}</p>}
           </div>
           <Select
             label="Status"

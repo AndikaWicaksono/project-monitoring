@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
@@ -66,7 +66,7 @@ export function MonitoringSLAComponentModal({ open, onClose, mode, projectId, co
             placeholder="Contoh: Region I, LCD Projector, UPS…"
             autoFocus
           />
-          {errors.componentName && <p className="text-[11px] text-pertamina-red mt-1">{errors.componentName}</p>}
+          {errors.componentName && <p className="text-[11px] text-danger mt-1">{errors.componentName}</p>}
         </div>
       </div>
     </Modal>
