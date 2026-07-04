@@ -3,7 +3,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { useUIStore } from '../../store/useUIStore'
 import { LoginPage } from '../../pages/LoginPage'
 
-const OSM_ROLES = new Set(['admin_osm', 'doccon_osm', 'engineer_os'])
+const MONITORING_ONLY_ROLES = new Set(['admin_osm', 'doccon_osm', 'engineer_os', 'kadep'])
 
 interface Props {
   children: ReactNode
@@ -20,7 +20,7 @@ export function AuthGate({ children }: Props) {
 
   useEffect(() => {
     if (!valid || !user) return
-    if (OSM_ROLES.has(user.role) && !view.startsWith('monitoring-')) {
+    if (MONITORING_ONLY_ROLES.has(user.role) && !view.startsWith('monitoring-')) {
       setView('monitoring-dashboard')
     }
   }, [valid, user?.id, user?.role])

@@ -305,14 +305,16 @@ export function MonitoringReportDetailPage() {
   const reportDetailProjectId = useUIStore((s) => s.reportDetailProjectId)
   const selectedMonth = useUIStore((s) => s.selectedReportMonth)
   const setSelectedMonth = useUIStore((s) => s.setSelectedReportMonth)
-  const { canDeleteMonitoring, canEditMonitoring } = useMonitoringRole()
+  const { canDeleteMonitoring, canEditMonitoring, isEngineerOS } = useMonitoringRole()
 
   const project = projects.find((p) => p.id === reportDetailProjectId)
   const [activeTab, setActiveTab] = useState<ActiveTab>('customer')
   const [confirmDeleteDocId, setConfirmDeleteDocId] = useState<string | null>(null)
   const [confirmDeleteBillingId, setConfirmDeleteBillingId] = useState<string | null>(null)
 
-  const custDocs = documents.filter((d) => d.projectId === reportDetailProjectId && d.docType === 'customer' && d.period === selectedMonth)
+  const custDocs = documents
+    .filter((d) => d.projectId === reportDetailProjectId && d.docType === 'customer' && d.period === selectedMonth)
+    .filter((d) => !isEngineerOS || (d.currentPhase ?? 'engineer') === 'engineer')
   const vendDocs = documents.filter((d) => d.projectId === reportDetailProjectId && d.docType === 'vendor' && d.period === selectedMonth)
   const billingDocs = billingDocuments.filter((b) => b.projectId === reportDetailProjectId)
   const billingCompleted = billingDocs.filter((b) => b.status === 'COMPLETED').length
@@ -330,12 +332,12 @@ export function MonitoringReportDetailPage() {
     )
   }
 
-  const tabs: { key: ActiveTab; label: string; count: number }[] = [
-    { key: 'customer', label: 'Report Customer', count: custDocs.length },
-    { key: 'vendor',   label: 'Report Vendor',   count: vendDocs.length },
-    { key: 'billing',  label: 'Document Tracker',  count: billingDocs.length },
-    { key: 'sla',      label: 'Document Progress', count: allPeriodDocs.length },
-  ]
+  const tabs: { key: ActiveTab; label: string; count: number }[] = ([
+    { key: 'customer', label: 'Report Customer',  count: custDocs.length },
+    { key: 'vendor',   label: 'Report Vendor',    count: vendDocs.length },
+    { key: 'billing',  label: 'Document Tracker', count: billingDocs.length },
+    { key: 'sla',      label: 'Document Progress',count: allPeriodDocs.length },
+  ] as { key: ActiveTab; label: string; count: number }[]).filter((t) => !isEngineerOS || t.key === 'customer')
 
   return (
     <div className="absolute inset-0 overflow-y-auto p-5 space-y-4">
@@ -366,14 +368,16 @@ export function MonitoringReportDetailPage() {
               <span><span className="text-ink-tertiary">Sales:</span> {project.salesCustomer || '—'}</span>
             </div>
           </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => openModal({ type: 'monitoring-report-project-edit', projectId: project.id })}
-            leftIcon={<Pencil size={13} />}
-          >
-            Edit Project
-          </Button>
+          {!isEngineerOS && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => openModal({ type: 'monitoring-report-project-edit', projectId: project.id })}
+              leftIcon={<Pencil size={13} />}
+            >
+              Edit Project
+            </Button>
+          )}
         </div>
       </div>
 
@@ -405,8 +409,8 @@ export function MonitoringReportDetailPage() {
         </span>
       </div>
 
-      {/* Billing Progress Card */}
-      <div className="surface rounded-xl p-4 flex items-center gap-5">
+      {/* Billing Progress Card (hanya untuk non-engineer) */}
+      {!isEngineerOS && <div className="surface rounded-xl p-4 flex items-center gap-5">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-pertamina-red-50">
           <CheckCircle2 size={22} className="text-pertamina-red" />
         </div>
@@ -423,7 +427,7 @@ export function MonitoringReportDetailPage() {
           </div>
           <div className="mt-1 text-[10px] text-ink-tertiary">{billingProgress}% completed</div>
         </div>
-      </div>
+      </div>}
 
       {/* Tabs */}
       <div className="surface rounded-xl overflow-hidden">
@@ -449,25 +453,27 @@ export function MonitoringReportDetailPage() {
               </span>
             </button>
           ))}
-          <div className="ml-auto flex items-center px-4">
-            {activeTab === 'customer' || activeTab === 'vendor' ? (
-              <Button
-                size="sm"
-                onClick={() => openModal({ type: 'monitoring-report-document-create', projectId: project.id, docType: activeTab as 'customer' | 'vendor' })}
-                leftIcon={<Plus size={13} />}
-              >
-                Tambah Dokumen
-              </Button>
-            ) : activeTab === 'billing' ? (
-              <Button
-                size="sm"
-                onClick={() => openModal({ type: 'monitoring-billing-create', projectId: project.id })}
-                leftIcon={<Plus size={13} />}
-              >
-                Tambah Document
-              </Button>
-            ) : null}
-          </div>
+          {!isEngineerOS && (
+            <div className="ml-auto flex items-center px-4">
+              {activeTab === 'customer' || activeTab === 'vendor' ? (
+                <Button
+                  size="sm"
+                  onClick={() => openModal({ type: 'monitoring-report-document-create', projectId: project.id, docType: activeTab as 'customer' | 'vendor' })}
+                  leftIcon={<Plus size={13} />}
+                >
+                  Tambah Dokumen
+                </Button>
+              ) : activeTab === 'billing' ? (
+                <Button
+                  size="sm"
+                  onClick={() => openModal({ type: 'monitoring-billing-create', projectId: project.id })}
+                  leftIcon={<Plus size={13} />}
+                >
+                  Tambah Document
+                </Button>
+              ) : null}
+            </div>
+          )}
         </div>
 
         {/* Report Customer / Report Vendor table */}
@@ -548,7 +554,7 @@ export function MonitoringReportDetailPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
                           <button onClick={() => openModal({ type: 'monitoring-report-document-detail', documentId: doc.id })} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Detail"><Eye size={13} /></button>
-                          <button onClick={() => openModal({ type: 'monitoring-report-document-edit', documentId: doc.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>
+                          {!isEngineerOS && <button onClick={() => openModal({ type: 'monitoring-report-document-edit', documentId: doc.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>}
                           {canEditMonitoring && <button onClick={() => setConfirmDeleteDocId(doc.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus Dokumen"><Trash2 size={13} /></button>}
                         </div>
                       </td>
@@ -560,13 +566,15 @@ export function MonitoringReportDetailPage() {
             {tabDocs.length === 0 && (
               <div className="flex flex-col items-center justify-center py-12 text-ink-tertiary">
                 <p className="text-sm">Belum ada dokumen {activeTab === 'customer' ? 'customer' : 'vendor'} untuk periode <strong>{reportMonthLabel(selectedMonth)}</strong>.</p>
-                <Button
-                  size="sm" className="mt-3"
-                  onClick={() => openModal({ type: 'monitoring-report-document-create', projectId: project.id, docType: activeTab as 'customer' | 'vendor' })}
-                  leftIcon={<Plus size={13} />}
-                >
-                  Tambah Dokumen Pertama
-                </Button>
+                {!isEngineerOS && (
+                  <Button
+                    size="sm" className="mt-3"
+                    onClick={() => openModal({ type: 'monitoring-report-document-create', projectId: project.id, docType: activeTab as 'customer' | 'vendor' })}
+                    leftIcon={<Plus size={13} />}
+                  >
+                    Tambah Dokumen Pertama
+                  </Button>
+                )}
               </div>
             )}
           </>

@@ -61,7 +61,7 @@ export function EngineerWarningPanel() {
           .filter((r) => r.componentId === comp.id && r.year === YEAR)
           .sort((a, b) => b.month - a.month)[0]
 
-        if (latest && latest.achievement < proj.targetSLA) {
+        if (latest && latest.achievement < proj.targetSLA && latest.reconfirmRequested) {
           const gap = proj.targetSLA - latest.achievement
           warnings.push({
             key: `${comp.id}-${latest.month}`,

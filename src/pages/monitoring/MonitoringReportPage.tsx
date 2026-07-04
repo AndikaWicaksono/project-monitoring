@@ -224,7 +224,7 @@ export function MonitoringReportPage() {
   const setReportDetailProjectId = useUIStore((s) => s.setReportDetailProjectId)
   const selectedMonth = useUIStore((s) => s.selectedReportMonth)
   const setSelectedMonth = useUIStore((s) => s.setSelectedReportMonth)
-  const { canDeleteMonitoring, canManageProjectPeriod, isDoccon, currentUserId } = useMonitoringRole()
+  const { canDeleteMonitoring, canManageProjectPeriod, isDoccon, isEngineerOS, currentUserId } = useMonitoringRole()
   const assignments = useMonitoringAssignmentStore((s) => s.assignments)
   const users       = useAuthStore((s) => s.users)
 
@@ -379,8 +379,8 @@ export function MonitoringReportPage() {
   return (
     <div className="absolute inset-0 overflow-y-auto p-5 space-y-4">
 
-      {/* ── Bottleneck analytics ── */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* ── Bottleneck analytics (hanya untuk non-engineer) ── */}
+      {!isEngineerOS && <div className="grid grid-cols-3 gap-3">
         <BottleneckCard
           label="Engineer Phase" icon={<Clock size={13} />}
           avg={bottleneck.engineerAvg} avgNum={bottleneck.engineerAvgNum}
@@ -396,7 +396,7 @@ export function MonitoringReportPage() {
           avg={bottleneck.docconAvg} avgNum={bottleneck.docconAvgNum}
           stuck={bottleneck.stuckDoccon} sla="2 hari" slaNum={2} color="amber"
         />
-      </div>
+      </div>}
 
       <div className="surface rounded-xl overflow-hidden">
 
@@ -517,7 +517,7 @@ export function MonitoringReportPage() {
                       { label: 'Client · Dept', cls: 'min-w-[130px]' },
                       { label: 'PIC',           cls: 'min-w-[90px]'  },
                       { label: 'Dokumen',       cls: 'min-w-[110px]' },
-                      { label: 'Billing',       cls: 'min-w-[110px]' },
+                      ...(!isEngineerOS ? [{ label: 'Billing', cls: 'min-w-[110px]' }] : []),
                       { label: 'Progress',      cls: 'min-w-[120px]' },
                       { label: 'Status',        cls: 'min-w-[120px]' },
                       { label: 'Aksi',          cls: 'w-[90px]'      },
@@ -625,7 +625,7 @@ export function MonitoringReportPage() {
                         </td>
 
                         {/* ⑤ Billing */}
-                        <td className="px-4 py-3">
+                        {!isEngineerOS && <td className="px-4 py-3">
                           {billingDocs.length > 0 ? (
                             <div className="space-y-1 min-w-[90px]">
                               <div className="flex items-center justify-between gap-1">
@@ -648,7 +648,7 @@ export function MonitoringReportPage() {
                           ) : (
                             <span className="text-xs text-ink-muted">—</span>
                           )}
-                        </td>
+                        </td>}
 
                         {/* ⑥ Progress (pipeline) */}
                         <td className="px-4 py-3">
