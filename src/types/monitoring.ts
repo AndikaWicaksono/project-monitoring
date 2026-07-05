@@ -25,6 +25,7 @@ export type ReportDocumentActionType =
   | 'CUSTOMER_CONFIRMED'  // Doccon catat customer konfirmasi via email
   | 'VENDOR_CONFIRMED'    // Doccon catat vendor konfirmasi via email
   | 'SUBMIT_SALES'        // Doccon kirim ke Sales
+  | 'ESCALATE_ENGINEER'   // Doccon eskalasi dokumen ke Engineer untuk perbaikan
 
 // E2E phase tracking (feature: end-to-end document pipeline)
 export type DocPhase =
@@ -78,6 +79,14 @@ export interface ReportProject {
   createdByName: string
 }
 
+export interface RevisionHistoryEntry {
+  revision: ReportDocumentRevision
+  status: ReportDocumentStatus
+  changedAt: string
+  changedByName: string
+  note: string
+}
+
 export interface ReportDocument {
   id: string
   projectId: string
@@ -95,6 +104,11 @@ export interface ReportDocument {
   updatedAt: string
   createdByUserId: string
   createdByName: string
+  // Per-document Doccon assignment (Kadep assigns)
+  assignedDocconUserId?: string | null
+  assignedDocconName?: string | null
+  // Revision audit log
+  revisionHistory?: RevisionHistoryEntry[]
   // E2E phase tracking (optional — backward compat with localStorage)
   currentPhase?: DocPhase
   engineerSubStatus?: EngineerSubStatus
@@ -159,6 +173,12 @@ export interface BillingDocument {
 
 export type SLAStatus = 'TERCAPAI' | 'TIDAK_TERCAPAI'
 
+export interface SLATargetHistoryEntry {
+  target: number
+  changedAt: string
+  changedBy: string
+}
+
 export interface SLAProject {
   id: string
   kodeProject: string
@@ -171,6 +191,7 @@ export interface SLAProject {
   updatedAt: string
   createdByUserId: string
   createdByName: string
+  targetSLAHistory?: SLATargetHistoryEntry[]
 }
 
 export interface SLAComponent {
@@ -196,6 +217,7 @@ export interface SLAMonthlyRecord {
   reconfirmRequested: boolean
   reconfirmNote: string        // catatan dari Doccon saat minta reconfirm
   engineerReconfirmNote: string // balasan Engineer setelah konfirmasi
+  engineerConfirmedAt: string | null // timestamp saat Engineer mengkonfirmasi
 }
 
 // ---------- Cost Monitoring ----------

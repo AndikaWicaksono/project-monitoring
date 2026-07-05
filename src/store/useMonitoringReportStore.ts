@@ -5,6 +5,7 @@ import type {
   ReportDocumentStatus, ReportDocumentRevision, ReportDocumentAttachment,
   BillingDocument, BillingDocumentStatus,
   DocPhase, EngineerSubStatus, CustomerSubStatus, DocconSubStatus,
+  RevisionHistoryEntry,
 } from '../types/monitoring'
 import { prevReportMonth } from '../types/monitoring'
 import { uid, nowIso } from '../utils/helpers'
@@ -986,6 +987,9 @@ interface MonitoringReportState {
   addBillingAttachment: (billingId: string, att: Omit<ReportDocumentAttachment, 'id' | 'uploadedAt'> & { uploadedByName: string }) => void
   removeBillingAttachment: (billingId: string, attId: string) => void
 
+  // Doccon assignment per document (Kadep only)
+  assignDoccon: (docId: string, userId: string, userName: string) => void
+
   // Phase management (E2E pipeline)
   advanceDocconPhase: (id: string, subStatus: DocconSubStatus) => void
   recordSalesFeedback: (id: string, flagIssue: boolean, note: string) => void
@@ -996,6 +1000,8 @@ interface MonitoringReportState {
   submitToKadiv: (id: string, byUserId: string, byName: string) => void
   kadivApprove: (id: string, byUserId: string, byName: string, comment?: string) => void
   kadivReject: (id: string, byUserId: string, byName: string, comment: string) => void
+  docconDirectResubmitToKadiv: (id: string, byUserId: string, byName: string) => void
+  docconEscalateToEngineer: (id: string, byUserId: string, byName: string, comment: string) => void
   recordCustomerConfirmed: (id: string, byUserId: string, byName: string) => void
   recordVendorConfirmed: (id: string, byUserId: string, byName: string, comment?: string) => void
   submitToSales: (id: string, byUserId: string, byName: string) => void
@@ -1153,14 +1159,23 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
           documents: s.documents.map((d) => {
             if (d.id !== id) return d
             const wasApproved = d.status === 'APPROVED' || d.customerApprovedAt != null
+            const newRevision = bumpRevision(d.revision)
+            const revEntry: RevisionHistoryEntry = {
+              revision: newRevision,
+              status: 'REVISION_REQUIRED',
+              changedAt: now,
+              changedByName: byName,
+              note: comment,
+            }
             return {
               ...d, status: 'REVISION_REQUIRED' as ReportDocumentStatus,
-              revision: bumpRevision(d.revision),
+              revision: newRevision,
               tanggalFeedback: now,
               currentPhase: 'engineer' as DocPhase,
               engineerSubStatus: 'draft' as EngineerSubStatus,
               customerSubStatus: 'revisions_required' as CustomerSubStatus,
               hasConflict: wasApproved ? true : (d.hasConflict ?? false),
+              revisionHistory: [...(d.revisionHistory ?? []), revEntry],
               activities: [...d.activities, activity], updatedAt: now,
             }
           }),
@@ -1218,6 +1233,17 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
       getBillingDocumentById: (id) => get().billingDocuments.find((b) => b.id === id),
       getProjectBillingDocuments: (projectId) => get().billingDocuments.filter((b) => b.projectId === projectId),
 
+      // ── Doccon assignment per document ──
+      assignDoccon: (docId, userId, userName) => {
+        set((s) => ({
+          documents: s.documents.map((d) =>
+            d.id === docId
+              ? { ...d, assignedDocconUserId: userId, assignedDocconName: userName, updatedAt: nowIso() }
+              : d
+          ),
+        }))
+      },
+
       // ── Phase management ──
       advanceDocconPhase: (id, subStatus) => {
         const now = nowIso()
@@ -1270,6 +1296,7 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
             ...d,
             status: 'COMPILING' as ReportDocumentStatus,
             currentPhase: 'doccon' as DocPhase,
+            docconReceivedAt: d.docconReceivedAt ?? now, // catat kapan Doccon mulai terima untuk SLA
             activities: [...d.activities, activity],
             updatedAt: now,
           }),
@@ -1319,8 +1346,8 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
         set((s) => ({
           documents: s.documents.map((d) => {
             if (d.id !== id) return d
-            // Vendor: back to doccon; Customer: back to engineer
-            const prevPhase: DocPhase = d.docType === 'vendor' ? 'doccon' : 'engineer'
+            // All doc types return to Doccon; Doccon can escalate to Engineer if needed
+            const prevPhase: DocPhase = 'doccon'
             return {
               ...d,
               status: 'REVISION_REQUIRED' as ReportDocumentStatus,
@@ -1332,6 +1359,36 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
           }),
         }))
         useLogStore.getState().addLog({ type: 'monitoring_report_revision', message: `Kadiv meminta revisi dokumen`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+
+      docconDirectResubmitToKadiv: (id, byUserId, byName) => {
+        const activity = makeActivity('SUBMIT_KADIV', byUserId, byName, 'Submit ulang setelah revisi Kadiv')
+        const now = nowIso()
+        set((s) => ({
+          documents: s.documents.map((d) => d.id !== id ? d : {
+            ...d,
+            status: 'PENDING_KADIV' as ReportDocumentStatus,
+            currentPhase: 'kadiv' as DocPhase,
+            activities: [...d.activities, activity],
+            updatedAt: now,
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_submitted', message: `Doccon submit ulang ke Kadiv setelah revisi`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+
+      docconEscalateToEngineer: (id, byUserId, byName, comment) => {
+        const activity = makeActivity('ESCALATE_ENGINEER', byUserId, byName, comment)
+        const now = nowIso()
+        set((s) => ({
+          documents: s.documents.map((d) => d.id !== id ? d : {
+            ...d,
+            status: 'REVISION_REQUIRED' as ReportDocumentStatus,
+            currentPhase: 'engineer' as DocPhase,
+            activities: [...d.activities, activity],
+            updatedAt: now,
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_revision', message: `Doccon eskalasi dokumen ke Engineer untuk diperbaiki`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
       },
 
       recordCustomerConfirmed: (id, byUserId, byName) => {

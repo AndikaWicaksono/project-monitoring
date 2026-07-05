@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
-import { ArrowLeft, Plus, Eye, Pencil, Trash2, Paperclip, CheckCircle2, ChevronLeft, ChevronRight, Calendar, AlertTriangle, Flag, User, ArrowRight, Clock } from 'lucide-react'
+import { useMemo, useState, useRef } from 'react'
+import { ArrowLeft, Plus, Eye, Pencil, Trash2, Paperclip, CheckCircle2, ChevronLeft, ChevronRight, Calendar, AlertTriangle, Flag, User, ArrowRight, Clock, UserCheck, Upload } from 'lucide-react'
 import { useMonitoringReportStore } from '../../store/useMonitoringReportStore'
+import { useAuthStore } from '../../store/useAuthStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { Button } from '../../components/ui/Button'
@@ -72,25 +73,22 @@ function PhaseStepperMini({ doc }: { doc: ReportDocument }) {
   const currentIdx = steps.findIndex((s) => s.key === current)
 
   return (
-    <div className="flex items-center gap-0.5 mt-1.5">
+    <div className="flex items-center gap-0.5 mt-1.5 flex-wrap">
       {steps.map((step, idx) => {
         const done   = currentIdx >= 0 && idx < currentIdx
         const active = step.key === current
         return (
           <div key={step.key} className="flex items-center gap-0.5">
-            {active ? (
-              <div className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold bg-pertamina-red/10 text-pertamina-red whitespace-nowrap">
-                <div className="w-1.5 h-1.5 rounded-full bg-pertamina-red/70 shrink-0" />
-                {step.label}
-              </div>
-            ) : (
-              <div
-                className={classNames('w-2 h-2 rounded-full shrink-0', done ? 'bg-emerald-400' : 'bg-black/[0.12]')}
-                title={step.label}
-              />
-            )}
+            <span className={classNames(
+              'rounded px-1.5 py-0.5 text-[9px] font-medium whitespace-nowrap',
+              done   ? 'bg-emerald-50 text-emerald-600' :
+              active ? 'bg-pertamina-red/10 text-pertamina-red font-semibold' :
+                       'bg-black/[0.04] text-ink-muted',
+            )}>
+              {done ? '✓ ' : active ? '● ' : ''}{step.label}
+            </span>
             {idx < steps.length - 1 && (
-              <div className={classNames('w-2 h-px shrink-0', idx < currentIdx ? 'bg-emerald-300' : 'bg-black/[0.08]')} />
+              <span className={classNames('text-[9px] shrink-0', idx < currentIdx ? 'text-emerald-300' : 'text-black/[0.1]')}>›</span>
             )}
           </div>
         )
@@ -155,14 +153,19 @@ function SLAComplianceTab({ docs }: { docs: ReportDocument[] }) {
   // ── Phase 2: Doccon → Kadiv (SLA ≤3 hari)
   // New flow: docconReceivedAt → kadivApprovedAt
   // Legacy:   docconReceivedAt → docconDeliveredAt
+  // Fallback: derive docconReceivedAt from DOCCON_COMPILE activity for older docs
+  const getDocconReceivedAt = (d: ReportDocument) =>
+    d.docconReceivedAt ?? d.activities.find((a) => a.action === 'DOCCON_COMPILE')?.timestamp ?? null
   const DK_SLA = 3
   const dkDone = docs.filter((d) => {
-    if (isNewFlow(d)) return !!(d.docconReceivedAt && d.kadivApprovedAt)
-    return !!(d.docconReceivedAt && d.docconDeliveredAt)
+    const recv = getDocconReceivedAt(d)
+    if (isNewFlow(d)) return !!(recv && d.kadivApprovedAt)
+    return !!(recv && d.docconDeliveredAt)
   })
   const dkOnTime = dkDone.filter((d) => {
+    const recv = getDocconReceivedAt(d)
     const end = isNewFlow(d) ? d.kadivApprovedAt : d.docconDeliveredAt
-    return (daysBetween(d.docconReceivedAt, end) ?? 999) <= DK_SLA
+    return (daysBetween(recv, end) ?? 999) <= DK_SLA
   })
   const dkPct = dkDone.length ? Math.round((dkOnTime.length / dkDone.length) * 100) : null
 
@@ -249,9 +252,9 @@ function SLAComplianceTab({ docs }: { docs: ReportDocument[] }) {
                 // Engineer: hanya customer doc
                 const eDays = !isVendor ? daysBetween(doc.engineerStartedAt, doc.engineerSubmittedAt) : null
 
-                // Doccon→Kadiv
+                // Doccon→Kadiv (gunakan fallback dari activity jika docconReceivedAt null)
                 const dkEnd = newFlow ? doc.kadivApprovedAt : doc.docconDeliveredAt
-                const dkDays = daysBetween(doc.docconReceivedAt, dkEnd)
+                const dkDays = daysBetween(getDocconReceivedAt(doc), dkEnd)
 
                 // Konfirmasi
                 let confDays: number | null = null
@@ -299,18 +302,37 @@ function SLAComplianceTab({ docs }: { docs: ReportDocument[] }) {
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function MonitoringReportDetailPage() {
-  const { projects, documents, billingDocuments, deleteDocument, deleteBillingDocument } = useMonitoringReportStore()
+  const { projects, documents, billingDocuments, deleteDocument, deleteBillingDocument, assignDoccon } = useMonitoringReportStore()
   const openModal = useUIStore((s) => s.openModal)
   const setView = useUIStore((s) => s.setView)
   const reportDetailProjectId = useUIStore((s) => s.reportDetailProjectId)
   const selectedMonth = useUIStore((s) => s.selectedReportMonth)
   const setSelectedMonth = useUIStore((s) => s.setSelectedReportMonth)
-  const { canDeleteMonitoring, canEditMonitoring, isEngineerOS } = useMonitoringRole()
+  const { canDeleteMonitoring, canEditMonitoring, isEngineerOS, isDoccon, canAssignDoccon } = useMonitoringRole()
+  const allUsers = useAuthStore((s) => s.users)
+  const session = useAuthStore((s) => s.session)
+  const currentUser = allUsers.find((u) => u.id === session?.userId)
+  const uploadInputRef = useRef<HTMLInputElement>(null)
+  const [uploadingDocId, setUploadingDocId] = useState<string | null>(null)
+  const docconUsers = useMemo(() => allUsers.filter((u) => u.role === 'doccon_osm'), [allUsers])
+
+  // Hitung jumlah dokumen aktif per Doccon user (untuk info workload saat assign)
+  const docconWorkload = useMemo(() => {
+    const map = new Map<string, number>()
+    docconUsers.forEach((u) => map.set(u.id, 0))
+    documents.forEach((d) => {
+      if (!d.assignedDocconUserId) return
+      const done = d.status === 'APPROVED' && (d.salesSubmittedAt != null || d.currentPhase === 'completed')
+      if (!done) map.set(d.assignedDocconUserId, (map.get(d.assignedDocconUserId) ?? 0) + 1)
+    })
+    return map
+  }, [documents, docconUsers])
 
   const project = projects.find((p) => p.id === reportDetailProjectId)
   const [activeTab, setActiveTab] = useState<ActiveTab>('customer')
   const [confirmDeleteDocId, setConfirmDeleteDocId] = useState<string | null>(null)
   const [confirmDeleteBillingId, setConfirmDeleteBillingId] = useState<string | null>(null)
+  const [assigningDocId, setAssigningDocId] = useState<string | null>(null)
 
   const custDocs = documents
     .filter((d) => d.projectId === reportDetailProjectId && d.docType === 'customer' && d.period === selectedMonth)
@@ -368,7 +390,7 @@ export function MonitoringReportDetailPage() {
               <span><span className="text-ink-tertiary">Sales:</span> {project.salesCustomer || '—'}</span>
             </div>
           </div>
-          {!isEngineerOS && (
+          {!isEngineerOS && !isDoccon && (
             <Button
               size="sm"
               variant="ghost"
@@ -489,11 +511,38 @@ export function MonitoringReportDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
-                  {tabDocs.map((doc) => (
-                    <tr key={doc.id} className="hover:bg-black/[0.02] transition-colors align-top">
+                  {tabDocs.map((doc) => {
+                    // Deadline urgency for Engineer OS row highlight
+                    const dlDiff = doc.deadlineToSales
+                      ? Math.ceil((new Date(doc.deadlineToSales).getTime() - Date.now()) / 86400000)
+                      : null
+                    const rowUrgencyCls = isEngineerOS && dlDiff !== null
+                      ? dlDiff < 0 ? 'bg-red-50/60' : dlDiff <= 3 ? 'bg-amber-50/50' : ''
+                      : ''
+
+                    return (
+                    <tr key={doc.id} className={classNames('hover:bg-black/[0.02] transition-colors align-top', rowUrgencyCls)}>
                       <td className="px-4 py-3 text-xs font-medium text-ink-primary max-w-[220px]">
                         <div className="truncate" title={doc.judul}>{doc.judul}</div>
                         {doc.deskripsi && <div className="text-[11px] text-ink-tertiary truncate mt-0.5">{doc.deskripsi}</div>}
+                        {/* Deadline prominent — only Engineer OS */}
+                        {isEngineerOS && doc.deadlineToSales && dlDiff !== null && (
+                          <div className={classNames(
+                            'mt-1 flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold w-fit',
+                            dlDiff < 0 ? 'bg-red-100 text-red-700' :
+                            dlDiff === 0 ? 'bg-red-50 text-red-600' :
+                            dlDiff <= 3 ? 'bg-amber-100 text-amber-700' :
+                            'bg-slate-100 text-slate-600',
+                          )}>
+                            <Calendar size={9} />
+                            {dlDiff < 0
+                              ? `Overdue ${Math.abs(dlDiff)} hari`
+                              : dlDiff === 0
+                              ? 'Deadline hari ini!'
+                              : `H-${dlDiff}`}
+                            <span className="font-normal opacity-70">· {formatDateShort(doc.deadlineToSales)}</span>
+                          </div>
+                        )}
                         {/* Phase stepper */}
                         <PhaseStepperMini doc={doc} />
                         {/* Dependency / doccon badge */}
@@ -522,13 +571,52 @@ export function MonitoringReportDetailPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-[11px] text-ink-secondary whitespace-nowrap">
-                        {(doc.engineerPIC || doc.customerPIC || doc.docconPIC) ? (
-                          <div className="space-y-0.5">
-                            {doc.engineerPIC && <div className="flex items-center gap-1"><User size={9} className="text-blue-400" />{doc.engineerPIC}</div>}
-                            {doc.customerPIC && <div className="flex items-center gap-1"><User size={9} className="text-purple-400" />{doc.customerPIC}</div>}
-                            {doc.docconPIC && <div className="flex items-center gap-1"><User size={9} className="text-amber-500" />{doc.docconPIC}</div>}
-                          </div>
-                        ) : <span className="text-ink-muted">—</span>}
+                        <div className="space-y-0.5">
+                          {doc.engineerPIC && <div className="flex items-center gap-1"><User size={9} className="text-blue-400" />{doc.engineerPIC}</div>}
+                          {doc.customerPIC && <div className="flex items-center gap-1"><User size={9} className="text-purple-400" />{doc.customerPIC}</div>}
+                          {/* Doccon — show assigned or fallback to docconPIC text */}
+                          {(doc.assignedDocconName || doc.docconPIC) && (
+                            <div className="flex items-center gap-1">
+                              <UserCheck size={9} className={doc.assignedDocconName ? 'text-emerald-500' : 'text-amber-500'} />
+                              <span className={doc.assignedDocconName ? 'text-emerald-700 font-medium' : ''}>
+                                {doc.assignedDocconName ?? doc.docconPIC}
+                              </span>
+                            </div>
+                          )}
+                          {/* Assign Doccon — only Kadep */}
+                          {canAssignDoccon && (
+                            assigningDocId === doc.id ? (
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <select
+                                  autoFocus
+                                  className="text-[10px] rounded border border-border-subtle bg-white px-1 py-0.5 text-ink-primary outline-none focus:border-pertamina-red"
+                                  defaultValue=""
+                                  onChange={(e) => {
+                                    const user = docconUsers.find((u) => u.id === e.target.value)
+                                    if (user) assignDoccon(doc.id, user.id, user.name)
+                                    setAssigningDocId(null)
+                                  }}
+                                  onBlur={() => setAssigningDocId(null)}
+                                >
+                                  <option value="" disabled>Pilih Doccon…</option>
+                                  {docconUsers.map((u) => (
+                                    <option key={u.id} value={u.id}>
+                                      {u.name} ({docconWorkload.get(u.id) ?? 0} aktif)
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setAssigningDocId(doc.id)}
+                                className="flex items-center gap-0.5 text-[9px] text-pertamina-red hover:underline mt-0.5"
+                              >
+                                <UserCheck size={8} />
+                                {doc.assignedDocconName ? 'Ganti' : 'Assign Doccon'}
+                              </button>
+                            )
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <DeadlineBadge doc={doc} />
@@ -555,14 +643,43 @@ export function MonitoringReportDetailPage() {
                         <div className="flex items-center gap-1">
                           <button onClick={() => openModal({ type: 'monitoring-report-document-detail', documentId: doc.id })} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Detail"><Eye size={13} /></button>
                           {!isEngineerOS && <button onClick={() => openModal({ type: 'monitoring-report-document-edit', documentId: doc.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>}
+                          {isEngineerOS && (
+                            <button
+                              onClick={() => { setUploadingDocId(doc.id); uploadInputRef.current?.click() }}
+                              className="rounded p-1 text-ink-tertiary hover:text-blue-600 hover:bg-blue-50 transition"
+                              title="Upload File"
+                            >
+                              <Upload size={13} />
+                            </button>
+                          )}
                           {canEditMonitoring && <button onClick={() => setConfirmDeleteDocId(doc.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus Dokumen"><Trash2 size={13} /></button>}
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
+            {/* Hidden file input for direct upload (Engineer OS) */}
+            <input
+              ref={uploadInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                if (!uploadingDocId || !currentUser) return
+                const files = e.target.files
+                if (files) {
+                  Array.from(files).forEach((file) => {
+                    store.addAttachment(uploadingDocId, { name: file.name, size: file.size, mimeType: file.type, uploadedByName: currentUser.name })
+                  })
+                }
+                e.target.value = ''
+                setUploadingDocId(null)
+              }}
+            />
+
             {tabDocs.length === 0 && (
               <div className="flex flex-col items-center justify-center py-12 text-ink-tertiary">
                 <p className="text-sm">Belum ada dokumen {activeTab === 'customer' ? 'customer' : 'vendor'} untuk periode <strong>{reportMonthLabel(selectedMonth)}</strong>.</p>

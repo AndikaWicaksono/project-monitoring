@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useRef } from 'react'
-import { CheckCircle2, Clock, RotateCcw, Send, RefreshCw, Paperclip, X, Upload, ArrowRight, Flag, User, FileText, Mail } from 'lucide-react'
+import { CheckCircle2, Clock, RotateCcw, Send, RefreshCw, Paperclip, X, Upload, ArrowRight, Flag, User, FileText, Mail, History } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Input, Textarea } from '../ui/Input'
@@ -49,6 +49,7 @@ const ACTION_META: Record<ReportDocumentActionType, { label: string; icon: React
   CUSTOMER_CONFIRMED: { label: 'Customer Konfirmasi',   icon: <CheckCircle2 size={13} />, color: 'bg-teal-600' },
   VENDOR_CONFIRMED:   { label: 'Vendor Konfirmasi',     icon: <CheckCircle2 size={13} />, color: 'bg-indigo-600' },
   SUBMIT_SALES:       { label: 'Dikirim ke Sales',      icon: <Send size={13} />,         color: 'bg-pertamina-red' },
+  ESCALATE_ENGINEER:  { label: 'Eskalasi ke Engineer',  icon: <RotateCcw size={13} />,    color: 'bg-orange-500' },
 }
 
 function fmtSize(bytes: number): string {
@@ -94,6 +95,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
   const [showResubmitPanel, setShowResubmitPanel] = useState(false)
   const [showCustomerConfirmPanel, setShowCustomerConfirmPanel] = useState(false)
   const [showVendorConfirmPanel, setShowVendorConfirmPanel] = useState(false)
+  const [showDocconEscalatePanel, setShowDocconEscalatePanel] = useState(false)
 
   useEffect(() => {
     if ((mode === 'edit' || mode === 'detail') && existing) {
@@ -114,6 +116,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
     setShowResubmitPanel(false)
     setShowCustomerConfirmPanel(false)
     setShowVendorConfirmPanel(false)
+    setShowDocconEscalatePanel(false)
   }, [open, mode, documentId])
 
   function handleSave() {
@@ -159,7 +162,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
   }
 
   // New workflow handler
-  function handleNewWorkflow(action: 'compile' | 'toKadiv' | 'kadivApprove' | 'kadivReject' | 'customerConfirm' | 'vendorConfirm' | 'toSales') {
+  function handleNewWorkflow(action: 'compile' | 'toKadiv' | 'kadivApprove' | 'kadivReject' | 'customerConfirm' | 'vendorConfirm' | 'toSales' | 'docconResubmitKadiv' | 'docconEscalate') {
     if (!documentId || !currentUser) return
     const uid = currentUser.id
     const name = currentUser.name
@@ -170,12 +173,18 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
       if (!actionComment.trim()) { alert('Komentar wajib diisi untuk penolakan'); return }
       store.kadivReject(documentId, uid, name, actionComment)
     }
+    else if (action === 'docconResubmitKadiv') store.docconDirectResubmitToKadiv(documentId, uid, name)
+    else if (action === 'docconEscalate') {
+      if (!actionComment.trim()) { alert('Catatan eskalasi wajib diisi'); return }
+      store.docconEscalateToEngineer(documentId, uid, name, actionComment)
+    }
     else if (action === 'customerConfirm') store.recordCustomerConfirmed(documentId, uid, name)
     else if (action === 'vendorConfirm') store.recordVendorConfirmed(documentId, uid, name, actionComment)
     else if (action === 'toSales') store.submitToSales(documentId, uid, name)
     setActionComment('')
     setShowCustomerConfirmPanel(false)
     setShowVendorConfirmPanel(false)
+    setShowDocconEscalatePanel(false)
     onClose()
   }
 
@@ -418,6 +427,29 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
             )}
           </div>
 
+          {/* Revision History */}
+          {existing.revisionHistory && existing.revisionHistory.length > 0 && (
+            <div className="border-t border-border-subtle pt-4">
+              <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold mb-3">
+                <History size={12} /> Riwayat Revisi
+              </div>
+              <div className="space-y-2">
+                {[...existing.revisionHistory].reverse().map((h, i) => (
+                  <div key={i} className="flex items-start gap-3 rounded-lg border border-border-subtle bg-black/[0.02] px-3 py-2">
+                    <span className={classNames('chip text-[10px] shrink-0 mt-0.5', REVISION_CLS[h.revision] ?? 'bg-slate-100 text-slate-600')}>{h.revision}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-ink-secondary">Revisi diminta oleh <span className="font-medium text-ink-primary">{h.changedByName}</span></span>
+                        <span className="text-[10px] text-ink-muted shrink-0">{formatDateShort(h.changedAt)}</span>
+                      </div>
+                      {h.note && <p className="text-[10px] text-ink-secondary mt-0.5 italic">"{h.note}"</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Attachments */}
           <div className="border-t border-border-subtle pt-4">
             <div className="flex items-center justify-between mb-3">
@@ -491,13 +523,13 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
               )
             }
 
-            // ── Customer doc — Engineer resubmit after Kadiv rejection ──
+            // ── Customer doc — Engineer resubmit after Doccon escalation ──
             if (!isVendor && st === 'REVISION_REQUIRED' && phase === 'engineer' && isEngineerOS) {
               panels.push(
                 <div key="eng-resubmit" className="border-t border-border-subtle pt-4 space-y-3">
                   <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Perbaikan Diperlukan</div>
                   <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-[11px] text-red-700">
-                    Kadiv meminta revisi. Perbaiki dan resubmit ke Doccon.
+                    Dokumen memerlukan perbaikan dari Engineer. Perbaiki dan resubmit ke Doccon.
                   </div>
                   <Textarea label="Komentar" value={actionComment} onChange={(e) => setActionComment(e.target.value)} rows={2} placeholder="Catatan perbaikan…" />
                   <Button size="sm" onClick={() => handleWorkflow('resubmit')} leftIcon={<RefreshCw size={13} />}>Resubmit ke Doccon</Button>
@@ -521,6 +553,44 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
                 <div key="doccon-to-kadiv" className="border-t border-border-subtle pt-4 space-y-3">
                   <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Aksi Doccon</div>
                   <Button size="sm" onClick={() => handleNewWorkflow('toKadiv')} leftIcon={<Send size={13} />}>Submit ke Kadiv</Button>
+                </div>
+              )
+            }
+
+            // ── Customer doc — Doccon menangani dokumen yang dikembalikan Kadiv ──
+            if (!isVendor && st === 'REVISION_REQUIRED' && phase === 'doccon' && isDoccon) {
+              panels.push(
+                <div key="doccon-revision" className="border-t border-border-subtle pt-4 space-y-3">
+                  <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Dokumen Dikembalikan Kadiv</div>
+                  <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-[11px] text-red-700">
+                    Kadiv meminta revisi. Perbaiki dokumen dan submit ulang, atau eskalasi ke Engineer jika diperlukan.
+                  </div>
+                  {!showDocconEscalatePanel ? (
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" onClick={() => handleNewWorkflow('docconResubmitKadiv')} leftIcon={<Send size={13} />}>
+                        Perbaiki &amp; Submit Ulang ke Kadiv
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setShowDocconEscalatePanel(true)} leftIcon={<RotateCcw size={13} />}>
+                        Eskalasi ke Engineer
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Textarea
+                        label="Catatan eskalasi (wajib)"
+                        value={actionComment}
+                        onChange={(e) => setActionComment(e.target.value)}
+                        rows={2}
+                        placeholder="Jelaskan bagian mana yang perlu diperbaiki Engineer…"
+                      />
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => { setShowDocconEscalatePanel(false); setActionComment('') }}>Batal</Button>
+                        <Button size="sm" variant="danger" onClick={() => handleNewWorkflow('docconEscalate')} leftIcon={<RotateCcw size={13} />}>
+                          Eskalasi ke Engineer
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             }
@@ -843,6 +913,9 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
                   value={docconPIC}
                   onChange={(e) => setDocconPIC(e.target.value)}
                   placeholder="Nama doccon PIC"
+                  readOnly={isDoccon}
+                  hint={isDoccon ? 'Otomatis dari akun login' : undefined}
+                  className={isDoccon ? 'bg-black/[0.03] cursor-not-allowed text-ink-secondary' : ''}
                 />
               </div>
             )

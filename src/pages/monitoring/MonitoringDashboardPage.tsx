@@ -6,6 +6,10 @@ import { SLAAchievementTrendChart } from '../../components/monitoring/dashboard/
 import { ProjectMonitoringTrendChart } from '../../components/monitoring/dashboard/ProjectMonitoringTrendChart'
 import { ReportStatusDistributionChart } from '../../components/monitoring/dashboard/ReportStatusDistributionChart'
 import { DocconWorkloadChart } from '../../components/monitoring/dashboard/DocconWorkloadChart'
+import { DocconConfirmationPanel } from '../../components/monitoring/dashboard/DocconConfirmationPanel'
+import { DocconEngineerSubmitPanel } from '../../components/monitoring/dashboard/DocconEngineerSubmitPanel'
+import { DeadlineWarningPanel } from '../../components/monitoring/dashboard/DeadlineWarningPanel'
+import { KadivApprovalPanel } from '../../components/monitoring/dashboard/KadivApprovalPanel'
 import { CostActualVsBudgetChart } from '../../components/monitoring/dashboard/CostActualVsBudgetChart'
 import { CostLeadingLaggingChart } from '../../components/monitoring/dashboard/CostLeadingLaggingChart'
 import { CostTopOverBudgetCard } from '../../components/monitoring/dashboard/CostTopOverBudgetCard'
@@ -20,7 +24,11 @@ export function MonitoringDashboardPage() {
   return (
     <div className="absolute inset-0 overflow-y-auto p-5 space-y-4">
       {isEngineerOS && <EngineerWarningPanel />}
+      {isDoccon && <DocconEngineerSubmitPanel />}
       {isDoccon && <DocconSalesWarningPanel />}
+      {isDoccon && <DocconConfirmationPanel />}
+      {isKadiv && <KadivApprovalPanel />}
+      {!isCostAdmin && !isKadiv && !isDoccon && <DeadlineWarningPanel />}
 
       <MonitoringStatsOverview />
 

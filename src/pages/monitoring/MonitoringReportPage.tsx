@@ -3,7 +3,7 @@ import {
   Plus, Search, Download, Eye, Pencil, Trash2, Filter, X,
   FileText, ChevronLeft, ChevronRight, Archive, CalendarX,
   AlertTriangle, Clock, CheckCircle2, AlertCircle,
-  LayoutGrid, List,
+  LayoutGrid, List, Stamp,
 } from 'lucide-react'
 import { MonthPicker } from '../../components/ui/MonthPicker'
 import { useMonitoringReportStore } from '../../store/useMonitoringReportStore'
@@ -224,7 +224,7 @@ export function MonitoringReportPage() {
   const setReportDetailProjectId = useUIStore((s) => s.setReportDetailProjectId)
   const selectedMonth = useUIStore((s) => s.selectedReportMonth)
   const setSelectedMonth = useUIStore((s) => s.setSelectedReportMonth)
-  const { canDeleteMonitoring, canManageProjectPeriod, isDoccon, isEngineerOS, currentUserId } = useMonitoringRole()
+  const { canDeleteMonitoring, canManageProjectPeriod, isDoccon, isEngineerOS, isKadiv, currentUserId } = useMonitoringRole()
   const assignments = useMonitoringAssignmentStore((s) => s.assignments)
   const users       = useAuthStore((s) => s.users)
 
@@ -286,6 +286,16 @@ export function MonitoringReportPage() {
     setPicFilter('')
   }
 
+  // Project IDs yang punya dokumen PENDING_KADIV di periode aktif (untuk Kadiv priority sort)
+  const pendingKadivProjectIds = useMemo(() => {
+    if (!isKadiv) return new Set<string>()
+    return new Set(
+      documents
+        .filter((d) => d.status === 'PENDING_KADIV' && d.currentPhase === 'kadiv' && d.period === selectedMonth)
+        .map((d) => d.projectId)
+    )
+  }, [documents, selectedMonth, isKadiv])
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     const list = projects.filter((p) => {
@@ -308,13 +318,19 @@ export function MonitoringReportPage() {
       return true
     })
     return [...list].sort((a, b) => {
+      // Kadiv: projects with pending approval float to top
+      if (isKadiv) {
+        const aPending = pendingKadivProjectIds.has(a.id) ? 0 : 1
+        const bPending = pendingKadivProjectIds.has(b.id) ? 0 : 1
+        if (aPending !== bPending) return aPending - bPending
+      }
       if (sortBy === 'kode-asc')  return a.kodeProject.localeCompare(b.kodeProject)
       if (sortBy === 'kode-desc') return b.kodeProject.localeCompare(a.kodeProject)
       if (sortBy === 'nama-asc')  return a.namaKontrak.localeCompare(b.namaKontrak)
       if (sortBy === 'nama-desc') return b.namaKontrak.localeCompare(a.namaKontrak)
       return 0
     })
-  }, [projects, search, deptFilter, clientFilter, picFilter, selectedMonth, sortBy, assignments, isDoccon, currentUserId, users])
+  }, [projects, search, deptFilter, clientFilter, picFilter, selectedMonth, sortBy, assignments, isDoccon, isKadiv, pendingKadivProjectIds, currentUserId, users])
 
   const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -561,18 +577,32 @@ export function MonitoringReportPage() {
                       ? new Date(lastUpdated).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
                       : null
 
+                    const pendingKadivCount = isKadiv
+                      ? documents.filter((d) => d.projectId === p.id && d.status === 'PENDING_KADIV' && d.currentPhase === 'kadiv' && d.period === selectedMonth).length
+                      : 0
+
                     return (
                       <tr
                         key={p.id}
-                        className="hover:bg-black/[0.02] transition-colors cursor-pointer group"
+                        className={classNames(
+                          'hover:bg-black/[0.02] transition-colors cursor-pointer group',
+                          pendingKadivCount > 0 ? 'bg-blue-50/50' : '',
+                        )}
                         onClick={() => openDetail(p.id)}
                       >
                         {/* ① Project */}
                         <td className="px-4 py-3">
                           <div className="flex flex-col gap-0.5">
-                            <span className="text-[11px] font-mono font-bold text-pertamina-red tracking-wide">
-                              {p.kodeProject}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-mono font-bold text-pertamina-red tracking-wide">
+                                {p.kodeProject}
+                              </span>
+                              {pendingKadivCount > 0 && (
+                                <span className="flex items-center gap-0.5 chip bg-red-100 text-red-700 text-[9px] font-semibold">
+                                  <Stamp size={8} /> {pendingKadivCount} Perlu Approval
+                                </span>
+                              )}
+                            </div>
                             <span className="text-xs font-medium text-ink-primary max-w-[260px] truncate leading-tight" title={p.namaKontrak}>
                               {p.namaKontrak}
                             </span>
