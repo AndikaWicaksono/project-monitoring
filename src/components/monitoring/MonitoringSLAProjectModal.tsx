@@ -1,9 +1,11 @@
 ﻿import { useState, useEffect } from 'react'
+import { History } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Input, Textarea } from '../ui/Input'
 import { useMonitoringSLAStore } from '../../store/useMonitoringSLAStore'
 import { useAuthStore } from '../../store/useAuthStore'
+import { formatDateShort } from '../../utils/helpers'
 
 interface Props {
   open: boolean
@@ -67,7 +69,7 @@ export function MonitoringSLAProjectModal({ open, onClose, mode, projectId }: Pr
       createdByName: currentUser?.name ?? '',
     }
     if (mode === 'create') store.addProject(payload)
-    else if (mode === 'edit' && projectId) store.updateProject(projectId, payload)
+    else if (mode === 'edit' && projectId) store.updateProject(projectId, payload, currentUser?.name ?? 'Unknown')
     onClose()
   }
 
@@ -107,6 +109,30 @@ export function MonitoringSLAProjectModal({ open, onClose, mode, projectId }: Pr
           <Input label="PIC" value={pic} onChange={(e) => setPic(e.target.value)} placeholder="Nama PIC" />
         </div>
         <Textarea label="Catatan" value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Catatan tambahan…" rows={2} />
+
+        {/* Target SLA history — hanya saat edit dan ada riwayat */}
+        {mode === 'edit' && existing?.targetSLAHistory && existing.targetSLAHistory.length > 0 && (
+          <div className="rounded-lg border border-border-subtle bg-black/[0.02] p-3 space-y-2">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-ink-tertiary uppercase tracking-widest">
+              <History size={12} />
+              Riwayat Perubahan Target SLA
+            </div>
+            <div className="space-y-1">
+              {[...existing.targetSLAHistory].reverse().map((h, i) => (
+                <div key={i} className="flex items-center justify-between text-[11px]">
+                  <span className="text-ink-secondary">
+                    Target diubah dari <span className="font-semibold text-ink-primary">{h.target}%</span>
+                  </span>
+                  <div className="flex items-center gap-2 text-ink-tertiary">
+                    <span>{h.changedBy}</span>
+                    <span>·</span>
+                    <span>{formatDateShort(h.changedAt)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </Modal>
   )

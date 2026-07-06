@@ -26,9 +26,13 @@ export function DocconEngineerSubmitPanel() {
     if (!currentUser) return []
     return documents
       .filter((d) => {
-        if (d.status !== 'SUBMITTED' || d.currentPhase !== 'engineer') return false
-        // dokumen yang di-assign ke Doccon ini, atau docconPIC cocok
-        return d.assignedDocconUserId === currentUser.id || d.docconPIC === currentUser.name
+        const isAssigned = d.assignedDocconUserId === currentUser.id || d.docconPIC === currentUser.name
+        if (!isAssigned) return false
+        // Engineer sudah submit → Doccon perlu kompilasi
+        if (d.status === 'SUBMITTED' && d.currentPhase === 'engineer') return true
+        // Doccon-start doc baru dibuat → Doccon perlu mulai
+        if (d.startPhase === 'doccon' && d.status === 'DRAFT' && d.currentPhase === 'doccon') return true
+        return false
       })
       .map((d) => ({ doc: d, proj: projects.find((p) => p.id === d.projectId) }))
       .filter((item) => item.proj)
@@ -77,7 +81,11 @@ export function DocconEngineerSubmitPanel() {
                 <span className="text-[10px] text-ink-tertiary shrink-0">{reportMonthLabel(doc.period)}</span>
               </div>
               <p className="text-[11px] text-ink-secondary truncate mt-0.5">{doc.judul}</p>
-              <p className="text-[10px] text-amber-600 mt-0.5">Disubmit Engineer {daysAgo(doc.updatedAt)}</p>
+              <p className="text-[10px] text-amber-600 mt-0.5">
+                {doc.startPhase === 'doccon'
+                  ? `Dokumen baru · dibuat ${daysAgo(doc.createdAt)}`
+                  : `Disubmit Engineer ${daysAgo(doc.updatedAt)}`}
+              </p>
             </div>
             <button
               onClick={() => {

@@ -10,7 +10,7 @@ const T = '2025-01-01T00:00:00.000Z'
 const T26 = '2026-01-01T00:00:00.000Z'
 
 function mrec(id: string, compId: string, projId: string, month: number, year: number, ach: number, remark = ''): SLAMonthlyRecord {
-  return { id, componentId: compId, projectId: projId, month, year, achievement: ach, remark, createdAt: T, updatedAt: T, lockedAt: T, lockedByName: 'System', reconfirmRequested: false, reconfirmNote: '', engineerReconfirmNote: '' }
+  return { id, componentId: compId, projectId: projId, month, year, achievement: ach, remark, createdAt: T, updatedAt: T, lockedAt: T, lockedByName: 'System', reconfirmRequested: false, reconfirmNote: '', engineerReconfirmNote: '', engineerConfirmedAt: null }
 }
 
 // 2026 records — Jan-May locked (past), Jun current (unlocked)
@@ -28,6 +28,7 @@ function mrec26(id: string, compId: string, projId: string, month: number, ach: 
     reconfirmRequested: false,
     reconfirmNote: '',
     engineerReconfirmNote: '',
+    engineerConfirmedAt: null,
   }
 }
 
@@ -310,9 +311,10 @@ interface MonitoringSLAState {
   projects: SLAProject[]
   components: SLAComponent[]
   monthlyRecords: SLAMonthlyRecord[]
+  dismissedConfirmations: string[]
 
   addProject: (data: Omit<SLAProject, 'id' | 'createdAt' | 'updatedAt'>) => SLAProject
-  updateProject: (id: string, patch: Partial<Omit<SLAProject, 'id' | 'createdAt'>>) => void
+  updateProject: (id: string, patch: Partial<Omit<SLAProject, 'id' | 'createdAt'>>, changedByName?: string) => void
   deleteProject: (id: string) => void
   getProjectById: (id: string) => SLAProject | undefined
 
@@ -322,7 +324,7 @@ interface MonitoringSLAState {
   getComponentById: (id: string) => SLAComponent | undefined
   getProjectComponents: (projectId: string) => SLAComponent[]
 
-  addMonthlyRecord: (data: Omit<SLAMonthlyRecord, 'id' | 'createdAt' | 'updatedAt' | 'lockedAt' | 'lockedByName' | 'reconfirmRequested' | 'reconfirmNote'>, submittedByName?: string) => SLAMonthlyRecord
+  addMonthlyRecord: (data: Omit<SLAMonthlyRecord, 'id' | 'createdAt' | 'updatedAt' | 'lockedAt' | 'lockedByName' | 'reconfirmRequested' | 'reconfirmNote' | 'engineerConfirmedAt'>, submittedByName?: string) => SLAMonthlyRecord
   updateMonthlyRecord: (id: string, patch: Partial<Omit<SLAMonthlyRecord, 'id' | 'createdAt'>>) => void
   deleteMonthlyRecord: (id: string) => void
   getComponentRecords: (componentId: string) => SLAMonthlyRecord[]
@@ -332,6 +334,7 @@ interface MonitoringSLAState {
   unlockRecord: (id: string) => void
   requestReconfirm: (id: string, note: string) => void
   clearReconfirm: (id: string, engineerNote: string) => void
+  dismissConfirmation: (recordId: string) => void
 }
 
 export const useMonitoringSLAStore = create<MonitoringSLAState>()(
@@ -340,6 +343,7 @@ export const useMonitoringSLAStore = create<MonitoringSLAState>()(
       projects: SEED_PROJECTS,
       components: SEED_COMPONENTS,
       monthlyRecords: SEED_RECORDS,
+      dismissedConfirmations: [],
 
       addProject: (data) => {
         const now = nowIso()
@@ -348,8 +352,17 @@ export const useMonitoringSLAStore = create<MonitoringSLAState>()(
         useLogStore.getState().addLog({ type: 'monitoring_sla_created', message: `SLA Project "${data.kodeProject}" dibuat`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
         return record
       },
-      updateProject: (id, patch) => {
-        set((s) => ({ projects: s.projects.map((p) => p.id === id ? { ...p, ...patch, updatedAt: nowIso() } : p) }))
+      updateProject: (id, patch, changedByName) => {
+        set((s) => ({
+          projects: s.projects.map((p) => {
+            if (p.id !== id) return p
+            const targetChanged = patch.targetSLA !== undefined && patch.targetSLA !== p.targetSLA
+            const newHistory: import('../types/monitoring').SLATargetHistoryEntry[] = targetChanged
+              ? [...(p.targetSLAHistory ?? []), { target: p.targetSLA, changedAt: nowIso(), changedBy: changedByName ?? 'System' }]
+              : (p.targetSLAHistory ?? [])
+            return { ...p, ...patch, targetSLAHistory: newHistory, updatedAt: nowIso() }
+          }),
+        }))
         useLogStore.getState().addLog({ type: 'monitoring_sla_edited', message: `SLA Project diperbarui`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
       },
       deleteProject: (id) => {
@@ -383,7 +396,7 @@ export const useMonitoringSLAStore = create<MonitoringSLAState>()(
 
       addMonthlyRecord: (data, submittedByName) => {
         const now = nowIso()
-        const record: SLAMonthlyRecord = { ...data, id: uid('sla-rec'), createdAt: now, updatedAt: now, lockedAt: now, lockedByName: submittedByName ?? null, reconfirmRequested: false, reconfirmNote: '', engineerReconfirmNote: '' }
+        const record: SLAMonthlyRecord = { ...data, id: uid('sla-rec'), createdAt: now, updatedAt: now, lockedAt: now, lockedByName: submittedByName ?? null, reconfirmRequested: false, reconfirmNote: '', engineerReconfirmNote: '', engineerConfirmedAt: null }
         set((s) => ({ monthlyRecords: [...s.monthlyRecords, record] }))
         return record
       },
@@ -407,7 +420,11 @@ export const useMonitoringSLAStore = create<MonitoringSLAState>()(
         set((s) => ({ monthlyRecords: s.monthlyRecords.map((r) => r.id === id ? { ...r, reconfirmRequested: true, reconfirmNote: note, updatedAt: nowIso() } : r) }))
       },
       clearReconfirm: (id, engineerNote) => {
-        set((s) => ({ monthlyRecords: s.monthlyRecords.map((r) => r.id === id ? { ...r, reconfirmRequested: false, reconfirmNote: '', engineerReconfirmNote: engineerNote, updatedAt: nowIso() } : r) }))
+        const now = nowIso()
+        set((s) => ({ monthlyRecords: s.monthlyRecords.map((r) => r.id === id ? { ...r, reconfirmRequested: false, reconfirmNote: '', engineerReconfirmNote: engineerNote, engineerConfirmedAt: now, updatedAt: now } : r) }))
+      },
+      dismissConfirmation: (recordId) => {
+        set((s) => ({ dismissedConfirmations: [...s.dismissedConfirmations, recordId] }))
       },
     }),
     {
@@ -419,9 +436,10 @@ export const useMonitoringSLAStore = create<MonitoringSLAState>()(
         return {
           ...current,
           ...p,
-          projects:      p.projects      ?? current.projects,
-          components:    p.components    ?? current.components,
-          monthlyRecords: p.monthlyRecords ?? current.monthlyRecords,
+          projects:               p.projects               ?? current.projects,
+          components:             p.components             ?? current.components,
+          monthlyRecords:         p.monthlyRecords         ?? current.monthlyRecords,
+          dismissedConfirmations: p.dismissedConfirmations ?? current.dismissedConfirmations,
         }
       },
     },

@@ -73,7 +73,7 @@ export const useAuthStore = create<AuthState>()(
             ...s.users.map((u) => {
               const seed = seedById.get(u.id)
               if (!seed) return u
-              return { ...u, name: seed.name, avatarColor: seed.avatarColor }
+              return { ...u, name: seed.name, avatarColor: seed.avatarColor, email: seed.email, passwordHash: seed.passwordHash }
             }),
             ...missing,
           ],

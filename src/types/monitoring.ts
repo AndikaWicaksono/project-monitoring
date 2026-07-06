@@ -85,6 +85,7 @@ export interface RevisionHistoryEntry {
   changedAt: string
   changedByName: string
   note: string
+  type?: 'revision' | 'escalation'  // 'escalation' = Doccon eskalasi ke Engineer
 }
 
 export interface ReportDocument {
@@ -104,6 +105,9 @@ export interface ReportDocument {
   updatedAt: string
   createdByUserId: string
   createdByName: string
+  // Pipeline type: 'engineer' = Engineer → Doccon → Kadiv → Customer → Sales
+  //                'doccon'   = Doccon langsung → Kadiv → Customer → Sales
+  startPhase?: 'engineer' | 'doccon'
   // Per-document Doccon assignment (Kadep assigns)
   assignedDocconUserId?: string | null
   assignedDocconName?: string | null

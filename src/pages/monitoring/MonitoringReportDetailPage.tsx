@@ -49,6 +49,13 @@ const NEW_CUSTOMER_PHASES: { key: DocPhase; label: string }[] = [
   { key: 'sales',         label: 'Sales' },
 ]
 
+const DOCCON_START_PHASES: { key: DocPhase; label: string }[] = [
+  { key: 'doccon',         label: 'Doccon' },
+  { key: 'kadiv',          label: 'Kadiv' },
+  { key: 'customer_email', label: 'Customer' },
+  { key: 'sales',          label: 'Sales' },
+]
+
 const NEW_VENDOR_PHASES: { key: DocPhase; label: string }[] = [
   { key: 'doccon',        label: 'Doccon' },
   { key: 'kadiv',         label: 'Kadiv' },
@@ -66,8 +73,9 @@ function PhaseStepperMini({ doc }: { doc: ReportDocument }) {
   const current = doc.currentPhase ?? 'engineer'
 
   const steps =
-    doc.docType === 'vendor' ? NEW_VENDOR_PHASES :
-    current === 'customer'   ? LEGACY_PHASES :
+    doc.docType === 'vendor'      ? NEW_VENDOR_PHASES :
+    current === 'customer'        ? LEGACY_PHASES :
+    doc.startPhase === 'doccon'   ? DOCCON_START_PHASES :
     NEW_CUSTOMER_PHASES
 
   const currentIdx = steps.findIndex((s) => s.key === current)
@@ -145,7 +153,7 @@ function SLAComplianceTab({ docs }: { docs: ReportDocument[] }) {
   // Hanya customer doc; vendor doc diinput langsung oleh Doccon, bukan Engineer
   // Ukur: engineerStartedAt → engineerSubmittedAt
   const ENG_SLA = 5
-  const engDocs = docs.filter((d) => d.docType === 'customer')
+  const engDocs = docs.filter((d) => d.docType === 'customer' && (d.startPhase ?? 'engineer') !== 'doccon')
   const engDone = engDocs.filter((d) => d.engineerStartedAt && d.engineerSubmittedAt)
   const engOnTime = engDone.filter((d) => (daysBetween(d.engineerStartedAt, d.engineerSubmittedAt) ?? 999) <= ENG_SLA)
   const engPct = engDone.length ? Math.round((engOnTime.length / engDone.length) * 100) : null

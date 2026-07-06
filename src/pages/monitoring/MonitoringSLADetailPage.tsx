@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
-import { ChevronLeft, Plus, Pencil, Trash2, ArrowLeft, Lock, Unlock, RotateCcw, CheckCircle2 } from 'lucide-react'
+import { ChevronLeft, Plus, Pencil, Trash2, ArrowLeft, Lock, Unlock, RotateCcw, CheckCircle2, TrendingUp } from 'lucide-react'
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from 'recharts'
 import { toast } from 'react-hot-toast'
 import { useMonitoringSLAStore } from '../../store/useMonitoringSLAStore'
 import { useUIStore } from '../../store/useUIStore'
@@ -119,6 +120,55 @@ export function MonitoringSLADetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Component trend line chart */}
+      {projectComponents.length > 0 && (() => {
+        const COMP_COLORS = ['#2563EB', '#059669', '#8B5CF6', '#F59E0B', '#EC4899', '#14B8A6', '#F97316', '#0EA5E9']
+        const chartData = SLA_MONTHS.map((m) => {
+          const entry: Record<string, number | string> = { bulan: slaMonthLabel(m) }
+          projectComponents.forEach((comp) => {
+            const rec = monthlyRecords.find((r) => r.componentId === comp.id && r.month === m && r.year === year)
+            if (rec) entry[comp.componentName] = rec.achievement
+          })
+          return entry
+        })
+        const hasAnyData = chartData.some((d) => Object.keys(d).length > 1)
+        if (!hasAnyData) return null
+        return (
+          <div className="surface rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp size={14} className="text-pertamina-red" />
+              <h3 className="text-xs font-semibold text-ink-primary">Tren SLA per Komponen ({year})</h3>
+              <span className="ml-auto text-[11px] text-ink-tertiary">Target: {project.targetSLA}%</span>
+            </div>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(15,23,42,0.06)" />
+                <XAxis dataKey="bulan" tick={{ fontSize: 11 }} />
+                <YAxis domain={['auto', 100]} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} width={44} />
+                <Tooltip
+                  formatter={(val: number) => [`${val.toFixed(2)}%`]}
+                  contentStyle={{ background: '#fff', border: '1px solid rgba(15,23,42,0.1)', borderRadius: 8, fontSize: 12 }}
+                />
+                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                <ReferenceLine y={project.targetSLA} stroke="#E31E24" strokeDasharray="4 4" label={{ value: `Target ${project.targetSLA}%`, position: 'insideTopRight', fontSize: 10, fill: '#E31E24' }} />
+                {projectComponents.map((comp, i) => (
+                  <Line
+                    key={comp.id}
+                    type="monotone"
+                    dataKey={comp.componentName}
+                    stroke={COMP_COLORS[i % COMP_COLORS.length]}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    activeDot={{ r: 5 }}
+                    connectNulls={false}
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )
+      })()}
 
       {/* Components table */}
       <div className="surface rounded-xl overflow-hidden">
@@ -317,10 +367,17 @@ export function MonitoringSLADetailPage() {
         )
 
         const pendingReconfirm = reconfirmRecords.filter((r) => r.reconfirmRequested)
+        const confirmedByEngineer = reconfirmRecords.filter((r) => {
+          const ec = (r as typeof r & { engineerConfirmedAt?: string | null }).engineerConfirmedAt
+          return !r.reconfirmRequested && ec != null
+        })
 
         if (!isDoccon && !isEngineerOS && pendingReconfirm.length === 0) return null
 
-        const failedRecords = reconfirmRecords.filter((r) => !r.reconfirmRequested && r.achievement < project.targetSLA)
+        const failedRecords = reconfirmRecords.filter((r) => {
+          const ec = (r as typeof r & { engineerConfirmedAt?: string | null }).engineerConfirmedAt
+          return !r.reconfirmRequested && ec == null && r.achievement < project.targetSLA
+        })
 
         return (
           <div className="surface rounded-xl p-4 space-y-3">
@@ -438,7 +495,35 @@ export function MonitoringSLADetailPage() {
               </div>
             )}
 
-            {isDoccon && failedRecords.length === 0 && pendingReconfirm.length === 0 && (
+            {/* Records yang sudah dikonfirmasi Engineer — hanya tampil ke Doccon */}
+            {isDoccon && confirmedByEngineer.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[11px] text-emerald-700 font-medium flex items-center gap-1">
+                  <CheckCircle2 size={11} /> Sudah dikonfirmasi Engineer:
+                </p>
+                {confirmedByEngineer.map((rec) => {
+                  const comp = components.find((c) => c.id === rec.componentId)
+                  return (
+                    <div key={rec.id} className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap text-xs">
+                        <CheckCircle2 size={11} className="text-emerald-500 shrink-0" />
+                        <span className="font-medium text-ink-primary">{comp?.componentName}</span>
+                        <span className="text-ink-tertiary">{slaMonthLabel(rec.month)} {rec.year}</span>
+                        <span className="text-pertamina-red font-semibold">{rec.achievement}%</span>
+                        <span className="chip bg-emerald-100 text-emerald-700 text-[9px]">Terverifikasi</span>
+                      </div>
+                      {rec.engineerReconfirmNote && (
+                        <p className="text-[11px] text-emerald-700 italic ml-4">
+                          <span className="font-medium not-italic">Catatan Engineer:</span> {rec.engineerReconfirmNote}
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {isDoccon && failedRecords.length === 0 && pendingReconfirm.length === 0 && confirmedByEngineer.length === 0 && (
               <p className="text-[11px] text-ink-muted">Tidak ada data SLA yang memerlukan reconfirm.</p>
             )}
             {isEngineerOS && pendingReconfirm.length === 0 && (

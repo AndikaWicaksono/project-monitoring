@@ -91,6 +91,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
   const [customerPIC, setCustomerPIC] = useState('')
   const [docconPIC, setDocconPIC] = useState('')
   const [actionComment, setActionComment] = useState('')
+  const [startPhase, setStartPhase] = useState<'engineer' | 'doccon'>('engineer')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showResubmitPanel, setShowResubmitPanel] = useState(false)
   const [showCustomerConfirmPanel, setShowCustomerConfirmPanel] = useState(false)
@@ -113,6 +114,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
     }
     setErrors({})
     setActionComment('')
+    setStartPhase('engineer')
     setShowResubmitPanel(false)
     setShowCustomerConfirmPanel(false)
     setShowVendorConfirmPanel(false)
@@ -136,6 +138,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
         period: selectedMonth,
         attachments: [],
         createdByUserId: currentUser?.id ?? '', createdByName: currentUser?.name ?? '',
+        startPhase: docType === 'customer' ? startPhase : undefined,
         ...extraFields,
       })
     } else if (mode === 'edit' && documentId) {
@@ -301,6 +304,20 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
                 if (p === 'completed') return false
                 return false
               }
+            } else if (existing.startPhase === 'doccon') {
+              PHASES = [
+                { key: 'doccon',         label: 'Doccon' },
+                { key: 'kadiv',          label: 'Kadiv' },
+                { key: 'customer_email', label: 'Customer' },
+                { key: 'sales',          label: 'Sales' },
+              ]
+              isDone = (p: string) => {
+                if (p === 'doccon') return ['kadiv','customer_email','sales'].includes(phase)
+                if (p === 'kadiv') return ['customer_email','sales'].includes(phase)
+                if (p === 'customer_email') return phase === 'sales'
+                if (p === 'sales') return false
+                return false
+              }
             } else {
               PHASES = CUSTOMER_PHASES
               isDone = (p: string) => {
@@ -434,18 +451,27 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
                 <History size={12} /> Riwayat Revisi
               </div>
               <div className="space-y-2">
-                {[...existing.revisionHistory].reverse().map((h, i) => (
-                  <div key={i} className="flex items-start gap-3 rounded-lg border border-border-subtle bg-black/[0.02] px-3 py-2">
-                    <span className={classNames('chip text-[10px] shrink-0 mt-0.5', REVISION_CLS[h.revision] ?? 'bg-slate-100 text-slate-600')}>{h.revision}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] text-ink-secondary">Revisi diminta oleh <span className="font-medium text-ink-primary">{h.changedByName}</span></span>
-                        <span className="text-[10px] text-ink-muted shrink-0">{formatDateShort(h.changedAt)}</span>
+                {[...existing.revisionHistory].reverse().map((h, i) => {
+                  const isEscalation = h.type === 'escalation'
+                  return (
+                    <div key={i} className={classNames(
+                      'flex items-start gap-3 rounded-lg border px-3 py-2',
+                      isEscalation ? 'border-orange-200 bg-orange-50/50' : 'border-border-subtle bg-black/[0.02]',
+                    )}>
+                      <span className={classNames('chip text-[10px] shrink-0 mt-0.5', REVISION_CLS[h.revision] ?? 'bg-slate-100 text-slate-600')}>{h.revision}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={classNames('text-[11px]', isEscalation ? 'text-orange-700' : 'text-ink-secondary')}>
+                            {isEscalation ? 'Dieskalasi ke Engineer oleh' : 'Revisi diminta oleh'}{' '}
+                            <span className="font-medium text-ink-primary">{h.changedByName}</span>
+                          </span>
+                          <span className="text-[10px] text-ink-muted shrink-0">{formatDateShort(h.changedAt)}</span>
+                        </div>
+                        {h.note && <p className="text-[10px] text-ink-secondary mt-0.5 italic">"{h.note}"</p>}
                       </div>
-                      {h.note && <p className="text-[10px] text-ink-secondary mt-0.5 italic">"{h.note}"</p>}
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}
@@ -533,6 +559,19 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
                   </div>
                   <Textarea label="Komentar" value={actionComment} onChange={(e) => setActionComment(e.target.value)} rows={2} placeholder="Catatan perbaikan…" />
                   <Button size="sm" onClick={() => handleWorkflow('resubmit')} leftIcon={<RefreshCw size={13} />}>Resubmit ke Doccon</Button>
+                </div>
+              )
+            }
+
+            // ── Customer doc (doccon_start) — Doccon mulai dari DRAFT ──
+            if (!isVendor && existing.startPhase === 'doccon' && st === 'DRAFT' && phase === 'doccon' && isDoccon) {
+              panels.push(
+                <div key="doccon-start-compile" className="border-t border-border-subtle pt-4 space-y-3">
+                  <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Aksi Doccon</div>
+                  <div className="rounded-lg bg-violet-50 border border-violet-200 px-3 py-2 text-[11px] text-violet-800">
+                    Dokumen ini langsung dikerjakan Doccon. Klik Mulai Kompilasi untuk memulai dan mencatat waktu pengerjaan.
+                  </div>
+                  <Button size="sm" onClick={() => handleNewWorkflow('compile')} leftIcon={<FileText size={13} />}>Mulai Kompilasi</Button>
                 </div>
               )
             }
@@ -889,12 +928,36 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
             value={deadlineToSales}
             onChange={(e) => setDeadlineToSales(e.target.value)}
           />
+          {mode === 'create' && docType === 'customer' && (
+            <div>
+              <div className="text-[11px] uppercase tracking-widest text-ink-tertiary mb-2">Alur Dokumen</div>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="startPhase" checked={startPhase === 'engineer'} onChange={() => setStartPhase('engineer')} className="accent-pertamina-red" />
+                  <div>
+                    <div className="text-xs font-medium text-ink-primary">Perlu input Engineer</div>
+                    <div className="text-[10px] text-ink-tertiary">Engineer → Doccon → Kadiv → Customer → Sales</div>
+                  </div>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="startPhase" checked={startPhase === 'doccon'} onChange={() => setStartPhase('doccon')} className="accent-pertamina-red" />
+                  <div>
+                    <div className="text-xs font-medium text-ink-primary">Doccon langsung</div>
+                    <div className="text-[10px] text-ink-tertiary">Doccon → Kadiv → Customer → Sales</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+          )}
           {(() => {
             const activeDocType = docType ?? existing?.docType
             const isVendorForm = activeDocType === 'vendor'
+            const isDocconStartForm = activeDocType === 'customer' && startPhase === 'doccon' && mode === 'create'
+            const showEngineerPIC = !isVendorForm && !isDocconStartForm
+            const cols = isVendorForm || isDocconStartForm ? 'grid-cols-2' : 'grid-cols-3'
             return (
-              <div className={isVendorForm ? 'grid grid-cols-2 gap-3' : 'grid grid-cols-3 gap-3'}>
-                {!isVendorForm && (
+              <div className={`grid ${cols} gap-3`}>
+                {showEngineerPIC && (
                   <Input
                     label="PIC Engineer"
                     value={engineerPIC}

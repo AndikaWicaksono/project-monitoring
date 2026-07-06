@@ -160,7 +160,7 @@ export const SEED_USERS: User[] = [
   {
     id: 'usr_kadep',
     name: 'Nurlaela Ginting',
-    email: 'kadep@pertamina.id',
+    email: 'nurlaela@pertamina.co.id',
     passwordHash: hashPassword('kadep123'),
     role: 'kadep',
     teamId: null,

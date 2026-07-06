@@ -715,13 +715,15 @@ export function MonitoringReportPage() {
                             >
                               <Eye size={13} />
                             </button>
-                            <button
-                              onClick={() => openModal({ type: 'monitoring-report-project-edit', projectId: p.id })}
-                              className="rounded p-1.5 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.05] transition"
-                              title="Edit"
-                            >
-                              <Pencil size={13} />
-                            </button>
+                            {!isDoccon && (
+                              <button
+                                onClick={() => openModal({ type: 'monitoring-report-project-edit', projectId: p.id })}
+                                className="rounded p-1.5 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.05] transition"
+                                title="Edit"
+                              >
+                                <Pencil size={13} />
+                              </button>
+                            )}
                             {canManageProjectPeriod && (
                               <>
                                 <button
@@ -930,13 +932,15 @@ export function MonitoringReportPage() {
                         >
                           <Eye size={12} />
                         </button>
-                        <button
-                          onClick={() => openModal({ type: 'monitoring-report-project-edit', projectId: p.id })}
-                          className="rounded p-1.5 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.05] transition bg-white/80 shadow-sm"
-                          title="Edit"
-                        >
-                          <Pencil size={12} />
-                        </button>
+                        {!isDoccon && (
+                          <button
+                            onClick={() => openModal({ type: 'monitoring-report-project-edit', projectId: p.id })}
+                            className="rounded p-1.5 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.05] transition bg-white/80 shadow-sm"
+                            title="Edit"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                        )}
                         {canManageProjectPeriod && (
                           <>
                             <button

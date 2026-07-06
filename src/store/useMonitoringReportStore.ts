@@ -1075,9 +1075,10 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
       // ── Report Documents ──
       addDocument: (data) => {
         const now = nowIso()
-        const defaultPhase: DocPhase = data.docType === 'vendor' ? 'doccon' : 'engineer'
+        const isDocconStart = data.docType === 'customer' && data.startPhase === 'doccon'
+        const defaultPhase: DocPhase = (data.docType === 'vendor' || isDocconStart) ? 'doccon' : 'engineer'
         const doc: ReportDocument = {
-          ...phaseDefaults('DRAFT', { engineerStartedAt: now }),
+          ...phaseDefaults('DRAFT', isDocconStart ? {} : { engineerStartedAt: now }),
           currentPhase: defaultPhase,
           ...data,
           id: uid('rd'),
@@ -1184,16 +1185,14 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
       },
       resubmitDocument: (id, byUserId, byName, comment = '') => {
         const activity = makeActivity('RESUBMIT', byUserId, byName, comment)
-        const REVISIONS: ReportDocumentRevision[] = ['R0', 'R1', 'R2', 'R3', 'R4']
         const now = nowIso()
         set((s) => ({
           documents: s.documents.map((d) => {
             if (d.id !== id) return d
-            const nextRevIdx = Math.min(REVISIONS.indexOf(d.revision) + 1, 4)
             return {
               ...d,
               status: 'SUBMITTED' as ReportDocumentStatus,
-              revision: REVISIONS[nextRevIdx],
+              // Revision tidak di-bump saat resubmit — hanya bump saat ditolak (kadivReject / requestDocumentRevision)
               tanggalSubmit: now,
               activities: [...d.activities, activity],
               updatedAt: now,
@@ -1346,13 +1345,21 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
         set((s) => ({
           documents: s.documents.map((d) => {
             if (d.id !== id) return d
-            // All doc types return to Doccon; Doccon can escalate to Engineer if needed
-            const prevPhase: DocPhase = 'doccon'
+            const newRevision = bumpRevision(d.revision)
+            const revEntry: RevisionHistoryEntry = {
+              revision: newRevision,
+              status: 'REVISION_REQUIRED',
+              changedAt: now,
+              changedByName: byName,
+              note: comment,
+              type: 'revision',
+            }
             return {
               ...d,
               status: 'REVISION_REQUIRED' as ReportDocumentStatus,
-              revision: bumpRevision(d.revision),
-              currentPhase: prevPhase,
+              revision: newRevision,
+              currentPhase: 'doccon' as DocPhase,
+              revisionHistory: [...(d.revisionHistory ?? []), revEntry],
               activities: [...d.activities, activity],
               updatedAt: now,
             }
@@ -1380,12 +1387,24 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
         const activity = makeActivity('ESCALATE_ENGINEER', byUserId, byName, comment)
         const now = nowIso()
         set((s) => ({
-          documents: s.documents.map((d) => d.id !== id ? d : {
-            ...d,
-            status: 'REVISION_REQUIRED' as ReportDocumentStatus,
-            currentPhase: 'engineer' as DocPhase,
-            activities: [...d.activities, activity],
-            updatedAt: now,
+          documents: s.documents.map((d) => {
+            if (d.id !== id) return d
+            const escEntry: RevisionHistoryEntry = {
+              revision: d.revision,  // tidak bump — eskalasi bukan penolakan baru
+              status: 'REVISION_REQUIRED',
+              changedAt: now,
+              changedByName: byName,
+              note: comment,
+              type: 'escalation',
+            }
+            return {
+              ...d,
+              status: 'REVISION_REQUIRED' as ReportDocumentStatus,
+              currentPhase: 'engineer' as DocPhase,
+              revisionHistory: [...(d.revisionHistory ?? []), escEntry],
+              activities: [...d.activities, activity],
+              updatedAt: now,
+            }
           }),
         }))
         useLogStore.getState().addLog({ type: 'monitoring_report_revision', message: `Doccon eskalasi dokumen ke Engineer untuk diperbaiki`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
