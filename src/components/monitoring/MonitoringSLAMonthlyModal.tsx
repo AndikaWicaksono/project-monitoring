@@ -25,7 +25,7 @@ type Step = 'form' | 'sla-warning' | 'locked'
 
 export function MonitoringSLAMonthlyModal({ open, onClose, mode, componentId, projectId, recordId, defaultMonth, defaultYear }: Props) {
   const store = useMonitoringSLAStore()
-  const { isDoccon, canUnlockRecord } = useMonitoringRole()
+  const { isDoccon, canUnlockRecord, isSuperAdmin } = useMonitoringRole()
   const session = useAuthStore((s) => s.session)
   const users = useAuthStore((s) => s.users)
   const currentUser = users.find((u) => u.id === session?.userId)
@@ -48,8 +48,8 @@ export function MonitoringSLAMonthlyModal({ open, onClose, mode, componentId, pr
   const [errors, setErrors]         = useState<Record<string, string>>({})
   const [savedAchievement, setSavedAchievement] = useState<number | null>(null)
 
-  // Period is locked to current month for Doccon (feature b)
-  const periodLocked = isDoccon
+  // Period is locked to current month for Doccon (feature b); super_admin bypasses
+  const periodLocked = isDoccon && !isSuperAdmin
 
   // Detect if a record already exists for this component+month+year in create mode (feature a)
   const duplicateRecord = mode === 'create' && componentId
@@ -66,7 +66,7 @@ export function MonitoringSLAMonthlyModal({ open, onClose, mode, componentId, pr
       setYear(existing.year)
       setAchievement(String(existing.achievement))
       setRemark(existing.remark)
-      setStep(isLocked && !canUnlockRecord ? 'locked' : 'form')
+      setStep(isLocked && !canUnlockRecord && !isSuperAdmin ? 'locked' : 'form')
     } else {
       setMonth(periodLocked ? autoMonth : (defaultMonth ?? autoMonth))
       setYear(periodLocked ? autoYear : (defaultYear ?? autoYear))

@@ -22,7 +22,7 @@ export function MonitoringSLADetailPage() {
   const openModal = useUIStore((s) => s.openModal)
   const setView = useUIStore((s) => s.setView)
   const slaDetailProjectId = useUIStore((s) => s.slaDetailProjectId)
-  const { canDeleteMonitoring, canUnlockRecord, isEngineerOS, isDoccon, canEditMonitoring } = useMonitoringRole()
+  const { canDeleteMonitoring, canUnlockRecord, isEngineerOS, isDoccon, canEditMonitoring, isSuperAdmin } = useMonitoringRole()
 
   const project = projects.find((p) => p.id === slaDetailProjectId)
   const projectComponents = useMemo(() => components.filter((c) => c.projectId === slaDetailProjectId), [components, slaDetailProjectId])
@@ -294,13 +294,13 @@ export function MonitoringSLADetailPage() {
                           </td>
                           <td className="pr-4 py-2">
                             <div className="flex items-center gap-1">
-                              {canUnlockRecord && locked && (
+                              {canUnlockRecord && locked && !isSuperAdmin && (
                                 <button onClick={() => handleUnlockRecord(rec.id)} className="rounded p-1 text-ink-tertiary hover:text-amber-600 hover:bg-amber-50 transition" title="Buka kunci">
                                   <Unlock size={11} />
                                 </button>
                               )}
-                              {canEditMonitoring && !locked && (
-                                <button onClick={() => openModal({ type: 'monitoring-sla-monthly-edit', recordId: rec.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition"><Pencil size={11} /></button>
+                              {canEditMonitoring && (!locked || isSuperAdmin) && (
+                                <button onClick={() => openModal({ type: 'monitoring-sla-monthly-edit', recordId: rec.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title={locked ? 'Edit (Super Admin override)' : 'Edit'}><Pencil size={11} /></button>
                               )}
                               {canEditMonitoring && (
                                 <button onClick={() => setConfirmDeleteRecId(rec.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition"><Trash2 size={11} /></button>

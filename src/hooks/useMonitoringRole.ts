@@ -15,6 +15,7 @@ export function useMonitoringRole() {
   const { role, user } = usePermissions()
   const roleId = role?.id ?? ''
 
+  const isSuperAdmin = roleId === 'super_admin'
   const isAdminOSM   = roleId === 'admin_osm'
   const isAdminDMO   = roleId === 'admin_dmo'
   const isAdminSCS   = roleId === 'admin_scs'
@@ -27,6 +28,7 @@ export function useMonitoringRole() {
 
   return {
     isMonitoringOnly:    MONITORING_ROLES.has(roleId),
+    isSuperAdmin,
     isSales,
     isAdminOSM,
     isAdminDMO,
@@ -36,15 +38,15 @@ export function useMonitoringRole() {
     isEngineerOS,
     isKadiv,
     isKadep,
-    canDeleteMonitoring:    roleId !== 'doccon_osm' && roleId !== 'engineer_os' && roleId !== 'kadep',
-    canManageProjectPeriod: !isEngineerOS && !isKadep,
-    canEditMonitoring:      !isEngineerOS && !isKadep,
-    canUnlockRecord:     isAdminOSM || roleId === 'super_admin',
-    canViewCost:         isCostAdmin || isKadiv || isKadep,
-    canEditCost:         isCostAdmin,
-    canAssignDoccon:     isKadep,
-    costSatker:          COST_SATKER_MAP[roleId] ?? null,
-    currentUserId:       user?.id ?? null,
-    currentUserName:     user?.name ?? null,
+    canDeleteMonitoring:    isSuperAdmin || (roleId !== 'doccon_osm' && roleId !== 'engineer_os' && roleId !== 'kadep'),
+    canManageProjectPeriod: isSuperAdmin || (!isEngineerOS && !isKadep),
+    canEditMonitoring:      isSuperAdmin || (!isEngineerOS && !isKadep),
+    canUnlockRecord:        isSuperAdmin || isAdminOSM,
+    canViewCost:            isSuperAdmin || isCostAdmin || isKadiv || isKadep,
+    canEditCost:            isSuperAdmin || isCostAdmin,
+    canAssignDoccon:        isSuperAdmin || isKadep,
+    costSatker:             COST_SATKER_MAP[roleId] ?? null,
+    currentUserId:          user?.id ?? null,
+    currentUserName:        user?.name ?? null,
   }
 }
