@@ -22,7 +22,7 @@ export function MonitoringSLADetailPage() {
   const openModal = useUIStore((s) => s.openModal)
   const setView = useUIStore((s) => s.setView)
   const slaDetailProjectId = useUIStore((s) => s.slaDetailProjectId)
-  const { canDeleteMonitoring, canUnlockRecord, isEngineerOS, isDoccon, canEditMonitoring, canManageSLAMaster, isSuperAdmin } = useMonitoringRole()
+  const { canDeleteMonitoring, canUnlockRecord, isEngineerOS, isDoccon, canEditMonitoring, isSuperAdmin } = useMonitoringRole()
 
   const project = projects.find((p) => p.id === slaDetailProjectId)
   const projectComponents = useMemo(() => components.filter((c) => c.projectId === slaDetailProjectId), [components, slaDetailProjectId])
@@ -112,7 +112,7 @@ export function MonitoringSLADetailPage() {
             <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="input-base text-xs py-1.5 w-auto pr-7">
               {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
-            {canManageSLAMaster && (
+            {canEditMonitoring && (
               <Button size="sm" onClick={() => openModal({ type: 'monitoring-sla-component-add', projectId: project.id })} leftIcon={<Plus size={13} />}>
                 Tambah Komponen
               </Button>
@@ -247,27 +247,23 @@ export function MonitoringSLADetailPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        {(canEditMonitoring || canManageSLAMaster) && (
+                        {canEditMonitoring && (
                           <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => openModal({ type: 'monitoring-sla-monthly-add', componentId: comp.id, projectId: project.id })}
+                              className="rounded p-1 text-ink-tertiary hover:text-emerald-600 hover:bg-emerald-50 transition"
+                              title="Tambah data bulanan"
+                            >
+                              <Plus size={13} />
+                            </button>
+                            <button
+                              onClick={() => openModal({ type: 'monitoring-sla-component-edit', componentId: comp.id })}
+                              className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition"
+                              title="Edit komponen"
+                            >
+                              <Pencil size={13} />
+                            </button>
                             {canEditMonitoring && (
-                              <button
-                                onClick={() => openModal({ type: 'monitoring-sla-monthly-add', componentId: comp.id, projectId: project.id })}
-                                className="rounded p-1 text-ink-tertiary hover:text-emerald-600 hover:bg-emerald-50 transition"
-                                title="Tambah data bulanan"
-                              >
-                                <Plus size={13} />
-                              </button>
-                            )}
-                            {canManageSLAMaster && (
-                              <button
-                                onClick={() => openModal({ type: 'monitoring-sla-component-edit', componentId: comp.id })}
-                                className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition"
-                                title="Edit komponen"
-                              >
-                                <Pencil size={13} />
-                              </button>
-                            )}
-                            {canManageSLAMaster && (
                               <button
                                 onClick={() => setConfirmDeleteCompId(comp.id)}
                                 className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition"
@@ -324,7 +320,7 @@ export function MonitoringSLADetailPage() {
         {projectComponents.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-ink-tertiary">
             <p className="text-sm">Belum ada komponen SLA.</p>
-            {canManageSLAMaster && (
+            {canEditMonitoring && (
               <Button size="sm" className="mt-3" onClick={() => openModal({ type: 'monitoring-sla-component-add', projectId: project.id })} leftIcon={<Plus size={13} />}>
                 Tambah Komponen Pertama
               </Button>
