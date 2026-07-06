@@ -118,7 +118,10 @@ export function MonitoringSLAMonthlyModal({ open, onClose, mode, componentId, pr
       remark: remark.trim(),
     }
 
-    if (mode === 'create') {
+    if (mode === 'create' && duplicateRecord) {
+      // Overwrite existing record instead of creating a duplicate
+      store.updateMonthlyRecord(duplicateRecord.id, { ...payload, lockedAt: nowIso(), lockedByName: currentUser?.name ?? null })
+    } else if (mode === 'create') {
       store.addMonthlyRecord(payload, currentUser?.name)
     } else if (mode === 'edit' && recordId) {
       store.updateMonthlyRecord(recordId, { ...payload, lockedAt: nowIso(), lockedByName: currentUser?.name ?? null })
