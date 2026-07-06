@@ -122,6 +122,11 @@ export function MonitoringCostModal({ open, onClose, mode, costId }: Props) {
   function validate() {
     const e: Record<string, string> = {}
     if (!form.projectCode.trim()) e.projectCode = 'Kode project wajib diisi'
+    else if (mode === 'create') {
+      const kode = form.projectCode.trim().toLowerCase()
+      const dup = store.costs.find((c) => c.projectCode.toLowerCase() === kode && c.year === form.year)
+      if (dup) e.projectCode = `Kode "${form.projectCode.trim()}" sudah ada di tahun ${form.year}`
+    }
     if (!form.projectClient.trim()) e.projectClient = 'Client wajib diisi'
     if (!form.projectName.trim()) e.projectName = 'Nama project wajib diisi'
     if (form.year < 2000 || form.year > 2099) e.year = 'Tahun harus antara 2000–2099'

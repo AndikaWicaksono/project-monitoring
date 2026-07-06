@@ -48,6 +48,11 @@ export function MonitoringSLAProjectModal({ open, onClose, mode, projectId }: Pr
   function validate() {
     const e: Record<string, string> = {}
     if (!kodeProject.trim()) e.kodeProject = 'Kode project wajib diisi'
+    else if (mode === 'create') {
+      const kode = kodeProject.trim().toLowerCase()
+      const dup = store.projects.find((p) => p.kodeProject.toLowerCase() === kode)
+      if (dup) e.kodeProject = `Kode "${kodeProject.trim()}" sudah digunakan`
+    }
     if (!namaProject.trim()) e.namaProject = 'Nama project wajib diisi'
     if (!department.trim()) e.department = 'Department wajib diisi'
     const t = Number(targetSLA)

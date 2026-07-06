@@ -67,6 +67,11 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
   function validate() {
     const e: Record<string, string> = {}
     if (!kodeProject.trim())  e.kodeProject  = 'Kode Project wajib diisi'
+    else if (mode === 'create') {
+      const kode = kodeProject.trim().toLowerCase()
+      const dupReport = reportStore.projects.find((p) => p.kodeProject.toLowerCase() === kode)
+      if (dupReport) e.kodeProject = `Kode "${kodeProject.trim()}" sudah digunakan di Report Project`
+    }
     if (!namaKontrak.trim())  e.namaKontrak  = 'Nama Project wajib diisi'
     if (!department.trim())   e.department   = 'Department wajib diisi'
     if (!client.trim())       e.client       = 'Client wajib diisi'
