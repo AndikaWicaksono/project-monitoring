@@ -41,6 +41,8 @@ export function useMonitoringRole() {
     canDeleteMonitoring:    isSuperAdmin || (roleId !== 'doccon_osm' && roleId !== 'engineer_os' && roleId !== 'kadep'),
     canManageProjectPeriod: isSuperAdmin || (!isEngineerOS && !isKadep),
     canEditMonitoring:      isSuperAdmin || (!isEngineerOS && !isKadep),
+    // Master data (project + komponen SLA): Doccon hanya bisa lihat & isi data bulanan
+    canManageSLAMaster:     isSuperAdmin || (!isEngineerOS && !isKadep && !isDoccon),
     canUnlockRecord:        isSuperAdmin || isAdminOSM,
     canViewCost:            isSuperAdmin || isCostAdmin || isKadiv || isKadep,
     canEditCost:            isSuperAdmin || isCostAdmin,
