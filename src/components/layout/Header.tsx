@@ -23,6 +23,7 @@ const VIEW_META: Record<string, { title: string; subtitle: string }> = {
   'monitoring-sla': { title: 'SLA Monitoring', subtitle: 'Pencapaian SLA bulanan per kontrak dan departemen' },
   'monitoring-sla-detail': { title: 'SLA Monitoring — Detail', subtitle: 'Komponen SLA dan pencapaian bulanan per project' },
   'monitoring-cost': { title: 'Cost Monitoring', subtitle: 'Monitoring biaya project dan realisasi bulanan' },
+  'monitoring-cost-detail': { title: 'Cost Monitoring — Detail', subtitle: 'Detail biaya, breakdown bulanan, dan realisasi per project' },
   'monitoring-bap': { title: 'BAP / BAPP / BAST Monitoring', subtitle: 'Tracking dokumen serah terima untuk kesiapan penagihan' },
 }
 

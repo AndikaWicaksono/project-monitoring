@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { Plus, Search, Download, Eye, Pencil, Trash2, Filter, ChevronDown, ChevronUp, BarChart2 } from 'lucide-react'
 import { useMonitoringCostStore } from '../../store/useMonitoringCostStore'
 import { useUIStore } from '../../store/useUIStore'
@@ -71,7 +71,9 @@ export function MonitoringCostPage() {
   const deleteCost = useMonitoringCostStore((s) => s.deleteCost)
   const deleteRealization = useMonitoringCostStore((s) => s.deleteRealization)
   const openModal = useUIStore((s) => s.openModal)
-  const { canEditCost } = useMonitoringRole()
+  const setView = useUIStore((s) => s.setView)
+  const setCostDetailId = useUIStore((s) => s.setCostDetailId)
+  const { canEditCost, canManageCostMaster } = useMonitoringRole()
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<MonitoringCostStatus | ''>('')
@@ -178,7 +180,7 @@ export function MonitoringCostPage() {
           </select>
           <span className="text-[11px] text-ink-tertiary ml-auto">{filtered.length} data</span>
           <Button variant="ghost" size="sm" onClick={handleExport} leftIcon={<Download size={13} />}>Export</Button>
-          {canEditCost && <Button size="sm" onClick={() => openModal({ type: 'monitoring-cost-create' })} leftIcon={<Plus size={13} />}>Tambah</Button>}
+          {canManageCostMaster && <Button size="sm" onClick={() => openModal({ type: 'monitoring-cost-create' })} leftIcon={<Plus size={13} />}>Tambah</Button>}
         </div>
 
         {/* Table */}
@@ -219,9 +221,8 @@ export function MonitoringCostPage() {
                 })
 
                 return (
-                  <>
+                  <Fragment key={c.id}>
                     <tr
-                      key={c.id}
                       className={classNames(
                         'border-b border-border-subtle hover:bg-black/[0.02] transition-colors cursor-pointer',
                         isExpanded && 'bg-black/[0.015] border-b-0',
@@ -247,9 +248,9 @@ export function MonitoringCostPage() {
                       <td className="px-4 py-3 text-xs text-ink-secondary text-center">{c.tkdn}%</td>
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
-                          <button onClick={() => openModal({ type: 'monitoring-cost-detail', costId: c.id })} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Detail"><Eye size={13} /></button>
-                          {canEditCost && <button onClick={() => openModal({ type: 'monitoring-cost-edit', costId: c.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>}
-                          {canEditCost && <button onClick={() => setConfirmDeleteId(c.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>}
+                          <button onClick={() => { setCostDetailId(c.id); setView('monitoring-cost-detail') }} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Detail"><Eye size={13} /></button>
+                          {canManageCostMaster && <button onClick={() => openModal({ type: 'monitoring-cost-edit', costId: c.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>}
+                          {canManageCostMaster && <button onClick={() => setConfirmDeleteId(c.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>}
                         </div>
                       </td>
                     </tr>
@@ -289,6 +290,14 @@ export function MonitoringCostPage() {
                                   className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 transition"
                                 >
                                   <Plus size={11} /> Tambah Realisasi
+                                </button>
+                              )}
+                              {panelTab === 'breakdown' && canManageCostMaster && (
+                                <button
+                                  onClick={() => openModal({ type: 'monitoring-cost-planning', costId: c.id })}
+                                  className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 transition"
+                                >
+                                  <BarChart2 size={11} /> Kelola Breakdown Bulanan
                                 </button>
                               )}
                             </div>
@@ -433,7 +442,7 @@ export function MonitoringCostPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 )
               })}
             </tbody>

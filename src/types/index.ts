@@ -414,6 +414,7 @@ export type PageView =
   | 'monitoring-sla'
   | 'monitoring-sla-detail'
   | 'monitoring-cost'
+  | 'monitoring-cost-detail'
   | 'monitoring-bap'
   | 'monitoring-assignment'
   | 'sales-inbox'

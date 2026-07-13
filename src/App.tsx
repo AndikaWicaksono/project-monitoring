@@ -15,6 +15,7 @@ import { MonitoringReportDetailPage } from './pages/monitoring/MonitoringReportD
 import { MonitoringSLAPage } from './pages/monitoring/MonitoringSLAPage'
 import { MonitoringSLADetailPage } from './pages/monitoring/MonitoringSLADetailPage'
 import { MonitoringCostPage } from './pages/monitoring/MonitoringCostPage'
+import { MonitoringCostDetailPage } from './pages/monitoring/MonitoringCostDetailPage'
 import { MonitoringBAPPage } from './pages/monitoring/MonitoringBAPPage'
 import { MonitoringAssignmentPage } from './pages/monitoring/MonitoringAssignmentPage'
 import { SalesInboxPage } from './pages/SalesInboxPage'
@@ -39,13 +40,14 @@ function App() {
     if ((view === 'monitoring-report' || view === 'monitoring-report-detail') && isAdminOSM) return <MonitoringDashboardPage />
 
     // Guard: hanya admin_osm & kadiv yang boleh akses Cost
-    if (view === 'monitoring-cost' && !canViewCost) return <MonitoringDashboardPage />
+    if ((view === 'monitoring-cost' || view === 'monitoring-cost-detail') && !canViewCost) return <MonitoringDashboardPage />
 
     if (view === 'monitoring-report') return <MonitoringReportPage />
     if (view === 'monitoring-report-detail') return <MonitoringReportDetailPage />
     if (view === 'monitoring-sla') return <MonitoringSLAPage />
     if (view === 'monitoring-sla-detail') return <MonitoringSLADetailPage />
     if (view === 'monitoring-cost') return <MonitoringCostPage />
+    if (view === 'monitoring-cost-detail') return <MonitoringCostDetailPage />
     if (view === 'monitoring-bap') return <MonitoringBAPPage />
     if (view === 'monitoring-assignment') {
       if (!isKadep && !isKadiv) return <MonitoringDashboardPage />
