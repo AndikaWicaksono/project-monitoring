@@ -10,6 +10,8 @@ export type ReportDocumentStatus =
   | 'SUBMITTED'          // Engineer submitted ke Doccon
   | 'UNDER_REVIEW'       // Keep backward compat
   | 'COMPILING'          // Doccon sedang susun customer report
+  | 'QC_REVIEW'          // Doccon melakukan QC review sebelum ke Kadep
+  | 'PENDING_KADEP_PARAF'// Menunggu paraf Kadep sebelum ke Kadiv
   | 'PENDING_KADIV'      // Menunggu approval Kadiv
   | 'REVISION_REQUIRED'
   | 'KADIV_APPROVED'     // Kadiv sudah approve
@@ -18,6 +20,10 @@ export type ReportDocumentRevision = 'R0' | 'R1' | 'R2' | 'R3' | 'R4'
 export type ReportDocumentActionType =
   | 'CREATE' | 'SUBMIT' | 'START_REVIEW' | 'APPROVE' | 'REQUEST_REVISION' | 'RESUBMIT'  // keep existing
   | 'DOCCON_COMPILE'      // Doccon mulai kompilasi
+  | 'DOCCON_QC_REVIEW'    // Doccon mulai QC review
+  | 'DOCCON_SUBMIT_KADEP' // Doccon kirim ke Kadep untuk paraf
+  | 'KADEP_PARAF'         // Kadep paraf dokumen
+  | 'KADEP_REJECT'        // Kadep minta revisi balik ke Doccon
   | 'SUBMIT_KADIV'        // Doccon submit ke Kadiv
   | 'KADIV_APPROVE'       // Kadiv approve
   | 'KADIV_REJECT'        // Kadiv minta revisi
@@ -31,6 +37,7 @@ export type ReportDocumentActionType =
 export type DocPhase =
   | 'engineer'        // Customer doc: Engineer drafting
   | 'doccon'          // Customer doc: Doccon assembling | Vendor doc: Doccon inputting
+  | 'kadep'           // Both: menunggu paraf Kadep
   | 'kadiv'           // Both: Kadiv approval
   | 'customer_email'  // Customer doc: menunggu konfirmasi customer (via email)
   | 'vendor_confirm'  // Vendor doc: menunggu konfirmasi vendor (via email)
@@ -138,6 +145,8 @@ export interface ReportDocument {
   salesFlagIssue?: boolean
   salesIssueNote?: string
   // New workflow timestamps
+  kadepParafAt?: string | null
+  kadepParafByName?: string | null
   kadivApprovedAt?: string | null
   kadivApprovedByName?: string | null
   customerConfirmedAt?: string | null
@@ -145,17 +154,53 @@ export interface ReportDocument {
   salesSubmittedAt?: string | null
 }
 
-// ---------- Billing Tracker (embedded in Report Project) ----------
+// ---------- Billing Tracker / Document Tracker (embedded in Report Project) ----------
+// Dokumen event-based/milestone (BAP, BAPP, BAST, Invoice, dst — bukan laporan bulanan).
+// Alur: Doccon susun checklist lampiran (diambil dari Report Customer) -> Kadep paraf/revisi -> Kadiv approve.
 
 export type BillingDocumentType = string
 
 export type BillingDocumentStatus =
-  | 'BELUM_DIBUAT'
-  | 'DRAFT'
-  | 'SUBMITTED'
-  | 'APPROVED'
-  | 'REJECTED'
-  | 'COMPLETED'
+  | 'DRAFT'                // Doccon menyusun checklist lampiran
+  | 'PENDING_KADEP_PARAF'  // menunggu paraf Kadep
+  | 'REVISION_REQUIRED'    // Kadep minta revisi, dikembalikan ke Doccon
+  | 'PENDING_KADIV'        // menunggu approval/tanda tangan Kadiv
+  | 'COMPLETED'            // Kadiv sudah approve — selesai
+
+export type BillingDocPhase = 'doccon' | 'kadep' | 'kadiv' | 'completed'
+
+export type BillingDocumentActionType =
+  | 'CREATE'
+  | 'DOCCON_SUBMIT_KADEP'  // Doccon kirim ke Kadep untuk paraf
+  | 'KADEP_PARAF'          // Kadep paraf dokumen
+  | 'KADEP_REJECT'         // Kadep minta revisi balik ke Doccon
+  | 'DOCCON_RESUBMIT'      // Doccon kirim ulang ke Kadep setelah revisi
+  | 'KADIV_APPROVE'        // Kadiv approve / tanda tangan
+  | 'KADIV_REJECT'         // Kadiv minta revisi, dikembalikan ke Doccon
+
+export interface BillingDocumentActivity {
+  id: string
+  action: BillingDocumentActionType
+  byUserId: string
+  byName: string
+  comment: string
+  timestamp: string
+}
+
+export interface BillingRevisionHistoryEntry {
+  status: BillingDocumentStatus
+  changedAt: string
+  changedByName: string
+  note: string
+}
+
+// Referensi live ke attachment milik ReportDocument (Report Customer) — bukan copy file.
+export interface BillingLinkedAttachment {
+  reportDocumentId: string
+  attachmentId: string
+  linkedAt: string
+  linkedByName: string
+}
 
 export interface BillingDocument {
   id: string
@@ -165,8 +210,12 @@ export interface BillingDocument {
   targetDate: string | null
   actualDate: string | null
   status: BillingDocumentStatus
+  currentPhase: BillingDocPhase
   keterangan: string
-  attachments: ReportDocumentAttachment[]
+  attachments: ReportDocumentAttachment[]        // upload manual langsung ke dokumen tracker ini
+  linkedAttachments: BillingLinkedAttachment[]    // checklist lampiran yang diambil dari Report Customer
+  activities: BillingDocumentActivity[]
+  revisionHistory: BillingRevisionHistoryEntry[]
   createdAt: string
   updatedAt: string
   createdByUserId: string

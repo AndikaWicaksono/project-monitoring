@@ -6,6 +6,7 @@ import { MonitoringSLAComponentModal } from '../monitoring/MonitoringSLAComponen
 import { MonitoringSLAMonthlyModal } from '../monitoring/MonitoringSLAMonthlyModal'
 import { MonitoringCostModal } from '../monitoring/MonitoringCostModal'
 import { MonitoringCostRealizationModal } from '../monitoring/MonitoringCostRealizationModal'
+import { MonitoringCostPlanningModal } from '../monitoring/MonitoringCostPlanningModal'
 import { MonitoringBAPModal } from '../monitoring/MonitoringBAPModal'
 import { MonitoringBillingModal } from '../monitoring/MonitoringBillingModal'
 import { AddTaskModal } from './AddTaskModal'
@@ -128,6 +129,8 @@ export function ModalsRoot() {
       return <MonitoringBillingModal open onClose={close} mode="create" projectId={modal.projectId} />
     case 'monitoring-billing-edit':
       return <MonitoringBillingModal open onClose={close} mode="edit" billingId={modal.billingId} />
+    case 'monitoring-billing-detail':
+      return <MonitoringBillingModal open onClose={close} mode="detail" billingId={modal.billingId} />
 
     // ── Monitoring — SLA ─────────────────────────────────────────
     case 'monitoring-sla-project-create':
@@ -148,12 +151,12 @@ export function ModalsRoot() {
       return <MonitoringCostModal open onClose={close} mode="create" />
     case 'monitoring-cost-edit':
       return <MonitoringCostModal open onClose={close} mode="edit" costId={modal.costId} />
-    case 'monitoring-cost-detail':
-      return <MonitoringCostModal open onClose={close} mode="detail" costId={modal.costId} />
     case 'monitoring-cost-realization-create':
       return <MonitoringCostRealizationModal open onClose={close} mode="create" costId={modal.costId} />
     case 'monitoring-cost-realization-edit':
       return <MonitoringCostRealizationModal open onClose={close} mode="edit" costId={modal.costId} realizationId={modal.realizationId} />
+    case 'monitoring-cost-planning':
+      return <MonitoringCostPlanningModal open onClose={close} costId={modal.costId} />
 
     // ── Monitoring — BAP ──────────────────────────────────────────
     case 'monitoring-bap-create':

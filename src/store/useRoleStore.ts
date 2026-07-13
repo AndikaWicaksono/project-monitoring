@@ -62,9 +62,18 @@ export const useRoleStore = create<RoleState>()(
       ensureSystemRoles: () => {
         const existing = new Set(get().roles.map((r) => r.id))
         const missing = SEED_ROLES.filter((r) => !existing.has(r.id))
-        if (missing.length > 0) {
-          set((s) => ({ roles: [...s.roles, ...missing] }))
-        }
+        const seedById = new Map(SEED_ROLES.map((r) => [r.id, r]))
+        set((s) => ({
+          roles: [
+            // Sync name/description/color from seed for system roles (allows seed renames to propagate)
+            ...s.roles.map((r) => {
+              const seed = r.isSystem ? seedById.get(r.id) : undefined
+              if (!seed) return r
+              return { ...r, name: seed.name, description: seed.description, color: seed.color }
+            }),
+            ...missing,
+          ],
+        }))
       },
     }),
     {

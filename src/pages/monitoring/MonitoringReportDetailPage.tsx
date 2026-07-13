@@ -7,7 +7,7 @@ import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { Button } from '../../components/ui/Button'
 import { classNames, formatDateShort } from '../../utils/helpers'
 import { reportMonthLabel, prevReportMonth, nextReportMonth } from '../../types/monitoring'
-import type { ReportDocument, ReportDocumentStatus, BillingDocumentStatus, DocPhase } from '../../types/monitoring'
+import type { ReportDocument, ReportDocumentStatus, BillingDocument, BillingDocumentStatus, BillingDocPhase, DocPhase } from '../../types/monitoring'
 
 type ActiveTab = 'customer' | 'vendor' | 'billing' | 'sla'
 
@@ -18,17 +18,52 @@ const DOC_STATUS_META: Record<ReportDocumentStatus, { label: string; cls: string
   REVISION_REQUIRED: { label: 'Revisi Diminta',    cls: 'bg-red-100 text-red-700' },
   APPROVED:          { label: 'Disetujui',          cls: 'bg-emerald-100 text-emerald-700' },
   COMPILING:         { label: 'Kompilasi Doccon',   cls: 'bg-violet-100 text-violet-700' },
+  QC_REVIEW:         { label: 'QC Review',           cls: 'bg-amber-100 text-amber-700' },
+  PENDING_KADEP_PARAF: { label: 'Menunggu Paraf Kadep', cls: 'bg-cyan-100 text-cyan-700' },
   PENDING_KADIV:     { label: 'Menunggu Kadiv',     cls: 'bg-blue-100 text-blue-700' },
   KADIV_APPROVED:    { label: 'Disetujui Kadiv',    cls: 'bg-teal-100 text-teal-700' },
 }
 
 const BILLING_STATUS_META: Record<BillingDocumentStatus, { label: string; cls: string }> = {
-  BELUM_DIBUAT: { label: 'Belum Dibuat', cls: 'bg-slate-100 text-slate-600' },
-  DRAFT:        { label: 'Draft',        cls: 'bg-blue-100 text-blue-700' },
-  SUBMITTED:    { label: 'Submitted',    cls: 'bg-amber-100 text-amber-700' },
-  APPROVED:     { label: 'Approved',     cls: 'bg-emerald-100 text-emerald-700' },
-  REJECTED:     { label: 'Rejected',     cls: 'bg-red-100 text-red-700' },
-  COMPLETED:    { label: 'Completed',    cls: 'bg-pertamina-red-50 text-pertamina-red font-semibold' },
+  DRAFT:               { label: 'Draft',                cls: 'bg-slate-100 text-slate-700' },
+  PENDING_KADEP_PARAF: { label: 'Menunggu Paraf Kadep', cls: 'bg-cyan-100 text-cyan-700' },
+  REVISION_REQUIRED:   { label: 'Revisi Diminta',       cls: 'bg-red-100 text-red-700' },
+  PENDING_KADIV:       { label: 'Menunggu Kadiv',       cls: 'bg-blue-100 text-blue-700' },
+  COMPLETED:           { label: 'Selesai',              cls: 'bg-pertamina-red-50 text-pertamina-red font-semibold' },
+}
+
+const BILLING_PHASE_STEPS: { key: BillingDocPhase; label: string }[] = [
+  { key: 'doccon', label: 'Doccon' },
+  { key: 'kadep', label: 'Paraf Kadep' },
+  { key: 'kadiv', label: 'Kadiv' },
+  { key: 'completed', label: 'Selesai' },
+]
+
+function BillingPhaseStepperMini({ doc }: { doc: BillingDocument }) {
+  const currentIdx = BILLING_PHASE_STEPS.findIndex((s) => s.key === doc.currentPhase)
+  return (
+    <div className="flex items-center gap-0.5 mt-1.5 flex-wrap">
+      {BILLING_PHASE_STEPS.map((step, idx) => {
+        const done = currentIdx >= 0 && idx < currentIdx
+        const active = step.key === doc.currentPhase
+        return (
+          <div key={step.key} className="flex items-center gap-0.5">
+            <span className={classNames(
+              'rounded px-1.5 py-0.5 text-[9px] font-medium whitespace-nowrap',
+              done   ? 'bg-emerald-50 text-emerald-600' :
+              active ? 'bg-pertamina-red/10 text-pertamina-red font-semibold' :
+                       'bg-black/[0.04] text-ink-muted',
+            )}>
+              {done ? '✓ ' : active ? '● ' : ''}{step.label}
+            </span>
+            {idx < BILLING_PHASE_STEPS.length - 1 && (
+              <span className={classNames('text-[9px] shrink-0', idx < currentIdx ? 'text-emerald-300' : 'text-black/[0.1]')}>›</span>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 const REVISION_CLS: Record<string, string> = {
@@ -44,6 +79,7 @@ const REVISION_CLS: Record<string, string> = {
 const NEW_CUSTOMER_PHASES: { key: DocPhase; label: string }[] = [
   { key: 'engineer',      label: 'Engineer' },
   { key: 'doccon',        label: 'Doccon' },
+  { key: 'kadep',         label: 'Paraf Kadep' },
   { key: 'kadiv',         label: 'Kadiv' },
   { key: 'customer_email', label: 'Customer' },
   { key: 'sales',         label: 'Sales' },
@@ -51,6 +87,7 @@ const NEW_CUSTOMER_PHASES: { key: DocPhase; label: string }[] = [
 
 const DOCCON_START_PHASES: { key: DocPhase; label: string }[] = [
   { key: 'doccon',         label: 'Doccon' },
+  { key: 'kadep',          label: 'Paraf Kadep' },
   { key: 'kadiv',          label: 'Kadiv' },
   { key: 'customer_email', label: 'Customer' },
   { key: 'sales',          label: 'Sales' },
@@ -58,6 +95,7 @@ const DOCCON_START_PHASES: { key: DocPhase; label: string }[] = [
 
 const NEW_VENDOR_PHASES: { key: DocPhase; label: string }[] = [
   { key: 'doccon',        label: 'Doccon' },
+  { key: 'kadep',         label: 'Paraf Kadep' },
   { key: 'kadiv',         label: 'Kadiv' },
   { key: 'vendor_confirm', label: 'Vendor' },
   { key: 'completed',     label: 'Selesai' },
@@ -111,12 +149,11 @@ function PhaseStepperMini({ doc }: { doc: ReportDocument }) {
 // ── Dependency badge ───────────────────────────────────────────────────────
 
 function DependencyBadge({ doc }: { doc: ReportDocument }) {
+  if (doc.currentPhase === 'kadep') return <span className="chip bg-cyan-100 text-cyan-700 text-[9px]">Menunggu Paraf</span>
   if (doc.currentPhase !== 'doccon') return null
-  const sub = doc.docconSubStatus
-  if (sub === 'delivered') return <span className="chip bg-emerald-100 text-emerald-700 text-[9px]">Delivered</span>
-  if (sub === 'ready_to_sales') return <span className="chip bg-blue-100 text-blue-700 text-[9px]">Ready to Sales</span>
-  if (sub === 'qc_review') return <span className="chip bg-purple-100 text-purple-700 text-[9px]">QC Review</span>
-  return <span className="chip bg-amber-100 text-amber-700 text-[9px]">Compiling</span>
+  if (doc.status === 'QC_REVIEW') return <span className="chip bg-purple-100 text-purple-700 text-[9px]">QC Review</span>
+  if (doc.status === 'COMPILING') return <span className="chip bg-amber-100 text-amber-700 text-[9px]">Compiling</span>
+  return null
 }
 
 // ── Early warning badge ────────────────────────────────────────────────────
@@ -719,8 +756,11 @@ export function MonitoringReportDetailPage() {
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
                   {billingDocs.map((b) => (
-                    <tr key={b.id} className="hover:bg-black/[0.02] transition-colors">
-                      <td className="px-4 py-3 text-xs font-semibold text-ink-primary whitespace-nowrap">{b.docType}</td>
+                    <tr key={b.id} className="hover:bg-black/[0.02] transition-colors align-top">
+                      <td className="px-4 py-3 text-xs font-semibold text-ink-primary max-w-[200px]">
+                        <div className="truncate">{b.docType}</div>
+                        <BillingPhaseStepperMini doc={b} />
+                      </td>
                       <td className="px-4 py-3 text-xs text-ink-secondary whitespace-nowrap">{b.pic || '—'}</td>
                       <td className="px-4 py-3 text-xs text-ink-secondary whitespace-nowrap">
                         {b.targetDate ? formatDateShort(b.targetDate) : <span className="text-ink-muted">—</span>}
@@ -735,13 +775,14 @@ export function MonitoringReportDetailPage() {
                         <div className="truncate" title={b.keterangan}>{b.keterangan || <span className="text-ink-muted">—</span>}</div>
                       </td>
                       <td className="px-4 py-3 text-xs text-ink-secondary whitespace-nowrap">
-                        {b.attachments.length > 0
-                          ? <span className="flex items-center gap-1"><Paperclip size={11} /> {b.attachments.length}</span>
+                        {(b.attachments.length + b.linkedAttachments.length) > 0
+                          ? <span className="flex items-center gap-1"><Paperclip size={11} /> {b.attachments.length + b.linkedAttachments.length}</span>
                           : <span className="text-ink-muted">—</span>
                         }
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
+                          <button onClick={() => openModal({ type: 'monitoring-billing-detail', billingId: b.id })} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Detail"><Eye size={13} /></button>
                           <button onClick={() => openModal({ type: 'monitoring-billing-edit', billingId: b.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>
                           {canDeleteMonitoring && <button onClick={() => setConfirmDeleteBillingId(b.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>}
                         </div>

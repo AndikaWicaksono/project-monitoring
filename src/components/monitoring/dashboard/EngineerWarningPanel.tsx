@@ -93,13 +93,13 @@ export function EngineerWarningPanel() {
         if (phase !== 'engineer') return false
         // Revisi diminta → selalu urgent
         if (d.status === 'REVISION_REQUIRED') return true
-        // DRAFT → hanya tampil jika deadline sudah lewat atau ≤ 3 hari lagi
+        // DRAFT → hanya tampil jika deadline sudah lewat atau ≤ 7 hari lagi
         if (d.status === 'DRAFT') {
           if (!d.deadlineToSales) return false
           const deadline = new Date(d.deadlineToSales)
           deadline.setHours(0, 0, 0, 0)
           const daysLeft = Math.floor((deadline.getTime() - today.getTime()) / 86_400_000)
-          return daysLeft <= 3
+          return daysLeft <= 7
         }
         return false
       })

@@ -28,7 +28,7 @@ export function MonitoringDashboardPage() {
       {isDoccon && <DocconSalesWarningPanel />}
       {isDoccon && <DocconConfirmationPanel />}
       {isKadiv && <KadivApprovalPanel />}
-      {!isCostAdmin && !isKadiv && !isDoccon && <DeadlineWarningPanel />}
+      {!isCostAdmin && !isKadiv && !isDoccon && !isEngineerOS && <DeadlineWarningPanel />}
 
       <MonitoringStatsOverview />
 

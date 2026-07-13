@@ -3,7 +3,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { useUIStore } from '../../store/useUIStore'
 import { LoginPage } from '../../pages/LoginPage'
 
-const MONITORING_ONLY_ROLES = new Set(['admin_osm', 'doccon_osm', 'engineer_os', 'kadep'])
+const MONITORING_ONLY_ROLES = new Set(['admin_osm', 'doccon_osm', 'engineer_os', 'kadep', 'kadep_paraf', 'pcrm'])
 
 interface Props {
   children: ReactNode

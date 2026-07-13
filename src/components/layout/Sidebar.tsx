@@ -385,7 +385,7 @@ function MonitoringNavSection({ collapsed }: { collapsed: boolean }) {
   const view = useUIStore((s) => s.view)
   const setView = useUIStore((s) => s.setView)
   const setMobileOpen = useUIStore((s) => s.setMobileSidebarOpen)
-  const { isAdminOSM, isCostAdmin, isDoccon, isEngineerOS, canViewCost, isKadep, isKadiv } = useMonitoringRole()
+  const { isAdminOSM, isCostAdmin, isDoccon, isEngineerOS, canViewCost, isKadep, isKadiv, isPcrm } = useMonitoringRole()
 
   const isMonitoringActive = view.startsWith('monitoring-')
   const [open, setOpen] = useState(isMonitoringActive)
@@ -443,7 +443,7 @@ function MonitoringNavSection({ collapsed }: { collapsed: boolean }) {
   const items = allItems.filter((item) => {
     if (item.showFor === 'all')        return true
     if (item.showFor === 'assignment') return isKadep || isKadiv
-    if (item.showFor === 'doccon')     return !isCostAdmin       // non-cost-admin lihat SLA/Report
+    if (item.showFor === 'doccon')     return !isCostAdmin && !isPcrm  // non-cost-admin (selain pcrm) lihat SLA/Report
     if (item.showFor === 'admin')      return canViewCost        // admin_osm + kadiv + kadep lihat Cost
     return true
   })

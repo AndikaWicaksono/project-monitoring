@@ -36,9 +36,10 @@ export type ModalType =
   | { type: 'monitoring-report-document-create'; projectId: string; docType: 'customer' | 'vendor' }
   | { type: 'monitoring-report-document-edit'; documentId: string }
   | { type: 'monitoring-report-document-detail'; documentId: string }
-  // Monitoring — Billing Tracker
+  // Monitoring — Billing Tracker (Document Tracker)
   | { type: 'monitoring-billing-create'; projectId: string }
   | { type: 'monitoring-billing-edit'; billingId: string }
+  | { type: 'monitoring-billing-detail'; billingId: string }
   // Monitoring — SLA
   | { type: 'monitoring-sla-project-create' }
   | { type: 'monitoring-sla-project-edit'; projectId: string }
@@ -49,9 +50,9 @@ export type ModalType =
   // Monitoring — Cost
   | { type: 'monitoring-cost-create' }
   | { type: 'monitoring-cost-edit'; costId: string }
-  | { type: 'monitoring-cost-detail'; costId: string }
   | { type: 'monitoring-cost-realization-create'; costId: string }
   | { type: 'monitoring-cost-realization-edit'; realizationId: string; costId: string }
+  | { type: 'monitoring-cost-planning'; costId: string }
   // Monitoring — BAP
   | { type: 'monitoring-bap-create' }
   | { type: 'monitoring-bap-edit'; bapId: string }
@@ -88,6 +89,9 @@ interface UIState {
 
   reportDetailProjectId: string | null
   setReportDetailProjectId: (id: string | null) => void
+
+  costDetailId: string | null
+  setCostDetailId: (id: string | null) => void
 
   selectedReportMonth: string  // format YYYY-MM
   setSelectedReportMonth: (month: string) => void
@@ -160,6 +164,9 @@ export const useUIStore = create<UIState>((set) => ({
 
   reportDetailProjectId: null,
   setReportDetailProjectId: (id) => set({ reportDetailProjectId: id }),
+
+  costDetailId: null,
+  setCostDetailId: (id) => set({ costDetailId: id }),
 
   selectedReportMonth: new Date().toISOString().slice(0, 7),
   setSelectedReportMonth: (month) => set({ selectedReportMonth: month }),

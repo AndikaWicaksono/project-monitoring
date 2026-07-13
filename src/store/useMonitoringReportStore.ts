@@ -3,7 +3,8 @@ import { persist } from 'zustand/middleware'
 import type {
   ReportProject, ReportDocument, ReportDocumentActivity,
   ReportDocumentStatus, ReportDocumentRevision, ReportDocumentAttachment,
-  BillingDocument, BillingDocumentStatus,
+  BillingDocument, BillingDocumentStatus, BillingDocPhase,
+  BillingDocumentActivity, BillingRevisionHistoryEntry, BillingLinkedAttachment,
   DocPhase, EngineerSubStatus, CustomerSubStatus, DocconSubStatus,
   RevisionHistoryEntry,
 } from '../types/monitoring'
@@ -67,6 +68,10 @@ function phaseDefaults(
       return { ...base, currentPhase: 'doccon', engineerSubStatus: 'submitted', customerSubStatus: 'approved', docconSubStatus: 'delivered', ...overrides }
     case 'COMPILING':
       return { ...base, currentPhase: 'doccon', engineerSubStatus: 'submitted', ...overrides }
+    case 'QC_REVIEW':
+      return { ...base, currentPhase: 'doccon', engineerSubStatus: 'submitted', ...overrides }
+    case 'PENDING_KADEP_PARAF':
+      return { ...base, currentPhase: 'kadep', engineerSubStatus: 'submitted', ...overrides }
     case 'PENDING_KADIV':
       return { ...base, currentPhase: 'kadiv', engineerSubStatus: 'submitted', ...overrides }
     case 'KADIV_APPROVED':
@@ -295,8 +300,8 @@ const RD_S3: ReportDocument = {
 const RD_S4: ReportDocument = {
   id: 'rds4', projectId: 'rp005', docType: 'customer', period: '2026-06',
   judul: 'Laporan SOR I Juni 2026',
-  deskripsi: 'READY TO SALES: Di tangan Doccon, siap dikirim ke Sales.',
-  tanggalSubmit: '2026-06-04', tanggalFeedback: '2026-06-10', revision: 'R0', status: 'APPROVED',
+  deskripsi: 'MENUNGGU PARAF KADEP: Sudah lolos QC Review Doccon, menunggu paraf Kadep sebelum diteruskan ke Kadiv.',
+  tanggalSubmit: '2026-06-04', tanggalFeedback: '2026-06-10', revision: 'R0', status: 'PENDING_KADEP_PARAF',
   attachments: [], activities: [
     act('rds4a', 'CREATE', 'Engineer D', '', '2026-06-01T08:00:00.000Z'),
     act('rds4b', 'SUBMIT', 'Engineer D', '', '2026-06-04T09:00:00.000Z'),
@@ -305,12 +310,11 @@ const RD_S4: ReportDocument = {
   ],
   createdAt: '2026-06-01T08:00:00.000Z', updatedAt: '2026-06-10T11:00:00.000Z',
   createdByUserId: 'system', createdByName: 'Engineer D',
-  ...phaseDefaults('APPROVED', {
+  ...phaseDefaults('PENDING_KADEP_PARAF', {
     engineerPIC: 'Lisa Andriani', customerPIC: 'Manager PGN', docconPIC: 'Andika Wicaksono',
     engineerStartedAt: '2026-06-01T08:00:00.000Z', engineerSubmittedAt: '2026-06-04T09:00:00.000Z',
     customerReceivedAt: '2026-06-06T10:00:00.000Z', customerApprovedAt: '2026-06-10T11:00:00.000Z',
     docconReceivedAt: '2026-06-10T13:00:00.000Z',
-    currentPhase: 'doccon', docconSubStatus: 'ready_to_sales',
     deadlineToSales: '2026-06-30',
   }),
 }
@@ -377,6 +381,7 @@ const RD_S7: ReportDocument = {
   ],
   createdAt: '2026-06-10T08:00:00.000Z', updatedAt: '2026-06-10T08:00:00.000Z',
   createdByUserId: 'system', createdByName: 'Engineer E',
+  startPhase: 'doccon',
   currentPhase: 'doccon' as DocPhase,
   engineerSubStatus: 'draft' as EngineerSubStatus,
   customerSubStatus: 'under_review' as CustomerSubStatus,
@@ -901,12 +906,52 @@ const SEED_DOCS_PS026: ReportDocument[] = [
   ]),
 ]
 
+// Migrasi status lama (flat, manual) ke status/phase baru yang berbasis workflow Doccon -> Kadep -> Kadiv.
+const LEGACY_BILLING_STATUS_MAP: Record<string, { status: BillingDocumentStatus; phase: BillingDocPhase }> = {
+  BELUM_DIBUAT: { status: 'DRAFT', phase: 'doccon' },
+  DRAFT: { status: 'DRAFT', phase: 'doccon' },
+  SUBMITTED: { status: 'PENDING_KADEP_PARAF', phase: 'kadep' },
+  APPROVED: { status: 'COMPLETED', phase: 'completed' },
+  REJECTED: { status: 'REVISION_REQUIRED', phase: 'doccon' },
+  COMPLETED: { status: 'COMPLETED', phase: 'completed' },
+  // Passthrough — sudah pakai status baru
+  PENDING_KADEP_PARAF: { status: 'PENDING_KADEP_PARAF', phase: 'kadep' },
+  REVISION_REQUIRED: { status: 'REVISION_REQUIRED', phase: 'doccon' },
+  PENDING_KADIV: { status: 'PENDING_KADIV', phase: 'kadiv' },
+}
+
+// Normalisasi dokumen tracker (seed maupun data lama dari localStorage) ke shape workflow baru.
+function normalizeBillingDoc(b: Record<string, unknown>): BillingDocument {
+  const mapped = LEGACY_BILLING_STATUS_MAP[b.status as string] ?? { status: 'DRAFT' as BillingDocumentStatus, phase: 'doccon' as BillingDocPhase }
+  return {
+    id: b.id as string,
+    projectId: b.projectId as string,
+    docType: b.docType as string,
+    pic: b.pic as string,
+    targetDate: (b.targetDate as string | null) ?? null,
+    actualDate: (b.actualDate as string | null) ?? null,
+    status: (b.currentPhase ? (b.status as BillingDocumentStatus) : mapped.status),
+    currentPhase: (b.currentPhase as BillingDocPhase) ?? mapped.phase,
+    keterangan: (b.keterangan as string) ?? '',
+    attachments: (b.attachments as ReportDocumentAttachment[]) ?? [],
+    linkedAttachments: (b.linkedAttachments as BillingLinkedAttachment[]) ?? [],
+    activities: (b.activities as BillingDocumentActivity[]) ?? [
+      { id: uid('bda'), action: 'CREATE', byUserId: (b.createdByUserId as string) ?? 'system', byName: (b.createdByName as string) ?? 'System', comment: '', timestamp: b.createdAt as string },
+    ],
+    revisionHistory: (b.revisionHistory as BillingRevisionHistoryEntry[]) ?? [],
+    createdAt: b.createdAt as string,
+    updatedAt: (b.updatedAt as string) ?? (b.createdAt as string),
+    createdByUserId: b.createdByUserId as string,
+    createdByName: b.createdByName as string,
+  }
+}
+
 function mkBilling(
   id: string, projectId: string, docType: BillingDocument['docType'],
   pic: string, targetDate: string | null, actualDate: string | null,
-  status: BillingDocumentStatus, keterangan: string, ts: string,
+  legacyStatus: string, keterangan: string, ts: string,
 ): BillingDocument {
-  return { id, projectId, docType, pic, targetDate, actualDate, status, keterangan, attachments: [], createdAt: ts, updatedAt: ts, createdByUserId: 'system', createdByName: 'System' }
+  return normalizeBillingDoc({ id, projectId, docType, pic, targetDate, actualDate, status: legacyStatus, keterangan, createdAt: ts, updatedAt: ts, createdByUserId: 'system', createdByName: 'System' })
 }
 
 const SEED_BILLING: BillingDocument[] = [
@@ -977,8 +1022,8 @@ interface MonitoringReportState {
   removeAttachment: (docId: string, attId: string) => void
 
   // Billing document CRUD
-  addBillingDocument: (data: Omit<BillingDocument, 'id' | 'createdAt' | 'updatedAt'>) => BillingDocument
-  updateBillingDocument: (id: string, patch: Partial<Omit<BillingDocument, 'id' | 'createdAt'>>) => void
+  addBillingDocument: (data: Omit<BillingDocument, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'currentPhase' | 'attachments' | 'linkedAttachments' | 'activities' | 'revisionHistory'>) => BillingDocument
+  updateBillingDocument: (id: string, patch: Partial<Pick<BillingDocument, 'docType' | 'pic' | 'targetDate' | 'actualDate' | 'keterangan'>>) => void
   deleteBillingDocument: (id: string) => void
   getBillingDocumentById: (id: string) => BillingDocument | undefined
   getProjectBillingDocuments: (projectId: string) => BillingDocument[]
@@ -987,20 +1032,33 @@ interface MonitoringReportState {
   addBillingAttachment: (billingId: string, att: Omit<ReportDocumentAttachment, 'id' | 'uploadedAt'> & { uploadedByName: string }) => void
   removeBillingAttachment: (billingId: string, attId: string) => void
 
+  // Billing document — checklist lampiran dari Report Customer (referensi live)
+  billingLinkAttachment: (billingId: string, reportDocumentId: string, attachmentId: string, byName: string) => void
+  billingUnlinkAttachment: (billingId: string, reportDocumentId: string, attachmentId: string) => void
+
+  // Billing document workflow (Doccon -> Kadep paraf/revisi -> Kadiv approve)
+  billingDocconSubmitToKadep: (id: string, byUserId: string, byName: string) => void
+  billingKadepParaf: (id: string, byUserId: string, byName: string) => void
+  billingKadepReject: (id: string, byUserId: string, byName: string, comment: string) => void
+  billingDocconResubmit: (id: string, byUserId: string, byName: string) => void
+  billingKadivApprove: (id: string, byUserId: string, byName: string, comment?: string) => void
+  billingKadivReject: (id: string, byUserId: string, byName: string, comment: string) => void
+
   // Doccon assignment per document (Kadep only)
   assignDoccon: (docId: string, userId: string, userName: string) => void
 
   // Phase management (E2E pipeline)
-  advanceDocconPhase: (id: string, subStatus: DocconSubStatus) => void
   recordSalesFeedback: (id: string, flagIssue: boolean, note: string) => void
-  docconResubmitToSales: (id: string) => void
 
   // New workflow functions (redesign)
   docconCompile: (id: string, byUserId: string, byName: string) => void
-  submitToKadiv: (id: string, byUserId: string, byName: string) => void
+  docconStartQCReview: (id: string, byUserId: string, byName: string) => void
+  docconSubmitToKadep: (id: string, byUserId: string, byName: string) => void
+  kadepParaf: (id: string, byUserId: string, byName: string) => void
+  kadepReject: (id: string, byUserId: string, byName: string, comment: string) => void
   kadivApprove: (id: string, byUserId: string, byName: string, comment?: string) => void
   kadivReject: (id: string, byUserId: string, byName: string, comment: string) => void
-  docconDirectResubmitToKadiv: (id: string, byUserId: string, byName: string) => void
+  docconResubmitAfterRevision: (id: string, byUserId: string, byName: string) => void
   docconEscalateToEngineer: (id: string, byUserId: string, byName: string, comment: string) => void
   recordCustomerConfirmed: (id: string, byUserId: string, byName: string) => void
   recordVendorConfirmed: (id: string, byUserId: string, byName: string, comment?: string) => void
@@ -1009,6 +1067,10 @@ interface MonitoringReportState {
 
 function makeActivity(action: ReportDocumentActivity['action'], byUserId: string, byName: string, comment: string): ReportDocumentActivity {
   return { id: uid('rda'), action, byUserId, byName, comment, timestamp: nowIso() }
+}
+
+function makeBillingActivity(action: BillingDocumentActivity['action'], byUserId: string, byName: string, comment: string): BillingDocumentActivity {
+  return { id: uid('bda'), action, byUserId, byName, comment, timestamp: nowIso() }
 }
 
 const REVISION_ORDER = ['R0', 'R1', 'R2', 'R3', 'R4'] as const
@@ -1024,6 +1086,7 @@ const LEGACY_STATUS_MAP: Record<string, ReportDocumentStatus> = {
   REVISION_REQUIRED: 'REVISION_REQUIRED', APPROVED: 'APPROVED',
   // New statuses — passthrough
   COMPILING: 'COMPILING', PENDING_KADIV: 'PENDING_KADIV', KADIV_APPROVED: 'KADIV_APPROVED',
+  QC_REVIEW: 'QC_REVIEW', PENDING_KADEP_PARAF: 'PENDING_KADEP_PARAF',
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -1215,12 +1278,23 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
         }))
       },
 
-      // ── Billing Documents ──
+      // ── Billing Documents (Document Tracker) ──
       addBillingDocument: (data) => {
         const now = nowIso()
-        const doc: BillingDocument = { ...data, id: uid('bd'), createdAt: now, updatedAt: now }
+        const doc: BillingDocument = {
+          ...data,
+          id: uid('bd'),
+          status: 'DRAFT',
+          currentPhase: 'doccon',
+          attachments: [],
+          linkedAttachments: [],
+          activities: [makeBillingActivity('CREATE', data.createdByUserId, data.createdByName, '')],
+          revisionHistory: [],
+          createdAt: now,
+          updatedAt: now,
+        }
         set((s) => ({ billingDocuments: [...s.billingDocuments, doc] }))
-        useLogStore.getState().addLog({ type: 'monitoring_report_created', message: `Billing document "${data.docType}" ditambahkan`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+        useLogStore.getState().addLog({ type: 'monitoring_report_created', message: `Dokumen tracker "${data.docType}" ditambahkan`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
         return doc
       },
       updateBillingDocument: (id, patch) => {
@@ -1244,21 +1318,6 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
       },
 
       // ── Phase management ──
-      advanceDocconPhase: (id, subStatus) => {
-        const now = nowIso()
-        set((s) => ({
-          documents: s.documents.map((d) => {
-            if (d.id !== id) return d
-            return {
-              ...d,
-              currentPhase: 'doccon' as DocPhase,
-              docconSubStatus: subStatus,
-              docconDeliveredAt: subStatus === 'delivered' ? (d.docconDeliveredAt ?? now) : d.docconDeliveredAt,
-              updatedAt: now,
-            }
-          }),
-        }))
-      },
       recordSalesFeedback: (id, flagIssue, note) => {
         const now = nowIso()
         set((s) => ({
@@ -1267,20 +1326,6 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
             salesFlagIssue: flagIssue,
             salesIssueNote: note,
             salesAcceptedAt: d.salesAcceptedAt ?? now,
-            updatedAt: now,
-          }),
-        }))
-      },
-
-      docconResubmitToSales: (id) => {
-        const now = nowIso()
-        set((s) => ({
-          documents: s.documents.map((d) => d.id !== id ? d : {
-            ...d,
-            salesFlagIssue: false,
-            salesIssueNote: '',
-            salesAcceptedAt: null,
-            docconDeliveredAt: now,
             updatedAt: now,
           }),
         }))
@@ -1303,19 +1348,80 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
         useLogStore.getState().addLog({ type: 'monitoring_report_submitted', message: `Doccon mulai kompilasi dokumen`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
       },
 
-      submitToKadiv: (id, byUserId, byName) => {
-        const activity = makeActivity('SUBMIT_KADIV', byUserId, byName, '')
+      docconStartQCReview: (id, byUserId, byName) => {
+        const activity = makeActivity('DOCCON_QC_REVIEW', byUserId, byName, '')
+        const now = nowIso()
+        set((s) => ({
+          documents: s.documents.map((d) => d.id !== id ? d : {
+            ...d,
+            status: 'QC_REVIEW' as ReportDocumentStatus,
+            currentPhase: 'doccon' as DocPhase,
+            activities: [...d.activities, activity],
+            updatedAt: now,
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_submitted', message: `Doccon mulai QC review dokumen`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+
+      docconSubmitToKadep: (id, byUserId, byName) => {
+        const activity = makeActivity('DOCCON_SUBMIT_KADEP', byUserId, byName, '')
+        const now = nowIso()
+        set((s) => ({
+          documents: s.documents.map((d) => d.id !== id ? d : {
+            ...d,
+            status: 'PENDING_KADEP_PARAF' as ReportDocumentStatus,
+            currentPhase: 'kadep' as DocPhase,
+            activities: [...d.activities, activity],
+            updatedAt: now,
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_submitted', message: `Dokumen dikirim ke Kadep untuk paraf`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+
+      kadepParaf: (id, byUserId, byName) => {
+        const activity = makeActivity('KADEP_PARAF', byUserId, byName, '')
         const now = nowIso()
         set((s) => ({
           documents: s.documents.map((d) => d.id !== id ? d : {
             ...d,
             status: 'PENDING_KADIV' as ReportDocumentStatus,
             currentPhase: 'kadiv' as DocPhase,
+            kadepParafAt: now,
+            kadepParafByName: byName,
             activities: [...d.activities, activity],
             updatedAt: now,
           }),
         }))
-        useLogStore.getState().addLog({ type: 'monitoring_report_submitted', message: `Dokumen dikirim ke Kadiv untuk approval`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+        useLogStore.getState().addLog({ type: 'monitoring_report_approved', message: `Kadep memberi paraf, dokumen dikirim ke Kadiv`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+
+      kadepReject: (id, byUserId, byName, comment) => {
+        const activity = makeActivity('KADEP_REJECT', byUserId, byName, comment)
+        const now = nowIso()
+        set((s) => ({
+          documents: s.documents.map((d) => {
+            if (d.id !== id) return d
+            const newRevision = bumpRevision(d.revision)
+            const revEntry: RevisionHistoryEntry = {
+              revision: newRevision,
+              status: 'REVISION_REQUIRED',
+              changedAt: now,
+              changedByName: byName,
+              note: comment,
+              type: 'revision',
+            }
+            return {
+              ...d,
+              status: 'REVISION_REQUIRED' as ReportDocumentStatus,
+              revision: newRevision,
+              currentPhase: 'doccon' as DocPhase,
+              revisionHistory: [...(d.revisionHistory ?? []), revEntry],
+              activities: [...d.activities, activity],
+              updatedAt: now,
+            }
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_revision', message: `Kadep meminta revisi, dokumen dikembalikan ke Doccon`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
       },
 
       kadivApprove: (id, byUserId, byName, comment = '') => {
@@ -1368,19 +1474,19 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
         useLogStore.getState().addLog({ type: 'monitoring_report_revision', message: `Kadiv meminta revisi dokumen`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
       },
 
-      docconDirectResubmitToKadiv: (id, byUserId, byName) => {
-        const activity = makeActivity('SUBMIT_KADIV', byUserId, byName, 'Submit ulang setelah revisi Kadiv')
+      docconResubmitAfterRevision: (id, byUserId, byName) => {
+        const activity = makeActivity('DOCCON_QC_REVIEW', byUserId, byName, 'QC review ulang setelah revisi Kadiv')
         const now = nowIso()
         set((s) => ({
           documents: s.documents.map((d) => d.id !== id ? d : {
             ...d,
-            status: 'PENDING_KADIV' as ReportDocumentStatus,
-            currentPhase: 'kadiv' as DocPhase,
+            status: 'QC_REVIEW' as ReportDocumentStatus,
+            currentPhase: 'doccon' as DocPhase,
             activities: [...d.activities, activity],
             updatedAt: now,
           }),
         }))
-        useLogStore.getState().addLog({ type: 'monitoring_report_submitted', message: `Doccon submit ulang ke Kadiv setelah revisi`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+        useLogStore.getState().addLog({ type: 'monitoring_report_submitted', message: `Doccon perbaiki dokumen dan mulai QC review ulang`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
       },
 
       docconEscalateToEngineer: (id, byUserId, byName, comment) => {
@@ -1469,6 +1575,125 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
           billingDocuments: s.billingDocuments.map((b) => b.id === billingId ? { ...b, attachments: b.attachments.filter((a) => a.id !== attId), updatedAt: nowIso() } : b),
         }))
       },
+
+      // ── Billing — checklist lampiran dari Report Customer (referensi live) ──
+      billingLinkAttachment: (billingId, reportDocumentId, attachmentId, byName) => {
+        const link: BillingLinkedAttachment = { reportDocumentId, attachmentId, linkedAt: nowIso(), linkedByName: byName }
+        set((s) => ({
+          billingDocuments: s.billingDocuments.map((b) => {
+            if (b.id !== billingId) return b
+            const already = b.linkedAttachments.some((l) => l.reportDocumentId === reportDocumentId && l.attachmentId === attachmentId)
+            if (already) return b
+            return { ...b, linkedAttachments: [...b.linkedAttachments, link], updatedAt: nowIso() }
+          }),
+        }))
+      },
+      billingUnlinkAttachment: (billingId, reportDocumentId, attachmentId) => {
+        set((s) => ({
+          billingDocuments: s.billingDocuments.map((b) => b.id !== billingId ? b : {
+            ...b,
+            linkedAttachments: b.linkedAttachments.filter((l) => !(l.reportDocumentId === reportDocumentId && l.attachmentId === attachmentId)),
+            updatedAt: nowIso(),
+          }),
+        }))
+      },
+
+      // ── Billing — workflow Doccon -> Kadep paraf/revisi -> Kadiv approve ──
+      billingDocconSubmitToKadep: (id, byUserId, byName) => {
+        const activity = makeBillingActivity('DOCCON_SUBMIT_KADEP', byUserId, byName, '')
+        const now = nowIso()
+        set((s) => ({
+          billingDocuments: s.billingDocuments.map((b) => b.id !== id ? b : {
+            ...b,
+            status: 'PENDING_KADEP_PARAF' as BillingDocumentStatus,
+            currentPhase: 'kadep' as BillingDocPhase,
+            activities: [...b.activities, activity],
+            updatedAt: now,
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_submitted', message: `Dokumen tracker dikirim ke Kadep untuk paraf`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+      billingKadepParaf: (id, byUserId, byName) => {
+        const activity = makeBillingActivity('KADEP_PARAF', byUserId, byName, '')
+        const now = nowIso()
+        set((s) => ({
+          billingDocuments: s.billingDocuments.map((b) => b.id !== id ? b : {
+            ...b,
+            status: 'PENDING_KADIV' as BillingDocumentStatus,
+            currentPhase: 'kadiv' as BillingDocPhase,
+            activities: [...b.activities, activity],
+            updatedAt: now,
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_approved', message: `Kadep memberi paraf dokumen tracker, dikirim ke Kadiv`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+      billingKadepReject: (id, byUserId, byName, comment) => {
+        const activity = makeBillingActivity('KADEP_REJECT', byUserId, byName, comment)
+        const now = nowIso()
+        set((s) => ({
+          billingDocuments: s.billingDocuments.map((b) => {
+            if (b.id !== id) return b
+            const revEntry: BillingRevisionHistoryEntry = { status: 'REVISION_REQUIRED', changedAt: now, changedByName: byName, note: comment }
+            return {
+              ...b,
+              status: 'REVISION_REQUIRED' as BillingDocumentStatus,
+              currentPhase: 'doccon' as BillingDocPhase,
+              revisionHistory: [...b.revisionHistory, revEntry],
+              activities: [...b.activities, activity],
+              updatedAt: now,
+            }
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_revision', message: `Kadep meminta revisi dokumen tracker, dikembalikan ke Doccon`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+      billingDocconResubmit: (id, byUserId, byName) => {
+        const activity = makeBillingActivity('DOCCON_RESUBMIT', byUserId, byName, '')
+        const now = nowIso()
+        set((s) => ({
+          billingDocuments: s.billingDocuments.map((b) => b.id !== id ? b : {
+            ...b,
+            status: 'PENDING_KADEP_PARAF' as BillingDocumentStatus,
+            currentPhase: 'kadep' as BillingDocPhase,
+            activities: [...b.activities, activity],
+            updatedAt: now,
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_submitted', message: `Doccon kirim ulang dokumen tracker ke Kadep`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+      billingKadivApprove: (id, byUserId, byName, comment = '') => {
+        const activity = makeBillingActivity('KADIV_APPROVE', byUserId, byName, comment)
+        const now = nowIso()
+        set((s) => ({
+          billingDocuments: s.billingDocuments.map((b) => b.id !== id ? b : {
+            ...b,
+            status: 'COMPLETED' as BillingDocumentStatus,
+            currentPhase: 'completed' as BillingDocPhase,
+            actualDate: b.actualDate ?? now.slice(0, 10),
+            activities: [...b.activities, activity],
+            updatedAt: now,
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_approved', message: `Kadiv menyetujui dokumen tracker`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+      billingKadivReject: (id, byUserId, byName, comment) => {
+        const activity = makeBillingActivity('KADIV_REJECT', byUserId, byName, comment)
+        const now = nowIso()
+        set((s) => ({
+          billingDocuments: s.billingDocuments.map((b) => {
+            if (b.id !== id) return b
+            const revEntry: BillingRevisionHistoryEntry = { status: 'REVISION_REQUIRED', changedAt: now, changedByName: byName, note: comment }
+            return {
+              ...b,
+              status: 'REVISION_REQUIRED' as BillingDocumentStatus,
+              currentPhase: 'doccon' as BillingDocPhase,
+              revisionHistory: [...b.revisionHistory, revEntry],
+              activities: [...b.activities, activity],
+              updatedAt: now,
+            }
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_revision', message: `Kadiv meminta revisi dokumen tracker, dikembalikan ke Doccon`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
     }),
     {
       name: 'flowdesk:monitoring-report',
@@ -1485,9 +1710,9 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
           period: ((d as unknown) as Record<string, unknown>).period as string ?? '2025-01',
         }))
 
-        // Inject seed billing docs not yet in localStorage (by ID) — safe, billing rows aren't deleted by user
-        const persistedBilling = p.billingDocuments ?? []
-        const persistedBillingIds = new Set(persistedBilling.map((b) => b.id))
+        // Migrate old billing docs to phase-driven workflow shape, then inject seed docs not yet in localStorage
+        const migratedBilling = (p.billingDocuments ?? []).map((b) => normalizeBillingDoc(b as unknown as Record<string, unknown>))
+        const persistedBillingIds = new Set(migratedBilling.map((b) => b.id))
         const missingBilling = current.billingDocuments.filter((b) => !persistedBillingIds.has(b.id))
 
         // Migrate old projects: add missing kontrakMulai/kontrakAkhir
@@ -1503,7 +1728,7 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
           ...p,
           projects: migratedProjects,
           documents: migratedDocs,
-          billingDocuments: [...persistedBilling, ...missingBilling],
+          billingDocuments: [...migratedBilling, ...missingBilling],
         }
       },
     },
