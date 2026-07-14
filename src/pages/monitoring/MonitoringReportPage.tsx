@@ -12,6 +12,7 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { Button } from '../../components/ui/Button'
+import { Tooltip } from '../../components/ui/Tooltip'
 import { classNames, downloadCsv, formatDateShort } from '../../utils/helpers'
 import { reportMonthLabel, prevReportMonth, nextReportMonth, type ReportDocument } from '../../types/monitoring'
 
@@ -109,6 +110,18 @@ function PipelineBar({ docs }: { docs: ReportDocument[] }) {
 
 // ── Early warning badge ──────────────────────────────────────────────────────
 
+// Daftar dokumen yang deadline-nya sudah lewat, dipakai sebagai isi tooltip badge OVERDUE.
+function overdueReason(docs: ReportDocument[]): string {
+  const today = new Date()
+  return docs
+    .filter((d) => d.deadlineToSales)
+    .map((d) => ({ judul: d.judul, diff: Math.ceil((new Date(d.deadlineToSales!).getTime() - today.getTime()) / 86400000) }))
+    .filter((x) => x.diff < 0)
+    .sort((a, b) => a.diff - b.diff)
+    .map((x) => `${x.judul} — ${Math.abs(x.diff)} hari lewat deadline`)
+    .join('\n')
+}
+
 function WarningBadge({ docs }: { docs: ReportDocument[] }) {
   const today = new Date()
   let hasOverdue = false, hasH1 = false, hasH3 = false, hasFlagged = false
@@ -120,7 +133,13 @@ function WarningBadge({ docs }: { docs: ReportDocument[] }) {
     else if (diffDays <= 1) hasH1 = true
     else if (diffDays <= 3) hasH3 = true
   }
-  if (hasOverdue)  return <span className="chip bg-red-100 text-red-700 text-[9px] font-semibold">OVERDUE</span>
+  if (hasOverdue) {
+    return (
+      <Tooltip content={overdueReason(docs)} side="bottom">
+        <span className="chip bg-red-100 text-red-700 text-[9px] font-semibold cursor-help">OVERDUE</span>
+      </Tooltip>
+    )
+  }
   if (hasFlagged)  return <span className="chip bg-orange-100 text-orange-700 text-[9px] font-semibold">Flagged</span>
   if (hasH1)       return <span className="chip bg-red-50 text-red-600 text-[9px] font-semibold">H-1</span>
   if (hasH3)       return <span className="chip bg-amber-100 text-amber-700 text-[9px] font-semibold">H-3</span>
@@ -129,7 +148,7 @@ function WarningBadge({ docs }: { docs: ReportDocument[] }) {
 
 // ── Project status badge ─────────────────────────────────────────────────────
 
-function getProjectStatus(docs: ReportDocument[]): { label: string; cls: string } {
+function getProjectStatus(docs: ReportDocument[]): { label: string; cls: string; reason?: string } {
   const today = new Date()
   let hasOverdue = false, hasWarning = false, hasFlagged = false
   let done = 0, inProgress = 0
@@ -147,7 +166,7 @@ function getProjectStatus(docs: ReportDocument[]): { label: string; cls: string 
     else if (d.status !== 'DRAFT') inProgress++
   }
 
-  if (hasOverdue)               return { label: 'OVERDUE',     cls: 'bg-red-100 text-red-700' }
+  if (hasOverdue)               return { label: 'OVERDUE',     cls: 'bg-red-100 text-red-700', reason: overdueReason(docs) }
   if (hasFlagged)               return { label: 'FLAGGED',     cls: 'bg-orange-100 text-orange-700' }
   if (hasWarning)               return { label: 'WARNING',     cls: 'bg-amber-100 text-amber-700' }
   if (docs.length === 0)        return { label: 'NOT STARTED', cls: 'bg-slate-100 text-slate-500' }
@@ -554,7 +573,7 @@ export function MonitoringReportPage() {
                   {paginatedProjects.map((p) => {
                     const custDocs    = docCount(p.id, 'customer')
                     const vendDocs    = docCount(p.id, 'vendor')
-                    const billingDocs = billingDocuments.filter((b) => b.projectId === p.id)
+                    const billingDocs = billingDocuments.filter((b) => b.projectId === p.id && (b.period == null || b.period === selectedMonth))
                     const billingDone = billingDocs.filter((b) => b.status === 'COMPLETED').length
                     const billingPct  = billingDocs.length > 0 ? Math.round((billingDone / billingDocs.length) * 100) : 0
                     const projDocs    = getProjectDocs(p.id)
@@ -700,9 +719,17 @@ export function MonitoringReportPage() {
 
                         {/* ⑦ Status */}
                         <td className="px-4 py-3">
-                          <span className={classNames('chip text-[10px] font-semibold', status.cls)}>
-                            {status.label}
-                          </span>
+                          {status.reason ? (
+                            <Tooltip content={status.reason} side="bottom">
+                              <span className={classNames('chip text-[10px] font-semibold cursor-help', status.cls)}>
+                                {status.label}
+                              </span>
+                            </Tooltip>
+                          ) : (
+                            <span className={classNames('chip text-[10px] font-semibold', status.cls)}>
+                              {status.label}
+                            </span>
+                          )}
                         </td>
 
                         {/* ⑧ Aksi */}
@@ -831,7 +858,7 @@ export function MonitoringReportPage() {
                   const custDocs    = docCount(p.id, 'customer')
                   const vendDocs    = docCount(p.id, 'vendor')
                   const totalDocs   = custDocs + vendDocs
-                  const billingDocs = billingDocuments.filter((b) => b.projectId === p.id)
+                  const billingDocs = billingDocuments.filter((b) => b.projectId === p.id && (b.period == null || b.period === selectedMonth))
                   const billingDone = billingDocs.filter((b) => b.status === 'COMPLETED').length
                   const billingPct  = billingDocs.length > 0 ? Math.round((billingDone / billingDocs.length) * 100) : 0
                   const projDocs    = getProjectDocs(p.id)

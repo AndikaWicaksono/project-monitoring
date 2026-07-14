@@ -1,5 +1,7 @@
 import { ArrowLeft } from 'lucide-react'
 import { useMonitoringCostStore } from '../../store/useMonitoringCostStore'
+import { useMonitoringAssignmentStore } from '../../store/useMonitoringAssignmentStore'
+import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { useUIStore } from '../../store/useUIStore'
 import { Button } from '../../components/ui/Button'
 import { CostLeadingLaggingDetailChart } from '../../components/monitoring/CostLeadingLaggingDetailChart'
@@ -29,13 +31,17 @@ export function MonitoringCostDetailPage() {
   const setView = useUIStore((s) => s.setView)
   const costDetailId = useUIStore((s) => s.costDetailId)
 
+  const { isAdminOSM, currentUserId } = useMonitoringRole()
   const cost = costDetailId ? store.getCostById(costDetailId) : undefined
   const realizations = costDetailId ? store.getRealizationsByProjectId(costDetailId) : []
+  const assignments = useMonitoringAssignmentStore((s) => s.assignments)
+  const adminOsmAssignment = cost ? assignments.find((a) => a.kodeProject === cost.projectCode) : undefined
+  const isDenied = !!cost && isAdminOSM && !!currentUserId && adminOsmAssignment?.assignedAdminOsmId !== currentUserId
 
-  if (!cost) {
+  if (!cost || isDenied) {
     return (
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-ink-tertiary p-5">
-        <p className="text-sm">Project tidak ditemukan.</p>
+        <p className="text-sm">{isDenied ? 'Project ini belum diassign ke Anda.' : 'Project tidak ditemukan.'}</p>
         <Button variant="ghost" size="sm" leftIcon={<ArrowLeft size={14} />} onClick={() => setView('monitoring-cost')}>Kembali</Button>
       </div>
     )
@@ -81,6 +87,7 @@ export function MonitoringCostDetailPage() {
       <div className="surface rounded-xl p-5 grid grid-cols-2 gap-4">
         {[
           { label: 'Kode Project',     value: cost.projectCode },
+          { label: 'Admin OSM',        value: adminOsmAssignment?.assignedAdminOsmName ?? 'Belum diassign' },
           { label: 'Project ID',       value: cost.projectId || '—' },
           { label: 'Nama Project',     value: cost.projectName },
           { label: 'Client',           value: cost.projectClient },

@@ -17,10 +17,11 @@ interface Props {
 
 export function MonitoringCostRealizationModal({ open, onClose, mode, costId, realizationId }: Props) {
   const store = useMonitoringCostStore()
-  const { costSatker } = useMonitoringRole()
+  const { costSatker, canEditCostForProject } = useMonitoringRole()
 
   const cost = store.getCostById(costId)
   const existing = realizationId ? store.realizations.find((r) => r.id === realizationId) : undefined
+  const hasAccess = cost ? canEditCostForProject(cost.projectCode) : false
 
   const [itemBiaya, setItemBiaya] = useState('')
   const [satuanKerja, setSatuanKerja] = useState('')
@@ -55,6 +56,7 @@ export function MonitoringCostRealizationModal({ open, onClose, mode, costId, re
   }
 
   function handleSave() {
+    if (!hasAccess) return
     if (!validate()) return
     const payload = {
       kodeProject: cost?.projectCode ?? '',
@@ -83,11 +85,16 @@ export function MonitoringCostRealizationModal({ open, onClose, mode, costId, re
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>Batal</Button>
-          <Button onClick={handleSave}>{mode === 'create' ? 'Simpan' : 'Update'}</Button>
+          <Button onClick={handleSave} disabled={!hasAccess}>{mode === 'create' ? 'Simpan' : 'Update'}</Button>
         </>
       }
     >
       <div className="space-y-4">
+        {!hasAccess && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+            Anda tidak memiliki akses untuk mengubah realisasi biaya project ini. Project ini belum diassign ke Anda, atau diassign ke Admin OSM lain.
+          </div>
+        )}
         <div>
           <Input label="Item Biaya *" value={itemBiaya} onChange={(e) => setItemBiaya(e.target.value)} placeholder="Nama item biaya" />
           {errors.itemBiaya && <p className="text-[11px] text-danger mt-1">{errors.itemBiaya}</p>}

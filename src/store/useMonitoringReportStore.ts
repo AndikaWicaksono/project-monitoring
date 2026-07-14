@@ -8,9 +8,11 @@ import type {
   DocPhase, EngineerSubStatus, CustomerSubStatus, DocconSubStatus,
   RevisionHistoryEntry,
 } from '../types/monitoring'
-import { prevReportMonth } from '../types/monitoring'
+import { prevReportMonth, reportMonthLabel, currentReportMonth, endOfReportMonth } from '../types/monitoring'
+import { computeDuePeriods } from '../utils/deliverableGeneration'
 import { uid, nowIso } from '../utils/helpers'
 import { useLogStore } from './useLogStore'
+import { useAuthStore } from './useAuthStore'
 
 // ── Seed data ─────────────────────────────────────────────────────────────────
 
@@ -20,13 +22,13 @@ const T2 = '2025-03-05T10:00:00.000Z'
 const T_TODAY = '2026-06-26T08:00:00.000Z'
 
 const SEED_PROJECTS: ReportProject[] = [
-  { id: 'rp001', kodeProject: 'PGN-IT-001', client: 'PT Perusahaan Gas Negara', namaKontrak: 'Kontrak Jasa Pemeliharaan Jaringan IT 2025', department: 'IT Infrastructure', picDocon: 'Sari Dewi', picLaporan: 'Budi Santoso', salesCustomer: 'Andi Wijaya', emailTujuan: 'docon@pgn.co.id', catatan: '', kontrakMulai: '2025-01', kontrakAkhir: null, excludedMonths: [], createdAt: T0, updatedAt: T0, createdByUserId: 'system', createdByName: 'System' },
-  { id: 'rp002', kodeProject: 'PGN-SEC-002', client: 'PT Saka Energi Indonesia', namaKontrak: 'Kontrak Security System Management 2025', department: 'IT Security', picDocon: 'Rina Kartika', picLaporan: 'Ahmad Fauzi', salesCustomer: 'Dewi Rahayu', emailTujuan: 'sec@sakaindonesia.co.id', catatan: '', kontrakMulai: '2025-02', kontrakAkhir: null, excludedMonths: [], createdAt: T1, updatedAt: T1, createdByUserId: 'system', createdByName: 'System' },
-  { id: 'rp003', kodeProject: 'PGN-DC-003', client: 'PT Gagas Energi Indonesia', namaKontrak: 'Kontrak Data Center Operations Q1 2025', department: 'IT Infrastructure', picDocon: 'Hendra Putra', picLaporan: 'Lisa Andriani', salesCustomer: 'Rudi Setiawan', emailTujuan: 'dc@gagas.co.id', catatan: '', kontrakMulai: '2025-03', kontrakAkhir: null, excludedMonths: [], createdAt: T2, updatedAt: T2, createdByUserId: 'system', createdByName: 'System' },
-  { id: 'rp004', kodeProject: 'PS-024-00', client: 'PT PGN Tbk', namaKontrak: 'Pekerjaan Jasa Operasi dan Pemeliharaan Terintegrasi Gas Management System (PJOPTGMS)', department: 'ICS', picDocon: 'Anita', picLaporan: 'Nyaklia', salesCustomer: 'Bayu Pratama', emailTujuan: 'osm@pgn.co.id', catatan: 'Project PJOPTGMS — laporan bulanan 5 dokumen', kontrakMulai: '2025-12', kontrakAkhir: null, excludedMonths: [], createdAt: '2025-12-01T08:00:00.000Z', updatedAt: '2025-12-01T08:00:00.000Z', createdByUserId: 'system', createdByName: 'System' },
-  { id: 'rp005', kodeProject: 'PS-025-01', client: 'PT PGN Tbk', namaKontrak: 'Demonstrasi Alur Dokumen OSM — Pain Point Visibility 2026', department: 'OSM', picDocon: 'Andika Wicaksono', picLaporan: 'Andika Wicaksono', salesCustomer: 'Bayu Pratama', emailTujuan: 'osm@pgn.co.id', catatan: 'Project demo 7 skenario bottleneck dokumen OSM', kontrakMulai: '2026-06', kontrakAkhir: null, excludedMonths: [], createdAt: T_TODAY, updatedAt: T_TODAY, createdByUserId: 'system', createdByName: 'System' },
-  { id: 'rp-p025', kodeProject: 'PS-025-00', client: 'PT PGN Tbk', namaKontrak: 'Sistem Informasi Manajemen Aset (SIMA)', department: 'ICS', picDocon: 'Rini Astuti', picLaporan: 'Budi Santoso', salesCustomer: 'Bayu Pratama', emailTujuan: 'ics@pgn.co.id', catatan: 'Project SIMA — laporan bulanan', kontrakMulai: '2026-01', kontrakAkhir: null, excludedMonths: [], createdAt: '2026-01-01T08:00:00.000Z', updatedAt: '2026-01-01T08:00:00.000Z', createdByUserId: 'system', createdByName: 'System' },
-  { id: 'rp-p026', kodeProject: 'PS-026-00', client: 'PT PGN Tbk', namaKontrak: 'End User Support (EUS)', department: 'EUS', picDocon: 'Sari Wijaya', picLaporan: 'Dimas Pratama', salesCustomer: 'Bayu Pratama', emailTujuan: 'eus@pgn.co.id', catatan: 'Project EUS — laporan bulanan', kontrakMulai: '2026-01', kontrakAkhir: null, excludedMonths: [], createdAt: '2026-01-01T08:00:00.000Z', updatedAt: '2026-01-01T08:00:00.000Z', createdByUserId: 'system', createdByName: 'System' },
+  { id: 'rp001', kodeProject: 'PGN-IT-001', client: 'PT Perusahaan Gas Negara', namaKontrak: 'Kontrak Jasa Pemeliharaan Jaringan IT 2025', department: 'IT Infrastructure', picDocon: 'Sari Dewi', picLaporan: 'Budi Santoso', salesCustomer: 'Andi Wijaya', emailTujuan: 'docon@pgn.co.id', catatan: '', kontrakMulai: '2025-01', kontrakAkhir: null, excludedMonths: [], contractNumber: '010000.PK/HK.02/GLM/2025', categoryContract: 'Kontrak Tunggal', dateOfContract: '2025-08-15', startDate: '2026-01-01', endDate: '2026-12-31', isCancelled: false, createdAt: T0, updatedAt: T0, createdByUserId: 'system', createdByName: 'System' },
+  { id: 'rp002', kodeProject: 'PGN-SEC-002', client: 'PT Saka Energi Indonesia', namaKontrak: 'Kontrak Security System Management 2025', department: 'IT Security', picDocon: 'Rina Kartika', picLaporan: 'Ahmad Fauzi', salesCustomer: 'Dewi Rahayu', emailTujuan: 'sec@sakaindonesia.co.id', catatan: '', kontrakMulai: '2025-02', kontrakAkhir: null, excludedMonths: [], contractNumber: '', categoryContract: '', dateOfContract: null, startDate: '2025-02-01', endDate: null, isCancelled: false, createdAt: T1, updatedAt: T1, createdByUserId: 'system', createdByName: 'System' },
+  { id: 'rp003', kodeProject: 'PGN-DC-003', client: 'PT Gagas Energi Indonesia', namaKontrak: 'Kontrak Data Center Operations Q1 2025', department: 'IT Infrastructure', picDocon: 'Hendra Putra', picLaporan: 'Lisa Andriani', salesCustomer: 'Rudi Setiawan', emailTujuan: 'dc@gagas.co.id', catatan: '', kontrakMulai: '2025-03', kontrakAkhir: null, excludedMonths: [], contractNumber: '', categoryContract: '', dateOfContract: null, startDate: '2025-03-01', endDate: null, isCancelled: false, createdAt: T2, updatedAt: T2, createdByUserId: 'system', createdByName: 'System' },
+  { id: 'rp004', kodeProject: 'PS-024-00', client: 'PT PGN Tbk', namaKontrak: 'Pekerjaan Jasa Operasi dan Pemeliharaan Terintegrasi Gas Management System (PJOPTGMS)', department: 'ICS', picDocon: 'Anita', picLaporan: 'Nyaklia', salesCustomer: 'Bayu Pratama', emailTujuan: 'osm@pgn.co.id', catatan: 'Project PJOPTGMS — laporan bulanan 5 dokumen', kontrakMulai: '2025-12', kontrakAkhir: null, excludedMonths: [], contractNumber: '009700.PK/HK.02/GLM/2025', categoryContract: 'Kontrak Induk', dateOfContract: '2025-03-01', startDate: '2026-01-01', endDate: '2026-12-31', isCancelled: false, createdAt: '2025-12-01T08:00:00.000Z', updatedAt: '2025-12-01T08:00:00.000Z', createdByUserId: 'system', createdByName: 'System' },
+  { id: 'rp005', kodeProject: 'PS-025-01', client: 'PT PGN Tbk', namaKontrak: 'Demonstrasi Alur Dokumen OSM — Pain Point Visibility 2026', department: 'OSM', picDocon: 'Andika Wicaksono', picLaporan: 'Andika Wicaksono', salesCustomer: 'Bayu Pratama', emailTujuan: 'osm@pgn.co.id', catatan: 'Project demo 7 skenario bottleneck dokumen OSM', kontrakMulai: '2026-06', kontrakAkhir: null, excludedMonths: [], contractNumber: '', categoryContract: '', dateOfContract: null, startDate: '2026-06-01', endDate: null, isCancelled: false, createdAt: T_TODAY, updatedAt: T_TODAY, createdByUserId: 'system', createdByName: 'System' },
+  { id: 'rp-p025', kodeProject: 'PS-025-00', client: 'PT PGN Tbk', namaKontrak: 'Sistem Informasi Manajemen Aset (SIMA)', department: 'ICS', picDocon: 'Rini Astuti', picLaporan: 'Budi Santoso', salesCustomer: 'Bayu Pratama', emailTujuan: 'ics@pgn.co.id', catatan: 'Project SIMA — laporan bulanan', kontrakMulai: '2026-01', kontrakAkhir: null, excludedMonths: [], contractNumber: '009800.PK/HK.02/GLM/2025', categoryContract: 'Kontrak Tunggal', dateOfContract: '2025-04-15', startDate: '2026-01-01', endDate: '2026-12-31', isCancelled: false, createdAt: '2026-01-01T08:00:00.000Z', updatedAt: '2026-01-01T08:00:00.000Z', createdByUserId: 'system', createdByName: 'System' },
+  { id: 'rp-p026', kodeProject: 'PS-026-00', client: 'PT PGN Tbk', namaKontrak: 'End User Support (EUS)', department: 'EUS', picDocon: 'Sari Wijaya', picLaporan: 'Dimas Pratama', salesCustomer: 'Bayu Pratama', emailTujuan: 'eus@pgn.co.id', catatan: 'Project EUS — laporan bulanan', kontrakMulai: '2026-01', kontrakAkhir: null, excludedMonths: [], contractNumber: '009900.PK/HK.02/GLM/2025', categoryContract: 'Kontrak Tunggal', dateOfContract: '2025-06-01', startDate: '2026-01-01', endDate: '2026-12-31', isCancelled: false, createdAt: '2026-01-01T08:00:00.000Z', updatedAt: '2026-01-01T08:00:00.000Z', createdByUserId: 'system', createdByName: 'System' },
 ]
 
 function act(id: string, action: ReportDocumentActivity['action'], byName: string, comment: string, ts: string): ReportDocumentActivity {
@@ -943,6 +945,11 @@ function normalizeBillingDoc(b: Record<string, unknown>): BillingDocument {
     updatedAt: (b.updatedAt as string) ?? (b.createdAt as string),
     createdByUserId: b.createdByUserId as string,
     createdByName: b.createdByName as string,
+    period: (b.period as string | null | undefined) ?? null,
+    assignedDocconUserId: (b.assignedDocconUserId as string | null | undefined) ?? null,
+    assignedDocconName: (b.assignedDocconName as string | null | undefined) ?? null,
+    deliverablePlanItemId: (b.deliverablePlanItemId as string | null | undefined) ?? null,
+    autoGenerated: (b.autoGenerated as boolean | undefined) ?? false,
   }
 }
 
@@ -1002,6 +1009,15 @@ interface MonitoringReportState {
   endProjectAt: (id: string, selectedPeriod: string) => void
   excludeProjectMonth: (id: string, month: string) => void
   getProjectById: (id: string) => ReportProject | undefined
+
+  // Deliverable Plan — generate dokumen DRAFT untuk periode yang jatuh tempo, begitu project di-assign ke Doccon
+  generateDeliverablesForKodeProject: (
+    kodeProject: string,
+    docconUserId: string,
+    docconUserName?: string,
+    byUserId?: string,
+    byName?: string,
+  ) => { createdReportCount: number; createdBillingCount: number }
 
   // Report document CRUD
   addDocument: (data: Omit<ReportDocument, 'id' | 'status' | 'revision' | 'activities' | 'createdAt' | 'updatedAt' | 'tanggalSubmit' | 'tanggalFeedback'>) => ReportDocument
@@ -1134,6 +1150,71 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
         useLogStore.getState().addLog({ type: 'monitoring_report_edited', message: `Project laporan dikecualikan dari periode ${month}`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
       },
       getProjectById: (id) => get().projects.find((p) => p.id === id),
+
+      generateDeliverablesForKodeProject: (kodeProject, docconUserId, docconUserName, byUserId = 'system', byName = 'System') => {
+        const project = get().projects.find((p) => p.kodeProject === kodeProject)
+        if (!project) return { createdReportCount: 0, createdBillingCount: 0 }
+
+        const resolvedDocconName = docconUserName
+          ?? useAuthStore.getState().users.find((u) => u.id === docconUserId)?.name
+          ?? ''
+        const todayYm = currentReportMonth()
+        let createdReportCount = 0
+        let createdBillingCount = 0
+
+        for (const item of project.deliverablePlan ?? []) {
+          if (item.active === false) continue
+          const duePeriods = computeDuePeriods(item, project, todayYm)
+
+          for (const period of duePeriods) {
+            if (item.targetType === 'billing_tracker') {
+              const exists = get().billingDocuments.some(
+                (b) => b.projectId === project.id && b.deliverablePlanItemId === item.id && b.period === period,
+              )
+              if (exists) continue
+              get().addBillingDocument({
+                projectId: project.id,
+                docType: item.label,
+                pic: resolvedDocconName,
+                targetDate: endOfReportMonth(period),
+                actualDate: null,
+                keterangan: '',
+                period,
+                assignedDocconUserId: docconUserId,
+                assignedDocconName: resolvedDocconName,
+                deliverablePlanItemId: item.id,
+                autoGenerated: true,
+                createdByUserId: byUserId,
+                createdByName: byName,
+              })
+              createdBillingCount++
+            } else {
+              const exists = get().documents.some(
+                (d) => d.projectId === project.id && d.deliverablePlanItemId === item.id && d.period === period,
+              )
+              if (exists) continue
+              get().addDocument({
+                projectId: project.id,
+                docType: item.targetType === 'report_customer' ? 'customer' : 'vendor',
+                judul: `${item.label} — ${reportMonthLabel(period)}`,
+                deskripsi: '',
+                period,
+                attachments: [],
+                startPhase: item.targetType === 'report_customer' ? (item.startPhase ?? 'engineer') : undefined,
+                assignedDocconUserId: docconUserId,
+                assignedDocconName: resolvedDocconName,
+                deliverablePlanItemId: item.id,
+                autoGenerated: true,
+                createdByUserId: byUserId,
+                createdByName: byName,
+              })
+              createdReportCount++
+            }
+          }
+        }
+
+        return { createdReportCount, createdBillingCount }
+      },
 
       // ── Report Documents ──
       addDocument: (data) => {
@@ -1715,12 +1796,22 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
         const persistedBillingIds = new Set(migratedBilling.map((b) => b.id))
         const missingBilling = current.billingDocuments.filter((b) => !persistedBillingIds.has(b.id))
 
-        // Migrate old projects: add missing kontrakMulai/kontrakAkhir
-        const migratedProjects = (p.projects ?? []).map((pr) => ({
-          ...pr,
-          kontrakMulai: pr.kontrakMulai ?? pr.createdAt?.slice(0, 7) ?? '2025-01',
-          kontrakAkhir: pr.kontrakAkhir ?? null,
-        }))
+        // Migrate old projects: add missing kontrakMulai/kontrakAkhir + kontrak fields (satu sumber Report/SLA/Cost)
+        const migratedProjects = (p.projects ?? []).map((pr) => {
+          const kontrakMulai = pr.kontrakMulai ?? pr.createdAt?.slice(0, 7) ?? '2025-01'
+          const kontrakAkhir = pr.kontrakAkhir ?? null
+          return {
+            ...pr,
+            kontrakMulai,
+            kontrakAkhir,
+            contractNumber: pr.contractNumber ?? '',
+            categoryContract: pr.categoryContract ?? '',
+            dateOfContract: pr.dateOfContract ?? null,
+            startDate: pr.startDate ?? `${kontrakMulai}-01`,
+            endDate: pr.endDate ?? (kontrakAkhir ? endOfReportMonth(kontrakAkhir) : null),
+            isCancelled: pr.isCancelled ?? false,
+          }
+        })
 
         // Use persisted projects/docs as-is — deleted projects stay deleted
         return {

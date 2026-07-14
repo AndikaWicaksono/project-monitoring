@@ -1,15 +1,23 @@
-import { useMemo, useState, useRef } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import { ArrowLeft, Plus, Eye, Pencil, Trash2, Paperclip, CheckCircle2, ChevronLeft, ChevronRight, Calendar, AlertTriangle, Flag, User, ArrowRight, Clock, UserCheck, Upload } from 'lucide-react'
 import { useMonitoringReportStore } from '../../store/useMonitoringReportStore'
+import { useMonitoringAssignmentStore } from '../../store/useMonitoringAssignmentStore'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { Button } from '../../components/ui/Button'
 import { classNames, formatDateShort } from '../../utils/helpers'
-import { reportMonthLabel, prevReportMonth, nextReportMonth } from '../../types/monitoring'
-import type { ReportDocument, ReportDocumentStatus, BillingDocument, BillingDocumentStatus, BillingDocPhase, DocPhase } from '../../types/monitoring'
+import { reportMonthLabel, prevReportMonth, nextReportMonth, getEffectiveCostStatus } from '../../types/monitoring'
+import type { ReportDocument, ReportDocumentStatus, BillingDocument, BillingDocumentStatus, BillingDocPhase, DocPhase, MonitoringCostStatus } from '../../types/monitoring'
 
 type ActiveTab = 'customer' | 'vendor' | 'billing' | 'sla'
+
+const PROJECT_STATUS_META: Record<MonitoringCostStatus, { label: string; cls: string }> = {
+  active:    { label: 'Aktif',     cls: 'bg-emerald-100 text-emerald-700' },
+  closed:    { label: 'Closed',    cls: 'bg-slate-100 text-slate-700' },
+  cancelled: { label: 'Cancelled', cls: 'bg-red-100 text-red-700' },
+  future:    { label: 'Future',    cls: 'bg-purple-100 text-purple-700' },
+}
 
 const DOC_STATUS_META: Record<ReportDocumentStatus, { label: string; cls: string }> = {
   DRAFT:             { label: 'Draft',            cls: 'bg-slate-100 text-slate-700' },
@@ -374,6 +382,15 @@ export function MonitoringReportDetailPage() {
   }, [documents, docconUsers])
 
   const project = projects.find((p) => p.id === reportDetailProjectId)
+
+  // Kontrak open-ended (kontrakAkhir null) — top-up deliverable yang baru jatuh tempo tiap kali detail project dibuka
+  useEffect(() => {
+    if (!project || project.kontrakAkhir !== null) return
+    const asgn = useMonitoringAssignmentStore.getState().getByKode(project.kodeProject)
+    if (!asgn?.assignedDocconId) return
+    useMonitoringReportStore.getState().generateDeliverablesForKodeProject(project.kodeProject, asgn.assignedDocconId)
+  }, [project?.id, project?.kontrakAkhir, project?.kodeProject])
+
   const [activeTab, setActiveTab] = useState<ActiveTab>('customer')
   const [confirmDeleteDocId, setConfirmDeleteDocId] = useState<string | null>(null)
   const [confirmDeleteBillingId, setConfirmDeleteBillingId] = useState<string | null>(null)
@@ -383,7 +400,9 @@ export function MonitoringReportDetailPage() {
     .filter((d) => d.projectId === reportDetailProjectId && d.docType === 'customer' && d.period === selectedMonth)
     .filter((d) => !isEngineerOS || (d.currentPhase ?? 'engineer') === 'engineer')
   const vendDocs = documents.filter((d) => d.projectId === reportDetailProjectId && d.docType === 'vendor' && d.period === selectedMonth)
-  const billingDocs = billingDocuments.filter((b) => b.projectId === reportDetailProjectId)
+  // Dokumen tracker yang punya period (di-generate dari Deliverable Plan) ikut filter periode seperti Report Customer/Vendor.
+  // Dokumen tracker manual tanpa period (event-based bebas jadwal) tetap selalu tampil, gak kefilter periode.
+  const billingDocs = billingDocuments.filter((b) => b.projectId === reportDetailProjectId && (b.period == null || b.period === selectedMonth))
   const billingCompleted = billingDocs.filter((b) => b.status === 'COMPLETED').length
   const billingProgress = billingDocs.length > 0 ? Math.round((billingCompleted / billingDocs.length) * 100) : 0
 
@@ -425,7 +444,17 @@ export function MonitoringReportDetailPage() {
       <div className="surface rounded-xl p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="text-xs font-semibold text-pertamina-red uppercase tracking-widest mb-1">{project.kodeProject}</div>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="text-xs font-semibold text-pertamina-red uppercase tracking-widest">{project.kodeProject}</div>
+              {(() => {
+                const effStatus = getEffectiveCostStatus(project.startDate, project.endDate, project.isCancelled)
+                return (
+                  <span className={classNames('chip text-[10px]', PROJECT_STATUS_META[effStatus].cls)}>
+                    {PROJECT_STATUS_META[effStatus].label}
+                  </span>
+                )
+              })()}
+            </div>
             <h2 className="text-base font-semibold text-ink-primary">{project.namaKontrak}</h2>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-secondary">
               <span><span className="text-ink-tertiary">Client:</span> {project.client}</span>
@@ -433,6 +462,10 @@ export function MonitoringReportDetailPage() {
               <span><span className="text-ink-tertiary">PIC Laporan:</span> {project.picLaporan || '—'}</span>
               <span><span className="text-ink-tertiary">PIC Docon:</span> {project.picDocon || '—'}</span>
               <span><span className="text-ink-tertiary">Sales:</span> {project.salesCustomer || '—'}</span>
+              <span>
+                <span className="text-ink-tertiary">Kontrak:</span> {reportMonthLabel(project.kontrakMulai)}
+                {' – '}{project.kontrakAkhir ? reportMonthLabel(project.kontrakAkhir) : 'sekarang'}
+              </span>
             </div>
           </div>
           {!isEngineerOS && !isDoccon && (

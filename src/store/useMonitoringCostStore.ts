@@ -262,7 +262,7 @@ const MONTHLY_PLAN_PS026: Record<string, CostBasedMonthlyPlan> = {
   ]},
 }
 
-// PS-027-00 monthly plan — total 19,000,000,000
+// PGN-IT-001 monthly plan — total 19,000,000,000
 const MONTHLY_PLAN_PS027: Record<string, CostBasedMonthlyPlan> = {
   '2026-01': { planned: 1_650_000_000, items: [
     { itemBiaya: 'Pengadaan Perangkat Jaringan', satuanKerja: 'SCS', planned:   780_000_000 },
@@ -355,6 +355,18 @@ const CB_PS025 = Object.values(MONTHLY_PLAN_PS025).reduce((s, m) => s + m.planne
 const CB_PS026 = Object.values(MONTHLY_PLAN_PS026).reduce((s, m) => s + m.planned, 0) // 2,000,000,000
 const CB_PS027 = Object.values(MONTHLY_PLAN_PS027).reduce((s, m) => s + m.planned, 0) // 19,000,000,000
 
+// Shell record — dibuat otomatis begitu project ada di Master Data (Report/SLA), belum diisi PCRM.
+function mkShellCost(id: string, kodeProject: string, projectName: string, projectClient: string): MonitoringCost {
+  return {
+    id, projectId: kodeProject, projectCode: kodeProject, year: 2026, status: 'active',
+    projectClient, projectName, contractNumber: '', categoryContract: '',
+    dateOfContract: null, startDate: null, endDate: null,
+    projectValue: 0, costBased: 0, actualCost: 0, amandemen: '', tkdn: 0, description: '',
+    createdAt: '2026-01-01T08:00:00.000Z', updatedAt: '2026-01-01T08:00:00.000Z',
+    createdByUserId: 'usr_kadep', createdByName: 'Nurlaela Ginting',
+  }
+}
+
 const SEED_COSTS: MonitoringCost[] = [
   {
     id: 'mc-ps024',
@@ -433,11 +445,11 @@ const SEED_COSTS: MonitoringCost[] = [
   },
   {
     id: 'mc-ps027',
-    projectId: 'PS-027-00',
-    projectCode: 'PS-027-00',
+    projectId: 'PGN-IT-001',
+    projectCode: 'PGN-IT-001',
     year: 2026,
     status: 'active',
-    projectClient: 'PT PGN Tbk',
+    projectClient: 'PT Perusahaan Gas Negara',
     projectName: 'Jasa Pengelolaan Infrastruktur Jaringan dan Keamanan IT PGN Group',
     contractNumber: '010000.PK/HK.02/GLM/2025',
     categoryContract: 'Kontrak Tunggal',
@@ -456,6 +468,15 @@ const SEED_COSTS: MonitoringCost[] = [
     createdByUserId: 'u-admin',
     createdByName: 'Admin PGN',
   },
+  // Backfill — project Master Data (Report/SLA) yang sebelumnya belum punya record Cost Monitoring.
+  // Data finansial masih kosong/0, menunggu diisi PCRM.
+  mkShellCost('mc-pgnsec002', 'PGN-SEC-002', 'Kontrak Security System Management 2025', 'PT Saka Energi Indonesia'),
+  mkShellCost('mc-pgndc003', 'PGN-DC-003', 'Kontrak Data Center Operations Q1 2025', 'PT Gagas Energi Indonesia'),
+  mkShellCost('mc-ps02501', 'PS-025-01', 'Demonstrasi Alur Dokumen OSM — Pain Point Visibility 2026', 'PT PGN Tbk'),
+  mkShellCost('mc-ms0003', 'MS-0003', 'Network Infrastructure Region', ''),
+  mkShellCost('mc-ms0004', 'MS-0004', 'Security System Management', ''),
+  mkShellCost('mc-ms0026', 'MS-0026', 'Equipment Procurement 2025', ''),
+  mkShellCost('mc-ms0030', 'MS-0030', 'Data Center Maintenance', ''),
 ]
 
 function real(
@@ -590,40 +611,40 @@ const SEED_REALIZATIONS: MonitoringCostRealization[] = [
   real('r26n02','PS-026-00','mc-ps026','UPAH Teknisi', 'DMO','Dimas Pratama',  42_000_000,'POPAY','Internal',               '2026-06','2026-06-27'),
 
   // ══════════════════════════════════════════════════════════════════════════
-  // PS-027-00  Infrastruktur Jaringan & Keamanan IT  PIC: Fajar Rahman
+  // PGN-IT-001  Infrastruktur Jaringan & Keamanan IT  PIC: Fajar Rahman
   // ══════════════════════════════════════════════════════════════════════════
 
   // Jan 2026 — Warning (actual 1.492B / plan 1.65B = 90.4%)
-  real('r27j01','PS-027-00','mc-ps027','Pengadaan Perangkat Jaringan','SCS','Fajar Rahman',   720_000_000,'PAID',             'PT Infranet Jaya',       '2026-01','2026-01-08'),
-  real('r27j02','PS-027-00','mc-ps027','UPAH Network Engineer',        'DMO','Fajar Rahman',   580_000_000,'PAID',             'Internal',               '2026-01','2026-01-31'),
-  real('r27j03','PS-027-00','mc-ps027','Lisensi Keamanan Siber',       'SCS','Fajar Rahman',   192_000_000,'PAID',             'PT CyberSec Solutions',  '2026-01','2026-01-06'),
+  real('r27j01','PGN-IT-001','mc-ps027','Pengadaan Perangkat Jaringan','SCS','Fajar Rahman',   720_000_000,'PAID',             'PT Infranet Jaya',       '2026-01','2026-01-08'),
+  real('r27j02','PGN-IT-001','mc-ps027','UPAH Network Engineer',        'DMO','Fajar Rahman',   580_000_000,'PAID',             'Internal',               '2026-01','2026-01-31'),
+  real('r27j03','PGN-IT-001','mc-ps027','Lisensi Keamanan Siber',       'SCS','Fajar Rahman',   192_000_000,'PAID',             'PT CyberSec Solutions',  '2026-01','2026-01-06'),
 
   // Feb 2026 — On Budget (actual 1.283B / plan 1.5B = 85.5%)
-  real('r27f01','PS-027-00','mc-ps027','Pengadaan Perangkat Jaringan','SCS','Fajar Rahman',   690_000_000,'PAID',             'PT Infranet Jaya',       '2026-02','2026-02-11'),
-  real('r27f02','PS-027-00','mc-ps027','UPAH Network Engineer',        'DMO','Fajar Rahman',   545_000_000,'PAID',             'Internal',               '2026-02','2026-02-28'),
-  real('r27f03','PS-027-00','mc-ps027','Maintenance Jaringan',         'OSM','Fajar Rahman',    48_000_000,'PAID',             'PT Infranet Jaya',       '2026-02','2026-02-18'),
+  real('r27f01','PGN-IT-001','mc-ps027','Pengadaan Perangkat Jaringan','SCS','Fajar Rahman',   690_000_000,'PAID',             'PT Infranet Jaya',       '2026-02','2026-02-11'),
+  real('r27f02','PGN-IT-001','mc-ps027','UPAH Network Engineer',        'DMO','Fajar Rahman',   545_000_000,'PAID',             'Internal',               '2026-02','2026-02-28'),
+  real('r27f03','PGN-IT-001','mc-ps027','Maintenance Jaringan',         'OSM','Fajar Rahman',    48_000_000,'PAID',             'PT Infranet Jaya',       '2026-02','2026-02-18'),
 
   // Mar 2026 — Warning (actual 1.503B / plan 1.58B = 95.1%) — patch keamanan mendesak
-  real('r27m01','PS-027-00','mc-ps027','Pengadaan Perangkat Jaringan','SCS','Fajar Rahman',   728_000_000,'PAID',             'PT Infranet Jaya',       '2026-03','2026-03-07'),
-  real('r27m02','PS-027-00','mc-ps027','UPAH Network Engineer',        'DMO','Fajar Rahman',   572_000_000,'PAID',             'Internal',               '2026-03','2026-03-31'),
-  real('r27m03','PS-027-00','mc-ps027','Lisensi Keamanan Siber',       'SCS','Fajar Rahman',   184_000_000,'PAID',             'PT CyberSec Solutions',  '2026-03','2026-03-04'),
-  real('r27m04','PS-027-00','mc-ps027','SPPD',                         'OSM','Fajar Rahman',    19_000_000,'POPAY',            'Internal',               '2026-03','2026-03-20'),
+  real('r27m01','PGN-IT-001','mc-ps027','Pengadaan Perangkat Jaringan','SCS','Fajar Rahman',   728_000_000,'PAID',             'PT Infranet Jaya',       '2026-03','2026-03-07'),
+  real('r27m02','PGN-IT-001','mc-ps027','UPAH Network Engineer',        'DMO','Fajar Rahman',   572_000_000,'PAID',             'Internal',               '2026-03','2026-03-31'),
+  real('r27m03','PGN-IT-001','mc-ps027','Lisensi Keamanan Siber',       'SCS','Fajar Rahman',   184_000_000,'PAID',             'PT CyberSec Solutions',  '2026-03','2026-03-04'),
+  real('r27m04','PGN-IT-001','mc-ps027','SPPD',                         'OSM','Fajar Rahman',    19_000_000,'POPAY',            'Internal',               '2026-03','2026-03-20'),
 
   // Apr 2026 — On Budget (actual 1.343B / plan 1.52B = 88.4%)
-  real('r27a01','PS-027-00','mc-ps027','Pengadaan Perangkat Jaringan','SCS','Fajar Rahman',   715_000_000,'PAID',             'PT Infranet Jaya',       '2026-04','2026-04-09'),
-  real('r27a02','PS-027-00','mc-ps027','UPAH Network Engineer',        'DMO','Fajar Rahman',   560_000_000,'PAID',             'Internal',               '2026-04','2026-04-30'),
-  real('r27a03','PS-027-00','mc-ps027','Maintenance Jaringan',         'OSM','Fajar Rahman',    50_000_000,'READY_TO_RELEASE', 'PT Infranet Jaya',       '2026-04','2026-04-22'),
-  real('r27a04','PS-027-00','mc-ps027','SPPD',                         'OSM','Fajar Rahman',    18_000_000,'POPAY',            'Internal',               '2026-04','2026-04-16'),
+  real('r27a01','PGN-IT-001','mc-ps027','Pengadaan Perangkat Jaringan','SCS','Fajar Rahman',   715_000_000,'PAID',             'PT Infranet Jaya',       '2026-04','2026-04-09'),
+  real('r27a02','PGN-IT-001','mc-ps027','UPAH Network Engineer',        'DMO','Fajar Rahman',   560_000_000,'PAID',             'Internal',               '2026-04','2026-04-30'),
+  real('r27a03','PGN-IT-001','mc-ps027','Maintenance Jaringan',         'OSM','Fajar Rahman',    50_000_000,'READY_TO_RELEASE', 'PT Infranet Jaya',       '2026-04','2026-04-22'),
+  real('r27a04','PGN-IT-001','mc-ps027','SPPD',                         'OSM','Fajar Rahman',    18_000_000,'POPAY',            'Internal',               '2026-04','2026-04-16'),
 
   // May 2026 — Warning (actual 1.529B / plan 1.6B = 95.6%)
-  real('r27e01','PS-027-00','mc-ps027','Pengadaan Perangkat Jaringan','SCS','Fajar Rahman',   755_000_000,'PAID',             'PT Infranet Jaya',       '2026-05','2026-05-08'),
-  real('r27e02','PS-027-00','mc-ps027','UPAH Network Engineer',        'DMO','Fajar Rahman',   588_000_000,'PAID',             'Internal',               '2026-05','2026-05-31'),
-  real('r27e03','PS-027-00','mc-ps027','Lisensi Keamanan Siber',       'SCS','Fajar Rahman',   186_000_000,'POPAY',            'PT CyberSec Solutions',  '2026-05','2026-05-06'),
+  real('r27e01','PGN-IT-001','mc-ps027','Pengadaan Perangkat Jaringan','SCS','Fajar Rahman',   755_000_000,'PAID',             'PT Infranet Jaya',       '2026-05','2026-05-08'),
+  real('r27e02','PGN-IT-001','mc-ps027','UPAH Network Engineer',        'DMO','Fajar Rahman',   588_000_000,'PAID',             'Internal',               '2026-05','2026-05-31'),
+  real('r27e03','PGN-IT-001','mc-ps027','Lisensi Keamanan Siber',       'SCS','Fajar Rahman',   186_000_000,'POPAY',            'PT CyberSec Solutions',  '2026-05','2026-05-06'),
 
   // Jun 2026 — bulan berjalan (actual 1.208B / plan 1.62B = 74.5%)
-  real('r27n01','PS-027-00','mc-ps027','Pengadaan Perangkat Jaringan','SCS','Fajar Rahman',   630_000_000,'PAID',             'PT Infranet Jaya',       '2026-06','2026-06-06'),
-  real('r27n02','PS-027-00','mc-ps027','UPAH Network Engineer',        'DMO','Fajar Rahman',   530_000_000,'POPAY',            'Internal',               '2026-06','2026-06-27'),
-  real('r27n03','PS-027-00','mc-ps027','Maintenance Jaringan',         'OSM','Fajar Rahman',    48_000_000,'POPAY',            'PT Infranet Jaya',       '2026-06','2026-06-15'),
+  real('r27n01','PGN-IT-001','mc-ps027','Pengadaan Perangkat Jaringan','SCS','Fajar Rahman',   630_000_000,'PAID',             'PT Infranet Jaya',       '2026-06','2026-06-06'),
+  real('r27n02','PGN-IT-001','mc-ps027','UPAH Network Engineer',        'DMO','Fajar Rahman',   530_000_000,'POPAY',            'Internal',               '2026-06','2026-06-27'),
+  real('r27n03','PGN-IT-001','mc-ps027','Maintenance Jaringan',         'OSM','Fajar Rahman',    48_000_000,'POPAY',            'PT Infranet Jaya',       '2026-06','2026-06-15'),
 ]
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -691,7 +712,7 @@ export const useMonitoringCostStore = create<MonitoringCostState>()(
     }),
     {
       name: 'flowdesk:monitoring-cost',
-      version: 4,
+      version: 6,
       migrate: () => ({ costs: SEED_COSTS, realizations: SEED_REALIZATIONS }),
     },
   ),

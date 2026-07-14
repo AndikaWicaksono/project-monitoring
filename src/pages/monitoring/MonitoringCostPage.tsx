@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useState } from 'react'
 import { Plus, Search, Download, Eye, Pencil, Trash2, Filter, ChevronDown, ChevronUp, BarChart2 } from 'lucide-react'
 import { useMonitoringCostStore } from '../../store/useMonitoringCostStore'
+import { useMonitoringAssignmentStore } from '../../store/useMonitoringAssignmentStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { Button } from '../../components/ui/Button'
@@ -73,7 +74,9 @@ export function MonitoringCostPage() {
   const openModal = useUIStore((s) => s.openModal)
   const setView = useUIStore((s) => s.setView)
   const setCostDetailId = useUIStore((s) => s.setCostDetailId)
-  const { canEditCost, canManageCostMaster } = useMonitoringRole()
+  const { canEditCostForProject, canManageCostMaster, isAdminOSM, currentUserId } = useMonitoringRole()
+  const assignments = useMonitoringAssignmentStore((s) => s.assignments)
+  const getByKode = useMonitoringAssignmentStore((s) => s.getByKode)
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<MonitoringCostStatus | ''>('')
@@ -91,6 +94,11 @@ export function MonitoringCostPage() {
       const effStatus = getEffectiveCostStatus(c.startDate, c.endDate, c.status === 'cancelled')
       if (statusFilter && effStatus !== statusFilter) return false
       if (q && !c.projectCode.toLowerCase().includes(q) && !c.projectName.toLowerCase().includes(q) && !c.projectClient.toLowerCase().includes(q)) return false
+      // Admin OSM cuma lihat project yang diassign Nurlaela ke dia (mirror filter Doccon di Report Project)
+      if (isAdminOSM && currentUserId) {
+        const asgn = assignments.find((a) => a.kodeProject === c.projectCode)
+        if (asgn?.assignedAdminOsmId !== currentUserId) return false
+      }
       return true
     })
     return [...list].sort((a, b) => {
@@ -100,7 +108,7 @@ export function MonitoringCostPage() {
       if (sortBy === 'nama-desc') return b.projectName.localeCompare(a.projectName)
       return 0
     })
-  }, [costs, search, statusFilter, sortBy])
+  }, [costs, search, statusFilter, sortBy, isAdminOSM, currentUserId, assignments])
 
   const totalContractValue = useMemo(() => filtered.reduce((s, c) => s + c.projectValue, 0), [filtered])
   const totalActualCost = useMemo(() =>
@@ -180,7 +188,6 @@ export function MonitoringCostPage() {
           </select>
           <span className="text-[11px] text-ink-tertiary ml-auto">{filtered.length} data</span>
           <Button variant="ghost" size="sm" onClick={handleExport} leftIcon={<Download size={13} />}>Export</Button>
-          {canManageCostMaster && <Button size="sm" onClick={() => openModal({ type: 'monitoring-cost-create' })} leftIcon={<Plus size={13} />}>Tambah</Button>}
         </div>
 
         {/* Table */}
@@ -189,7 +196,7 @@ export function MonitoringCostPage() {
             <thead>
               <tr className="border-b border-border-subtle bg-black/[0.02]">
                 <th className="w-8" />
-                {['Kode Project', 'Nama Project', 'Client', 'Tahun', 'Status', 'Nilai Kontrak', 'Cost Based', 'Biaya Aktual', 'TKDN%', 'Aksi'].map((h) => (
+                {['Kode Project', 'Nama Project', 'Client', 'Tahun', 'Status', 'Nilai Kontrak', 'Cost Based', 'Biaya Aktual', 'TKDN%', 'Admin OSM', 'Aksi'].map((h) => (
                   <th key={h} className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -246,6 +253,16 @@ export function MonitoringCostPage() {
                       <td className="px-4 py-3 text-xs text-ink-secondary tabular-nums whitespace-nowrap">{formatCurrency(c.costBased)}</td>
                       <td className="px-4 py-3 text-xs text-ink-primary tabular-nums whitespace-nowrap">{formatCurrency(computedActual)}</td>
                       <td className="px-4 py-3 text-xs text-ink-secondary text-center">{c.tkdn}%</td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">
+                        {(() => {
+                          const asgn = getByKode(c.projectCode)
+                          return (
+                            <span className={asgn?.assignedAdminOsmName ? 'text-emerald-700 font-medium' : 'text-ink-tertiary'}>
+                              {asgn?.assignedAdminOsmName ?? 'Belum diassign'}
+                            </span>
+                          )
+                        })()}
+                      </td>
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
                           <button onClick={() => { setCostDetailId(c.id); setView('monitoring-cost-detail') }} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Detail"><Eye size={13} /></button>
@@ -257,7 +274,7 @@ export function MonitoringCostPage() {
 
                     {isExpanded && (
                       <tr key={`${c.id}-panel`} className="border-b border-border-subtle">
-                        <td colSpan={11} className="px-4 pb-4 pt-0 bg-black/[0.015]">
+                        <td colSpan={12} className="px-4 pb-4 pt-0 bg-black/[0.015]">
                           <div className="rounded-lg border border-border-subtle overflow-hidden bg-white">
                             {/* Panel tabs */}
                             <div className="flex items-center justify-between px-3 py-2 bg-black/[0.02] border-b border-border-subtle">
@@ -284,7 +301,7 @@ export function MonitoringCostPage() {
                                   )}
                                 </button>
                               </div>
-                              {panelTab === 'realizations' && canEditCost && (
+                              {panelTab === 'realizations' && canEditCostForProject(c.projectCode) && (
                                 <button
                                   onClick={() => openModal({ type: 'monitoring-cost-realization-create', costId: c.id })}
                                   className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 transition"
@@ -421,8 +438,8 @@ export function MonitoringCostPage() {
                                         <td className="px-3 py-2.5 tabular-nums text-ink-primary whitespace-nowrap">{formatCurrency(real.realisasiBiaya)}</td>
                                         <td className="px-3 py-2.5">
                                           <div className="flex items-center gap-1">
-                                            {canEditCost && <button onClick={() => openModal({ type: 'monitoring-cost-realization-edit', realizationId: real.id, costId: real.projectId })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={11} /></button>}
-                                            {canEditCost && <button onClick={() => setConfirmDeleteRealId(real.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={11} /></button>}
+                                            {canEditCostForProject(real.kodeProject) && <button onClick={() => openModal({ type: 'monitoring-cost-realization-edit', realizationId: real.id, costId: real.projectId })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={11} /></button>}
+                                            {canEditCostForProject(real.kodeProject) && <button onClick={() => setConfirmDeleteRealId(real.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={11} /></button>}
                                           </div>
                                         </td>
                                       </tr>

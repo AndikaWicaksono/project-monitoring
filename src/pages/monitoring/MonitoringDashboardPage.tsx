@@ -1,4 +1,5 @@
 import { useMonitoringRole } from '../../hooks/useMonitoringRole'
+import { classNames } from '../../utils/helpers'
 import { EngineerWarningPanel } from '../../components/monitoring/dashboard/EngineerWarningPanel'
 import { DocconSalesWarningPanel } from '../../components/monitoring/dashboard/DocconSalesWarningPanel'
 import { MonitoringStatsOverview } from '../../components/monitoring/dashboard/MonitoringStatsOverview'
@@ -6,6 +7,7 @@ import { SLAAchievementTrendChart } from '../../components/monitoring/dashboard/
 import { ProjectMonitoringTrendChart } from '../../components/monitoring/dashboard/ProjectMonitoringTrendChart'
 import { ReportStatusDistributionChart } from '../../components/monitoring/dashboard/ReportStatusDistributionChart'
 import { DocconWorkloadChart } from '../../components/monitoring/dashboard/DocconWorkloadChart'
+import { AdminOsmWorkloadChart } from '../../components/monitoring/dashboard/AdminOsmWorkloadChart'
 import { DocconConfirmationPanel } from '../../components/monitoring/dashboard/DocconConfirmationPanel'
 import { DocconEngineerSubmitPanel } from '../../components/monitoring/dashboard/DocconEngineerSubmitPanel'
 import { DeadlineWarningPanel } from '../../components/monitoring/dashboard/DeadlineWarningPanel'
@@ -40,9 +42,10 @@ export function MonitoringDashboardPage() {
       )}
 
       {showSLAReport && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className={classNames('grid grid-cols-1 gap-4', (isKadiv || isKadep) ? 'lg:grid-cols-3' : 'lg:grid-cols-2')}>
           <ReportStatusDistributionChart />
           {(isKadiv || isKadep) && <DocconWorkloadChart />}
+          {(isKadiv || isKadep) && <AdminOsmWorkloadChart />}
         </div>
       )}
 

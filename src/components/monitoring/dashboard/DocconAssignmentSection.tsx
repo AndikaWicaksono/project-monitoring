@@ -3,6 +3,7 @@ import { Search, ClipboardList, Users, CheckCircle2, UserCheck, Plus, Trash2, Al
 import { useMonitoringAssignmentStore } from '../../../store/useMonitoringAssignmentStore'
 import { useMonitoringReportStore } from '../../../store/useMonitoringReportStore'
 import { useMonitoringSLAStore } from '../../../store/useMonitoringSLAStore'
+import { useMonitoringCostStore } from '../../../store/useMonitoringCostStore'
 import { useAuthStore } from '../../../store/useAuthStore'
 import { useUIStore } from '../../../store/useUIStore'
 import { usePermissions } from '../../../hooks/usePermissions'
@@ -21,9 +22,12 @@ interface Props {
 }
 
 export function DocconAssignmentSection({ canAssign }: Props) {
-  const { assignments, assign, removeByKode } = useMonitoringAssignmentStore()
+  const { assignments, assign, assignAdminOsm, removeByKode } = useMonitoringAssignmentStore()
   const reportProjects  = useMonitoringReportStore((s) => s.projects)
   const slaProjects     = useMonitoringSLAStore((s) => s.projects)
+  const costs           = useMonitoringCostStore((s) => s.costs)
+  const addCost         = useMonitoringCostStore((s) => s.addCost)
+  const updateCost      = useMonitoringCostStore((s) => s.updateCost)
   const deleteReport    = useMonitoringReportStore((s) => s.deleteProject)
   const deleteSLA       = useMonitoringSLAStore((s) => s.deleteProject)
   const users           = useAuthStore((s) => s.users)
@@ -34,14 +38,20 @@ export function DocconAssignmentSection({ canAssign }: Props) {
   const [filterDocconId, setFilterDocconId]  = useState('')
   const [filterClient,   setFilterClient]    = useState('')
   const [currentPage,    setCurrentPage]     = useState(1)
-  const [assignModal,    setAssignModal]     = useState<{ kodeProject: string; namaProject: string } | null>(null)
-  const [selectedDoccon, setSelectedDoccon]  = useState('')
-  const [deleteConfirm,  setDeleteConfirm]   = useState<{ kodeProject: string; namaProject: string } | null>(null)
+  const [assignModal,     setAssignModal]     = useState<{ kodeProject: string; namaProject: string; hasCost: boolean } | null>(null)
+  const [selectedDoccon,  setSelectedDoccon]  = useState('')
+  const [selectedAdminOsm, setSelectedAdminOsm] = useState('')
+  const [deleteConfirm,   setDeleteConfirm]   = useState<{ kodeProject: string; namaProject: string } | null>(null)
 
   const docconUsers = useMemo(
     () => users.filter((u) => u.role === 'doccon_osm' && u.active),
     [users],
   )
+  const adminOsmUsers = useMemo(
+    () => users.filter((u) => u.role === 'admin_osm' && u.active),
+    [users],
+  )
+  const costsByKode = useMemo(() => new Set(costs.map((c) => c.projectCode)), [costs])
 
   // Union of all projects from both modules
   const allProjects = useMemo<UnifiedProject[]>(() => {
@@ -57,6 +67,47 @@ export function DocconAssignmentSection({ canAssign }: Props) {
     return [...map.values()].sort((a, b) => a.kodeProject.localeCompare(b.kodeProject))
   }, [reportProjects, slaProjects])
 
+  // Sinkronisasi otomatis — pastikan SEMUA project di Master Data (Report/SLA) selalu punya record
+  // Cost Monitoring, termasuk project yang dibuat manual (bukan cuma yang ada di seed data). Selain
+  // bikin record yang belum ada, efek ini juga menjaga identitas & kontrak Cost tetap sinkron dengan
+  // Report Project (satu sumber kebenaran) — jadi Nurlaela cukup edit sekali di Master Data.
+  useEffect(() => {
+    for (const p of allProjects) {
+      const rp = reportProjects.find((r) => r.kodeProject === p.kodeProject)
+      const syncFields = {
+        projectClient:    p.client,
+        projectName:      p.namaProject,
+        contractNumber:   rp?.contractNumber ?? '',
+        categoryContract: rp?.categoryContract ?? '',
+        dateOfContract:   rp?.dateOfContract ?? null,
+        startDate:        rp?.startDate ?? null,
+        endDate:          rp?.endDate ?? null,
+        status:           rp?.isCancelled ? ('cancelled' as const) : ('active' as const),
+      }
+      const existingCost = costs.find((c) => c.projectCode === p.kodeProject)
+      if (!existingCost) {
+        addCost({
+          projectId: p.kodeProject, projectCode: p.kodeProject, year: new Date().getFullYear(),
+          ...syncFields,
+          projectValue: 0, costBased: 0, actualCost: 0, amandemen: '', tkdn: 0, description: '',
+          createdByUserId: user?.id ?? 'system', createdByName: user?.name ?? 'System',
+        })
+        continue
+      }
+      const isDrifted =
+        existingCost.projectClient    !== syncFields.projectClient ||
+        existingCost.projectName      !== syncFields.projectName ||
+        existingCost.contractNumber   !== syncFields.contractNumber ||
+        existingCost.categoryContract !== syncFields.categoryContract ||
+        existingCost.dateOfContract   !== syncFields.dateOfContract ||
+        existingCost.startDate        !== syncFields.startDate ||
+        existingCost.endDate          !== syncFields.endDate ||
+        existingCost.status           !== syncFields.status
+      if (isDrifted) updateCost(existingCost.id, syncFields)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allProjects, reportProjects, costs])
+
   // Count assigned projects per doccon
   const workload = useMemo(() => {
     const map: Record<string, number> = {}
@@ -68,9 +119,26 @@ export function DocconAssignmentSection({ canAssign }: Props) {
 
   const maxWorkload = useMemo(() => Math.max(...Object.values(workload), 1), [workload])
 
+  // Count assigned projects per Admin OSM
+  const adminOsmWorkload = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const a of assignments) {
+      if (a.assignedAdminOsmId) map[a.assignedAdminOsmId] = (map[a.assignedAdminOsmId] ?? 0) + 1
+    }
+    return map
+  }, [assignments])
+
+  const maxAdminOsmWorkload = useMemo(() => Math.max(...Object.values(adminOsmWorkload), 1), [adminOsmWorkload])
+
   const unassignedCount = useMemo(
     () => allProjects.filter((p) => !assignments.find((a) => a.kodeProject === p.kodeProject)?.assignedDocconId).length,
     [allProjects, assignments],
+  )
+
+  // Admin OSM cuma relevan buat project yang punya data Cost Monitoring
+  const adminOsmUnassignedCount = useMemo(
+    () => allProjects.filter((p) => costsByKode.has(p.kodeProject) && !assignments.find((a) => a.kodeProject === p.kodeProject)?.assignedAdminOsmId).length,
+    [allProjects, costsByKode, assignments],
   )
 
   const uniqueClients = useMemo(
@@ -115,14 +183,19 @@ export function DocconAssignmentSection({ canAssign }: Props) {
   }
 
   function openAssign(p: UnifiedProject) {
-    const current = assignments.find((a) => a.kodeProject === p.kodeProject)?.assignedDocconId ?? ''
-    setAssignModal({ kodeProject: p.kodeProject, namaProject: p.namaProject })
-    setSelectedDoccon(current)
+    const asgn = assignments.find((a) => a.kodeProject === p.kodeProject)
+    setAssignModal({ kodeProject: p.kodeProject, namaProject: p.namaProject, hasCost: costsByKode.has(p.kodeProject) })
+    setSelectedDoccon(asgn?.assignedDocconId ?? '')
+    setSelectedAdminOsm(asgn?.assignedAdminOsmId ?? '')
   }
 
   function handleSaveAssign() {
     if (!assignModal) return
     assign(assignModal.kodeProject, selectedDoccon || null, user?.id ?? null, user?.name ?? null)
+    if (assignModal.hasCost) {
+      const adminOsm = adminOsmUsers.find((u) => u.id === selectedAdminOsm)
+      assignAdminOsm(assignModal.kodeProject, adminOsm?.id ?? null, adminOsm?.name ?? null, user?.id ?? null, user?.name ?? null)
+    }
     setAssignModal(null)
   }
 
@@ -177,58 +250,116 @@ export function DocconAssignmentSection({ canAssign }: Props) {
       </div>
 
       {/* ── Workload cards ─────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap gap-2 px-5 py-3 border-b border-border-subtle bg-black/[0.015]">
-        {docconUsers.map((u) => {
-          const count = workload[u.id] ?? 0
-          const active = filterDocconId === u.id
-          return (
+      <div className="px-5 py-3.5 border-b border-border-subtle bg-black/[0.015] flex flex-col lg:flex-row gap-3.5">
+        {/* Doccon */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 mb-2">
+            <span className="grid h-4 w-4 place-items-center rounded bg-pertamina-red/10 text-pertamina-red shrink-0">
+              <UserCheck size={10} />
+            </span>
+            <span className="text-[11px] font-semibold text-ink-secondary">Doccon</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {docconUsers.map((u) => {
+              const count = workload[u.id] ?? 0
+              const active = filterDocconId === u.id
+              return (
+                <button
+                  key={u.id}
+                  onClick={() => setFilterDocconId((prev) => (prev === u.id ? '' : u.id))}
+                  className={classNames(
+                    'flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 transition text-xs',
+                    active
+                      ? 'bg-pertamina-red-50 border-pertamina-red/30 shadow-sm'
+                      : 'bg-white border-border hover:border-pertamina-red/20 hover:bg-pertamina-red-50/40',
+                  )}
+                >
+                  <div
+                    className="h-7 w-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-sm"
+                    style={{ backgroundColor: u.avatarColor }}
+                  >
+                    {u.name[0]}
+                  </div>
+                  <div className="text-left">
+                    <div className={classNames('font-semibold leading-tight', active ? 'text-pertamina-red' : 'text-ink-primary')}>
+                      {u.name}
+                    </div>
+                    <div className="text-[10px] text-ink-tertiary leading-tight">{count} project</div>
+                  </div>
+                  <div className="h-1 w-10 rounded-full bg-black/[0.06] overflow-hidden ml-1">
+                    <div
+                      className={classNames('h-full rounded-full transition-all', active ? 'bg-pertamina-red' : 'bg-pertamina-red/50')}
+                      style={{ width: `${(count / maxWorkload) * 100}%` }}
+                    />
+                  </div>
+                </button>
+              )
+            })}
+
             <button
-              key={u.id}
-              onClick={() => setFilterDocconId((prev) => (prev === u.id ? '' : u.id))}
+              onClick={() => setFilterDocconId((prev) => (prev === '__unassigned__' ? '' : '__unassigned__'))}
               className={classNames(
-                'flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 transition text-xs',
-                active
-                  ? 'bg-pertamina-red-50 border-pertamina-red/30 shadow-sm'
-                  : 'bg-white border-border hover:border-pertamina-red/20 hover:bg-pertamina-red-50/40',
+                'flex items-center gap-2 rounded-xl border px-3.5 py-2.5 transition text-xs',
+                filterDocconId === '__unassigned__'
+                  ? 'bg-amber-50 border-amber-300 text-amber-700'
+                  : 'bg-white border-border text-ink-tertiary hover:border-amber-200 hover:bg-amber-50/60',
               )}
             >
-              <div
-                className="h-7 w-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-sm"
-                style={{ backgroundColor: u.avatarColor }}
-              >
-                {u.name[0]}
-              </div>
-              <div className="text-left">
-                <div className={classNames('font-semibold leading-tight', active ? 'text-pertamina-red' : 'text-ink-primary')}>
-                  {u.name}
-                </div>
-                <div className="text-[10px] text-ink-tertiary leading-tight">{count} project</div>
-              </div>
-              <div className="h-1 w-10 rounded-full bg-black/[0.06] overflow-hidden ml-1">
-                <div
-                  className={classNames('h-full rounded-full transition-all', active ? 'bg-pertamina-red' : 'bg-pertamina-red/50')}
-                  style={{ width: `${(count / maxWorkload) * 100}%` }}
-                />
-              </div>
+              <Users size={13} className="shrink-0" />
+              <span className="font-medium">Belum diassign</span>
+              <span className="rounded-full bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px] font-semibold">
+                {unassignedCount}
+              </span>
             </button>
-          )
-        })}
+          </div>
+        </div>
 
-        <button
-          onClick={() => setFilterDocconId((prev) => (prev === '__unassigned__' ? '' : '__unassigned__'))}
-          className={classNames(
-            'flex items-center gap-2 rounded-xl border px-3.5 py-2.5 transition text-xs',
-            filterDocconId === '__unassigned__'
-              ? 'bg-amber-50 border-amber-300 text-amber-700'
-              : 'bg-white border-border text-ink-tertiary hover:border-amber-200 hover:bg-amber-50/60',
-          )}
-        >
-          <Users size={13} className="shrink-0" />
-          <span className="font-medium">Belum diassign</span>
-          <span className="rounded-full bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px] font-semibold">
-            {unassignedCount}
-          </span>
-        </button>
+        <div className="hidden lg:block w-px bg-border-subtle shrink-0" />
+
+        {/* Admin OSM */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 mb-2">
+            <span className="grid h-4 w-4 place-items-center rounded bg-emerald-100 text-emerald-700 shrink-0">
+              <UserCheck size={10} />
+            </span>
+            <span className="text-[11px] font-semibold text-ink-secondary">Admin OSM</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {adminOsmUsers.map((u) => {
+              const count = adminOsmWorkload[u.id] ?? 0
+              return (
+                <div
+                  key={u.id}
+                  className="flex items-center gap-2.5 rounded-xl border border-border bg-white px-3.5 py-2.5 text-xs"
+                >
+                  <div
+                    className="h-7 w-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-sm"
+                    style={{ backgroundColor: u.avatarColor }}
+                  >
+                    {u.name[0]}
+                  </div>
+                  <div className="text-left">
+                    <div className="font-semibold leading-tight text-ink-primary">{u.name}</div>
+                    <div className="text-[10px] text-ink-tertiary leading-tight">{count} project</div>
+                  </div>
+                  <div className="h-1 w-10 rounded-full bg-black/[0.06] overflow-hidden ml-1">
+                    <div
+                      className="h-full rounded-full bg-emerald-500/60 transition-all"
+                      style={{ width: `${(count / maxAdminOsmWorkload) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+            <div className="flex items-center gap-2 rounded-xl border border-border bg-white px-3.5 py-2.5 text-xs text-ink-tertiary">
+              <Users size={13} className="shrink-0" />
+              <span className="font-medium">Belum diassign</span>
+              <span className="rounded-full bg-amber-100 text-amber-700 px-1.5 py-0.5 text-[10px] font-semibold">
+                {adminOsmUnassignedCount}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── Search & Filter ────────────────────────────────────────────────── */}
@@ -271,15 +402,18 @@ export function DocconAssignmentSection({ canAssign }: Props) {
               <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">Client</th>
               <th className="text-center px-3 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">Modul</th>
               <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">Doccon</th>
+              <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">Admin OSM</th>
               <th className="text-center px-3 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">Status</th>
               {canAssign && <th className="text-center px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">Aksi</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle">
             {paginatedProjects.map((p) => {
-              const asgn    = assignments.find((a) => a.kodeProject === p.kodeProject)
-              const doccon  = asgn?.assignedDocconId ? users.find((u) => u.id === asgn.assignedDocconId) : null
+              const asgn     = assignments.find((a) => a.kodeProject === p.kodeProject)
+              const doccon   = asgn?.assignedDocconId ? users.find((u) => u.id === asgn.assignedDocconId) : null
+              const adminOsm = asgn?.assignedAdminOsmId ? users.find((u) => u.id === asgn.assignedAdminOsmId) : null
               const isAssigned = !!doccon
+              const hasCost = costsByKode.has(p.kodeProject)
               return (
                 <tr key={p.kodeProject} className="hover:bg-black/[0.02] transition-colors group">
                   <td className="px-5 py-3 text-xs font-mono font-semibold text-ink-primary whitespace-nowrap">{p.kodeProject}</td>
@@ -303,6 +437,7 @@ export function DocconAssignmentSection({ canAssign }: Props) {
                     <div className="flex items-center justify-center gap-1 flex-wrap">
                       {p.modules.includes('Report') && <span className="chip bg-blue-100 text-blue-700 text-[9px] px-1.5 py-0.5">Report</span>}
                       {p.modules.includes('SLA')    && <span className="chip bg-violet-100 text-violet-700 text-[9px] px-1.5 py-0.5">SLA</span>}
+                      {hasCost && <span className="chip bg-emerald-100 text-emerald-700 text-[9px] px-1.5 py-0.5">Cost</span>}
                     </div>
                   </td>
                   <td className="px-4 py-3">
@@ -315,6 +450,23 @@ export function DocconAssignmentSection({ canAssign }: Props) {
                           {doccon.name[0]}
                         </div>
                         <span className="text-xs font-medium text-ink-primary">{doccon.name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-ink-muted italic">Belum diassign</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {!hasCost ? (
+                      <span className="text-xs text-ink-muted">—</span>
+                    ) : adminOsm ? (
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="h-5 w-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0"
+                          style={{ backgroundColor: adminOsm.avatarColor }}
+                        >
+                          {adminOsm.name[0]}
+                        </div>
+                        <span className="text-xs font-medium text-ink-primary">{adminOsm.name}</span>
                       </div>
                     ) : (
                       <span className="text-xs text-ink-muted italic">Belum diassign</span>
@@ -422,10 +574,10 @@ export function DocconAssignmentSection({ canAssign }: Props) {
       {/* ── Assign Modal ───────────────────────────────────────────────────── */}
       {assignModal && canAssign && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="glass rounded-2xl shadow-modal p-6 w-full max-w-sm mx-4">
+          <div className="glass rounded-2xl shadow-modal p-6 w-full max-w-md mx-4">
             <div className="flex items-center gap-2 mb-1">
               <ClipboardList size={16} className="text-pertamina-red" />
-              <h3 className="text-base font-semibold text-ink-primary">Assign Doccon</h3>
+              <h3 className="text-base font-semibold text-ink-primary">Assign Project</h3>
             </div>
             <p className="text-[11px] text-ink-tertiary mb-1">Project</p>
             <div className="flex items-center gap-2 mb-4 p-2.5 rounded-lg bg-black/[0.03] border border-border-subtle">
@@ -435,7 +587,7 @@ export function DocconAssignmentSection({ canAssign }: Props) {
             </div>
 
             <p className="text-[11px] font-semibold text-ink-tertiary uppercase tracking-wider mb-2">Pilih Doccon</p>
-            <div className="space-y-2 mb-5 max-h-60 overflow-y-auto">
+            <div className="space-y-2 mb-5 max-h-48 overflow-y-auto">
               <label
                 className={classNames(
                   'flex items-center gap-3 rounded-xl border p-3 cursor-pointer transition',
@@ -470,6 +622,47 @@ export function DocconAssignmentSection({ canAssign }: Props) {
                 )
               })}
             </div>
+
+            <p className="text-[11px] font-semibold text-ink-tertiary uppercase tracking-wider mb-2">Pilih Admin OSM</p>
+            {assignModal.hasCost ? (
+              <div className="space-y-2 mb-5 max-h-48 overflow-y-auto">
+                <label
+                  className={classNames(
+                    'flex items-center gap-3 rounded-xl border p-3 cursor-pointer transition',
+                    selectedAdminOsm === '' ? 'bg-slate-50 border-slate-300' : 'border-border hover:border-border-bold',
+                  )}
+                >
+                  <input type="radio" name="admin-osm-pick" value="" checked={selectedAdminOsm === ''} onChange={() => setSelectedAdminOsm('')} className="accent-pertamina-red" />
+                  <div className="text-xs text-ink-tertiary italic">Lepas assignment</div>
+                </label>
+
+                {adminOsmUsers.map((u) => {
+                  const count = adminOsmWorkload[u.id] ?? 0
+                  const active = selectedAdminOsm === u.id
+                  return (
+                    <label
+                      key={u.id}
+                      className={classNames(
+                        'flex items-center gap-3 rounded-xl border p-3 cursor-pointer transition',
+                        active ? 'bg-pertamina-red-50 border-pertamina-red/30 shadow-sm' : 'border-border hover:border-pertamina-red/20 hover:bg-pertamina-red-50/40',
+                      )}
+                    >
+                      <input type="radio" name="admin-osm-pick" value={u.id} checked={active} onChange={() => setSelectedAdminOsm(u.id)} className="accent-pertamina-red" />
+                      <div className="h-9 w-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm" style={{ backgroundColor: u.avatarColor }}>
+                        {u.name[0]}
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-semibold text-ink-primary">{u.name}</div>
+                        <div className="text-[10px] text-ink-tertiary">{count} project aktif</div>
+                      </div>
+                      {active && <CheckCircle2 size={15} className="text-pertamina-red shrink-0" />}
+                    </label>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-[11px] text-ink-tertiary italic mb-5">Project ini belum punya data Cost Monitoring — Admin OSM belum bisa diassign.</p>
+            )}
 
             <div className="flex gap-2 justify-end">
               <Button variant="ghost" size="sm" onClick={() => setAssignModal(null)}>Batal</Button>

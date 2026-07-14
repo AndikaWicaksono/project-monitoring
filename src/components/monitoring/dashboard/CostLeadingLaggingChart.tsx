@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis,
+  ResponsiveContainer, LineChart, Line, BarChart, Bar, Cell, LabelList, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, ReferenceLine,
 } from 'recharts'
 import { useMonitoringCostStore } from '../../../store/useMonitoringCostStore'
@@ -45,32 +45,32 @@ export function CostLeadingLaggingChart() {
 
   const [selectedId, setSelectedId] = useState<string>('all')
 
-  // ── All-projects overview (multi-line) ──────────────────────────────────────
-  const { overviewData, projectEntries } = useMemo(() => {
-    const projectEntries = costs.map((c, i) => ({
-      id: c.id,
-      code: c.projectCode.replace(/-00$/, ''),
-      color: STROKE_COLORS[i % STROKE_COLORS.length],
-    }))
-
-    const overviewData = MONTHS.map((month) => {
-      const row: Record<string, number | string> = { month: MONTH_SHORT[month] }
-      costs.forEach((c, i) => {
-        let cumPlan = 0, cumActual = 0
-        for (const m of MONTHS) {
-          if (m > month) break
-          cumPlan   += c.costBasedMonthly?.[m]?.planned ?? 0
-          cumActual += realizations
-            .filter((r) => r.projectId === c.id && r.period === m)
-            .reduce((s, r) => s + r.realisasiBiaya, 0)
-        }
-        row[projectEntries[i].code] = cumActual - cumPlan
-      })
-      return row
+  // ── All-projects overview: ranked by variance (paling lagging di atas) ──────
+  const rankedData = useMemo(() => {
+    const rows = costs.map((c) => {
+      let cumPlan = 0, cumActual = 0
+      for (const m of MONTHS) {
+        cumPlan   += c.costBasedMonthly?.[m]?.planned ?? 0
+        cumActual += realizations
+          .filter((r) => r.projectId === c.id && r.period === m)
+          .reduce((s, r) => s + r.realisasiBiaya, 0)
+      }
+      return {
+        id: c.id,
+        code: c.projectCode.replace(/-00$/, ''),
+        name: c.projectName,
+        client: c.projectClient,
+        variance: cumActual - cumPlan,
+      }
     })
-
-    return { overviewData, projectEntries }
+    return rows.sort((a, b) => b.variance - a.variance)
   }, [costs, realizations])
+
+  // Warna dipakai buat strip info di mode detail — id → warna stabil per project
+  const projectEntries = useMemo(
+    () => costs.map((c, i) => ({ id: c.id, code: c.projectCode.replace(/-00$/, ''), color: STROKE_COLORS[i % STROKE_COLORS.length] })),
+    [costs],
+  )
 
   // ── Single-project detail: S-curve kumulatif ───────────────────────────────
   const detailData = useMemo(() => {
@@ -117,21 +117,41 @@ export function CostLeadingLaggingChart() {
       {costs.length === 0 ? (
         <div className="flex flex-1 items-center justify-center text-[11px] text-ink-tertiary">Belum ada data</div>
       ) : selectedId === 'all' ? (
-        /* ── Multi-line overview ── */
-        <div className="flex-1">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={overviewData} margin={{ top: 4, right: 8, bottom: 0, left: -12 }}>
-              <CartesianGrid stroke="rgba(15,23,42,0.07)" strokeDasharray="3 3" />
-              <XAxis dataKey="month" stroke="#94a3b8" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
-              <YAxis stroke="#94a3b8" tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={fmt} axisLine={false} tickLine={false} />
-              <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 2" />
-              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ stroke: 'rgba(15,23,42,0.1)' }} formatter={(v) => [fmtVariance(typeof v === 'number' ? v : 0)]} />
-              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-              {projectEntries.map((e) => (
-                <Line key={e.code} type="monotone" dataKey={e.code} stroke={e.color} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
+        /* ── Ranked bar chart: paling lagging (over budget) di atas, leading di bawah ── */
+        <div className="flex-1 min-h-0 flex flex-col gap-1.5">
+          <div className="flex items-center gap-3 text-[10px] text-ink-tertiary shrink-0">
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-[#E31E24]" /> Lagging (over budget)</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-[#10b981]" /> Leading (under budget)</span>
+            <span className="ml-auto">Klik bar untuk detail</span>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <ResponsiveContainer width="100%" height={Math.max(rankedData.length * 26, 120)}>
+              <BarChart data={rankedData} layout="vertical" margin={{ top: 4, right: 36, bottom: 0, left: 0 }}>
+                <CartesianGrid stroke="rgba(15,23,42,0.07)" strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" tickFormatter={fmt} stroke="#94a3b8" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="code" width={62} stroke="#94a3b8" tick={{ fontSize: 10, fill: '#334155' }} axisLine={false} tickLine={false} />
+                <ReferenceLine x={0} stroke="#94a3b8" strokeDasharray="4 2" />
+                <Tooltip
+                  contentStyle={TOOLTIP_STYLE}
+                  cursor={{ fill: 'rgba(15,23,42,0.04)' }}
+                  formatter={(v) => [fmtVariance(typeof v === 'number' ? v : 0), 'Variance']}
+                  labelFormatter={(_, payload) => payload?.[0]?.payload?.name ?? ''}
+                />
+                <Bar
+                  dataKey="variance"
+                  radius={[0, 4, 4, 0]}
+                  onClick={(data) => { if (data?.id) setSelectedId(data.id) }}
+                  cursor="pointer"
+                  barSize={14}
+                >
+                  {rankedData.map((r) => (
+                    <Cell key={r.id} fill={r.variance >= 0 ? '#E31E24' : '#10b981'} />
+                  ))}
+                  <LabelList dataKey="variance" position="right" formatter={(v: unknown) => fmt(typeof v === 'number' ? v : 0)} style={{ fontSize: 10, fill: '#475569' }} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       ) : (
         /* ── Single-project detail ── */

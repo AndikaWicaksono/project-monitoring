@@ -147,10 +147,8 @@ export function ModalsRoot() {
       return <MonitoringSLAMonthlyModal open onClose={close} mode="edit" recordId={modal.recordId} />
 
     // ── Monitoring — Cost ─────────────────────────────────────────
-    case 'monitoring-cost-create':
-      return <MonitoringCostModal open onClose={close} mode="create" />
     case 'monitoring-cost-edit':
-      return <MonitoringCostModal open onClose={close} mode="edit" costId={modal.costId} />
+      return <MonitoringCostModal open onClose={close} costId={modal.costId} />
     case 'monitoring-cost-realization-create':
       return <MonitoringCostRealizationModal open onClose={close} mode="create" costId={modal.costId} />
     case 'monitoring-cost-realization-edit':

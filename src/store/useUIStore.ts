@@ -48,7 +48,6 @@ export type ModalType =
   | { type: 'monitoring-sla-monthly-add'; componentId: string; projectId: string }
   | { type: 'monitoring-sla-monthly-edit'; recordId: string }
   // Monitoring — Cost
-  | { type: 'monitoring-cost-create' }
   | { type: 'monitoring-cost-edit'; costId: string }
   | { type: 'monitoring-cost-realization-create'; costId: string }
   | { type: 'monitoring-cost-realization-edit'; realizationId: string; costId: string }

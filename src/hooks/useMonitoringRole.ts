@@ -1,4 +1,5 @@
 import { usePermissions } from './usePermissions'
+import { useMonitoringAssignmentStore } from '../store/useMonitoringAssignmentStore'
 
 const MONITORING_ROLES = new Set([
   'admin_osm', 'admin_dmo', 'admin_scs',
@@ -13,6 +14,7 @@ const COST_SATKER_MAP: Record<string, string> = {
 
 export function useMonitoringRole() {
   const { role, user } = usePermissions()
+  const assignments = useMonitoringAssignmentStore((s) => s.assignments)
   const roleId = role?.id ?? ''
 
   const isSuperAdmin = roleId === 'super_admin'
@@ -28,6 +30,15 @@ export function useMonitoringRole() {
   const isKadepParaf = roleId === 'kadep_paraf'
   const isPcrm       = roleId === 'pcrm'
   const isCostAdmin  = isAdminOSM || isAdminDMO || isAdminSCS
+
+  // Realisasi pengeluaran: DMO/SCS tetap broad-role, Admin OSM sekarang per-project
+  // (di-assign Nurlaela lewat useMonitoringAssignmentStore, sama seperti assign Doccon).
+  function canEditCostForProject(kodeProject: string): boolean {
+    if (isSuperAdmin || isAdminDMO || isAdminSCS) return true
+    if (!isAdminOSM) return false
+    const asgn = assignments.find((a) => a.kodeProject === kodeProject)
+    return !!asgn?.assignedAdminOsmId && asgn.assignedAdminOsmId === (user?.id ?? null)
+  }
 
   return {
     isMonitoringOnly:    MONITORING_ROLES.has(roleId),
@@ -49,11 +60,10 @@ export function useMonitoringRole() {
     // Master data (project + komponen SLA): Doccon hanya bisa lihat & isi data bulanan
     canManageSLAMaster:     isSuperAdmin || (!isEngineerOS && !isKadep && !isKadepParaf && !isDoccon),
     canUnlockRecord:        isSuperAdmin || isAdminOSM,
-    // Master data project Cost Monitoring: hanya PCRM yang bisa tambah/edit/hapus project
-    canManageCostMaster:    isSuperAdmin || isPcrm,
+    // Master data project Cost Monitoring: PCRM atau Nurlaela (isKadep) bisa tambah/edit/hapus project
+    canManageCostMaster:    isSuperAdmin || isPcrm || isKadep,
     canViewCost:            isSuperAdmin || isCostAdmin || isKadiv || isKadep || isKadepParaf || isPcrm,
-    // Realisasi pengeluaran: tetap wewenang Admin OSM/DMO/SCS, bukan PCRM (read-only)
-    canEditCost:            isSuperAdmin || isCostAdmin,
+    canEditCostForProject,
     // Assign Doccon tetap wewenang Nurlaela (isKadep) — bukan Kadep paraf
     canAssignDoccon:        isSuperAdmin || isKadep,
     costSatker:             COST_SATKER_MAP[roleId] ?? null,

@@ -1,12 +1,23 @@
 ﻿import { useState, useEffect } from 'react'
-import { TrendingUp, FileText } from 'lucide-react'
+import { TrendingUp, FileText, ClipboardList, Plus, Trash2, FileSignature } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Input, Textarea } from '../ui/Input'
+import { Select } from '../ui/Select'
 import { useMonitoringReportStore } from '../../store/useMonitoringReportStore'
 import { useMonitoringSLAStore } from '../../store/useMonitoringSLAStore'
+import { useMonitoringCostStore } from '../../store/useMonitoringCostStore'
+import { useMonitoringAssignmentStore } from '../../store/useMonitoringAssignmentStore'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useUIStore } from '../../store/useUIStore'
+import { uid } from '../../utils/helpers'
+import type { DeliverablePlanItem, DeliverablePlanTargetType, MonitoringCostStatus } from '../../types/monitoring'
+
+const TARGET_TYPE_OPTIONS: { value: DeliverablePlanTargetType; label: string }[] = [
+  { value: 'report_customer', label: 'Laporan Customer' },
+  { value: 'report_vendor', label: 'Laporan Vendor' },
+  { value: 'billing_tracker', label: 'Dokumen Tracker (BAPP, dst)' },
+]
 
 interface Props {
   open: boolean
@@ -16,13 +27,17 @@ interface Props {
 }
 
 export function MonitoringReportProjectModal({ open, onClose, mode, projectId }: Props) {
-  const reportStore   = useMonitoringReportStore()
-  const slaStore      = useMonitoringSLAStore()
-  const session       = useAuthStore((s) => s.session)
-  const users         = useAuthStore((s) => s.users)
-  const selectedMonth = useUIStore((s) => s.selectedReportMonth)
-  const currentUser   = users.find((u) => u.id === session?.userId)
-  const existing      = projectId ? reportStore.getProjectById(projectId) : undefined
+  const reportStore     = useMonitoringReportStore()
+  const slaStore        = useMonitoringSLAStore()
+  const costStore       = useMonitoringCostStore()
+  const assignmentStore = useMonitoringAssignmentStore()
+  const session         = useAuthStore((s) => s.session)
+  const users           = useAuthStore((s) => s.users)
+  const selectedMonth   = useUIStore((s) => s.selectedReportMonth)
+  const currentUser     = users.find((u) => u.id === session?.userId)
+  const existing        = projectId ? reportStore.getProjectById(projectId) : undefined
+  const docconUsers     = users.filter((u) => u.role === 'doccon_osm' && u.active)
+  const adminOsmUsers   = users.filter((u) => u.role === 'admin_osm' && u.active)
 
   // ── Shared ──────────────────────────────────────────────────────────────
   const [kodeProject,   setKodeProject]   = useState('')
@@ -30,15 +45,27 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
   const [department,    setDepartment]    = useState('')
   const [catatan,       setCatatan]       = useState('')
 
+  // ── Kontrak (satu sumber — dipakai Report, SLA, dan Cost Monitoring) ──────
+  const [client,           setClient]           = useState('')
+  const [contractNumber,   setContractNumber]   = useState('')
+  const [categoryContract, setCategoryContract] = useState('')
+  const [dateOfContract,   setDateOfContract]   = useState('')
+  const [startDate,        setStartDate]        = useState('')
+  const [endDate,          setEndDate]          = useState('')
+  const [isCancelled,      setIsCancelled]      = useState(false)
+
   // ── Report-specific ─────────────────────────────────────────────────────
-  const [client,        setClient]        = useState('')
   const [picLaporan,    setPicLaporan]    = useState('')
   const [salesCustomer, setSalesCustomer] = useState('')
   const [emailTujuan,   setEmailTujuan]   = useState('')
-  const [kontrakMulai,  setKontrakMulai]  = useState('')
 
   // ── SLA-specific ─────────────────────────────────────────────────────────
   const [targetSLA,     setTargetSLA]     = useState<string>('99')
+
+  // ── Deliverable Plan ─────────────────────────────────────────────────────
+  const [deliverablePlan, setDeliverablePlan] = useState<DeliverablePlanItem[]>([])
+  const [assignDocconId,  setAssignDocconId]  = useState('')
+  const [assignAdminOsmId, setAssignAdminOsmId] = useState('')
 
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -49,20 +76,46 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
       setDepartment(existing.department)
       setCatatan(existing.catatan)
       setClient(existing.client)
+      setContractNumber(existing.contractNumber ?? '')
+      setCategoryContract(existing.categoryContract ?? '')
+      setDateOfContract(existing.dateOfContract ?? '')
+      setStartDate(existing.startDate ?? '')
+      setEndDate(existing.endDate ?? '')
+      setIsCancelled(existing.isCancelled ?? false)
       setPicLaporan(existing.picLaporan)
       setSalesCustomer(existing.salesCustomer)
       setEmailTujuan(existing.emailTujuan)
-      setKontrakMulai(existing.kontrakMulai)
       // Load current targetSLA from SLA store
       const existingSLA = slaStore.projects.find((p) => p.kodeProject === existing.kodeProject)
       setTargetSLA(existingSLA ? String(existingSLA.targetSLA) : '99')
+      setDeliverablePlan(existing.deliverablePlan ?? [])
+      setAssignDocconId('')
+      setAssignAdminOsmId('')
     } else {
       setKodeProject(''); setNamaKontrak(''); setDepartment(''); setCatatan('')
-      setClient(''); setPicLaporan(''); setSalesCustomer(''); setEmailTujuan('')
-      setKontrakMulai(selectedMonth); setTargetSLA('99')
+      setClient(''); setContractNumber(''); setCategoryContract(''); setDateOfContract('')
+      setStartDate(`${selectedMonth}-01`); setEndDate(''); setIsCancelled(false)
+      setPicLaporan(''); setSalesCustomer(''); setEmailTujuan('')
+      setTargetSLA('99')
+      setDeliverablePlan([]); setAssignDocconId(''); setAssignAdminOsmId('')
     }
     setErrors({})
   }, [open, mode, projectId])
+
+  function addDeliverableItem() {
+    setDeliverablePlan((items) => [
+      ...items,
+      { id: uid('dpi'), label: '', targetType: 'report_customer', cadenceMonths: 1, startPhase: 'engineer', active: true },
+    ])
+  }
+
+  function updateDeliverableItem(id: string, patch: Partial<DeliverablePlanItem>) {
+    setDeliverablePlan((items) => items.map((it) => it.id === id ? { ...it, ...patch } : it))
+  }
+
+  function removeDeliverableItem(id: string) {
+    setDeliverablePlan((items) => items.filter((it) => it.id !== id))
+  }
 
   function validate() {
     const e: Record<string, string> = {}
@@ -75,9 +128,14 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
     if (!namaKontrak.trim())  e.namaKontrak  = 'Nama Project wajib diisi'
     if (!department.trim())   e.department   = 'Department wajib diisi'
     if (!client.trim())       e.client       = 'Client wajib diisi'
-    if (!kontrakMulai.trim()) e.kontrakMulai = 'Periode mulai wajib diisi'
+    if (!startDate.trim())    e.startDate    = 'Start Date wajib diisi'
+    if (endDate.trim() && startDate.trim() && endDate.trim() < startDate.trim()) e.endDate = 'End Date tidak boleh sebelum Start Date'
     const t = parseFloat(targetSLA)
     if (isNaN(t) || t <= 0 || t > 100) e.targetSLA = 'Target SLA harus antara 0.1 – 100'
+    for (const item of deliverablePlan) {
+      if (!item.label.trim()) e[`deliverable_${item.id}_label`] = 'Nama deliverable wajib diisi'
+      if (!Number.isFinite(item.cadenceMonths) || item.cadenceMonths < 1) e[`deliverable_${item.id}_cadence`] = 'Cadence minimal 1 bulan'
+    }
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -88,7 +146,17 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
     const byId   = currentUser?.id   ?? ''
     const byName = currentUser?.name ?? ''
 
+    // Periode bulanan Report/SLA (kontrakMulai/kontrakAkhir) diturunkan otomatis dari
+    // Start/End Date — satu-satunya input tanggal yang diisi Nurlaela.
+    const startDateTrim = startDate.trim()
+    const endDateTrim   = endDate.trim()
+    const kontrakMulai  = startDateTrim.slice(0, 7)
+    const kontrakAkhir  = endDateTrim ? endDateTrim.slice(0, 7) : null
+    const costStatus: MonitoringCostStatus = isCancelled ? 'cancelled' : 'active'
+
     // ── Create / Edit Report project ────────────────────────────────────
+    // excludedMonths sengaja gak dimasukkan di sini — itu dikelola lewat "Hapus dari bulan ini saja"
+    // di halaman List Project, bukan dari form ini, jadi gak boleh ketimpa waktu edit.
     const reportPayload = {
       kodeProject:    kodeProject.trim(),
       client:         client.trim(),
@@ -99,15 +167,33 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
       salesCustomer:  salesCustomer.trim(),
       emailTujuan:    emailTujuan.trim(),
       catatan:        catatan.trim(),
-      kontrakMulai:   kontrakMulai.trim(),
-      kontrakAkhir:   null as string | null,
-      excludedMonths: [] as string[],
+      kontrakMulai,
+      kontrakAkhir,
+      contractNumber:   contractNumber.trim(),
+      categoryContract: categoryContract.trim(),
+      dateOfContract:   dateOfContract.trim() || null,
+      startDate:        startDateTrim || null,
+      endDate:          endDateTrim || null,
+      isCancelled,
+      deliverablePlan: deliverablePlan.map((d) => ({ ...d, label: d.label.trim() })),
       createdByUserId: byId,
       createdByName:   byName,
     }
 
+    // Field kontrak yang disinkronkan ke Cost Monitoring — Master Data adalah satu-satunya sumber.
+    const costSyncFields = {
+      projectClient:    client.trim(),
+      projectName:      namaKontrak.trim(),
+      contractNumber:   contractNumber.trim(),
+      categoryContract: categoryContract.trim(),
+      dateOfContract:   dateOfContract.trim() || null,
+      startDate:        startDateTrim || null,
+      endDate:          endDateTrim || null,
+      status:           costStatus,
+    }
+
     if (mode === 'create') {
-      reportStore.addProject(reportPayload)
+      const createdProject = reportStore.addProject({ ...reportPayload, excludedMonths: [] })
 
       // ── Also create SLA project ──────────────────────────────────────
       slaStore.addProject({
@@ -120,9 +206,34 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
         createdByUserId: byId,
         createdByName:   byName,
       })
+
+      // ── Also create Cost Monitoring shell record (data finansial diisi belakangan) ──
+      costStore.addCost({
+        projectId: kodeProject.trim(),
+        projectCode: kodeProject.trim(),
+        year: parseInt(kontrakMulai.split('-')[0], 10) || new Date().getFullYear(),
+        ...costSyncFields,
+        projectValue: 0,
+        costBased: 0,
+        actualCost: 0,
+        amandemen: '',
+        tkdn: 0,
+        description: '',
+        createdByUserId: byId,
+        createdByName:   byName,
+      })
+
+      // ── Assign Doccon (opsional) — men-trigger generate deliverable otomatis ──
+      if (assignDocconId) {
+        assignmentStore.assign(createdProject.kodeProject, assignDocconId, byId, byName)
+      }
+      // ── Assign Admin OSM (opsional) ──
+      if (assignAdminOsmId) {
+        const adminOsm = adminOsmUsers.find((u) => u.id === assignAdminOsmId)
+        assignmentStore.assignAdminOsm(createdProject.kodeProject, assignAdminOsmId, adminOsm?.name ?? '', byId, byName)
+      }
     } else if (mode === 'edit' && projectId) {
-      const { kontrakAkhir: _, ...rest } = reportPayload
-      reportStore.updateProject(projectId, rest)
+      reportStore.updateProject(projectId, reportPayload)
       // Also update SLA project
       const existingSLA = slaStore.projects.find((p) => p.kodeProject === kodeProject.trim())
       if (existingSLA) {
@@ -133,6 +244,18 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
           targetSLA:   parseFloat(targetSLA),
           catatan:     catatan.trim(),
         })
+      }
+      // Also sync Cost Monitoring's identity/contract fields — sebelumnya cuma disinkron
+      // waktu create, jadi edit di sini gak pernah kepakai ke Cost (sumber drift status).
+      const existingCost = costStore.costs.find((c) => c.projectCode === kodeProject.trim())
+      if (existingCost) {
+        costStore.updateCost(existingCost.id, costSyncFields)
+      }
+      // Kalau project sudah pernah diassign, generate ulang sekarang juga —
+      // supaya perubahan/penambahan deliverable langsung kepakai, gak nunggu Doccon buka halaman detail.
+      const asgn = assignmentStore.getByKode(kodeProject.trim())
+      if (asgn?.assignedDocconId) {
+        reportStore.generateDeliverablesForKodeProject(kodeProject.trim(), asgn.assignedDocconId)
       }
     }
 
@@ -193,6 +316,79 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
           {errors.namaKontrak && <p className="text-[11px] text-danger mt-1">{errors.namaKontrak}</p>}
         </div>
 
+        {/* ── Kontrak section — satu sumber, dipakai Report, SLA, dan Cost Monitoring ──── */}
+        <div className="pt-1">
+          <div className="flex items-center gap-2 mb-3">
+            <FileSignature size={13} className="text-amber-500 shrink-0" />
+            <span className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">Kontrak</span>
+            <div className="flex-1 h-px bg-amber-100" />
+          </div>
+          <p className="text-[11px] text-ink-tertiary mb-3">
+            Field di bawah ini jadi satu sumber untuk Report, SLA, dan Cost Monitoring — gak perlu diisi ulang di masing-masing modul.
+          </p>
+          <div className="space-y-4">
+            <div>
+              <Input
+                label="Client *"
+                value={client}
+                onChange={(e) => setClient(e.target.value)}
+                placeholder="Nama perusahaan client"
+              />
+              {errors.client && <p className="text-[11px] text-danger mt-1">{errors.client}</p>}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Nomor Kontrak"
+                value={contractNumber}
+                onChange={(e) => setContractNumber(e.target.value)}
+                placeholder="No. kontrak"
+              />
+              <Input
+                label="Kategori Kontrak"
+                value={categoryContract}
+                onChange={(e) => setCategoryContract(e.target.value)}
+                placeholder="Kategori"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <Input
+                label="Tanggal Kontrak"
+                type="date"
+                value={dateOfContract}
+                onChange={(e) => setDateOfContract(e.target.value)}
+              />
+              <div>
+                <Input
+                  label="Start Date *"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+                {errors.startDate && <p className="text-[11px] text-danger mt-1">{errors.startDate}</p>}
+              </div>
+              <div>
+                <Input
+                  label="End Date"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  hint="Kosongkan kalau kontrak masih aktif"
+                />
+                {errors.endDate && <p className="text-[11px] text-danger mt-1">{errors.endDate}</p>}
+              </div>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={isCancelled}
+                onChange={(e) => setIsCancelled(e.target.checked)}
+                className="rounded border-border-default accent-pertamina-red"
+              />
+              <span className="text-xs text-ink-secondary">Batalkan Project</span>
+            </label>
+          </div>
+        </div>
+
         {/* ── Report section ───────────────────────────────────────────── */}
         <div className="pt-1">
           <div className="flex items-center gap-2 mb-3">
@@ -201,26 +397,6 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
             <div className="flex-1 h-px bg-blue-100" />
           </div>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Input
-                  label="Client *"
-                  value={client}
-                  onChange={(e) => setClient(e.target.value)}
-                  placeholder="Nama perusahaan client"
-                />
-                {errors.client && <p className="text-[11px] text-danger mt-1">{errors.client}</p>}
-              </div>
-              <div>
-                <Input
-                  label="Periode Mulai Kontrak *"
-                  type="month"
-                  value={kontrakMulai}
-                  onChange={(e) => setKontrakMulai(e.target.value)}
-                />
-                {errors.kontrakMulai && <p className="text-[11px] text-danger mt-1">{errors.kontrakMulai}</p>}
-              </div>
-            </div>
             <div className="grid grid-cols-2 gap-4">
               <Input
                 label="PIC Laporan"
@@ -268,6 +444,111 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
           </div>
         </div>
 
+        {/* ── Deliverable Plan section ─────────────────────────────────── */}
+        <div className="pt-1">
+          <div className="flex items-center gap-2 mb-3">
+            <ClipboardList size={13} className="text-emerald-600 shrink-0" />
+            <span className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider">Deliverable Plan</span>
+            <div className="flex-1 h-px bg-emerald-100" />
+          </div>
+          <p className="text-[11px] text-ink-tertiary mb-3">
+            Dokumen deliverable yang wajib ada untuk project ini. Begitu project diassign ke Doccon, dokumen untuk periode yang jatuh tempo langsung dibuat otomatis (status Draft).
+          </p>
+          {deliverablePlan.length > 0 && (
+            <div className="space-y-2.5 mb-2.5">
+              {deliverablePlan.map((item) => (
+                <div key={item.id} className="rounded-lg border border-border-subtle bg-black/[0.015] p-3 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 grid grid-cols-2 gap-2">
+                      <Select
+                        value={item.targetType}
+                        onChange={(e) => updateDeliverableItem(item.id, { targetType: e.target.value as DeliverablePlanTargetType })}
+                        options={TARGET_TYPE_OPTIONS}
+                        className="text-xs py-1.5"
+                      />
+                      <div>
+                        <Input
+                          value={item.label}
+                          onChange={(e) => updateDeliverableItem(item.id, { label: e.target.value })}
+                          placeholder="Nama deliverable, contoh: Laporan Bulanan"
+                          className="text-xs py-1.5"
+                        />
+                        {errors[`deliverable_${item.id}_label`] && <p className="text-[11px] text-danger mt-1">{errors[`deliverable_${item.id}_label`]}</p>}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeDeliverableItem(item.id)}
+                      className="shrink-0 rounded p-1.5 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition mt-0.5"
+                      title="Hapus deliverable"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="flex items-center gap-1.5 text-[11px] text-ink-secondary">
+                      Tiap
+                      <input
+                        type="number"
+                        min={1}
+                        value={item.cadenceMonths}
+                        onChange={(e) => updateDeliverableItem(item.id, { cadenceMonths: parseInt(e.target.value, 10) || 1 })}
+                        className="input-base w-14 text-xs py-1 text-center"
+                      />
+                      bulan
+                    </label>
+                    {errors[`deliverable_${item.id}_cadence`] && <p className="text-[11px] text-danger">{errors[`deliverable_${item.id}_cadence`]}</p>}
+                    {item.targetType === 'report_customer' && (
+                      <div className="flex items-center gap-3 ml-auto">
+                        <label className="flex items-center gap-1.5 text-[11px] text-ink-secondary cursor-pointer">
+                          <input type="radio" name={`startPhase-${item.id}`} checked={item.startPhase !== 'doccon'} onChange={() => updateDeliverableItem(item.id, { startPhase: 'engineer' })} className="accent-pertamina-red" />
+                          Perlu input Engineer
+                        </label>
+                        <label className="flex items-center gap-1.5 text-[11px] text-ink-secondary cursor-pointer">
+                          <input type="radio" name={`startPhase-${item.id}`} checked={item.startPhase === 'doccon'} onChange={() => updateDeliverableItem(item.id, { startPhase: 'doccon' })} className="accent-pertamina-red" />
+                          Doccon langsung
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={addDeliverableItem}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 transition"
+          >
+            <Plus size={11} /> Tambah Deliverable
+          </button>
+
+          {isCreate && (
+            <div className="mt-4 grid grid-cols-2 gap-4">
+              <div>
+                <Select
+                  label="Assign Doccon (opsional)"
+                  value={assignDocconId}
+                  onChange={(e) => setAssignDocconId(e.target.value)}
+                  options={[{ value: '', label: '— Belum diassign —' }, ...docconUsers.map((u) => ({ value: u.id, label: u.name }))]}
+                  className="text-xs py-1.5"
+                />
+                <p className="text-[10px] text-ink-tertiary mt-1">Bisa juga diassign nanti dari halaman "Penugasan Project · Doccon".</p>
+              </div>
+              <div>
+                <Select
+                  label="Assign Admin OSM (opsional)"
+                  value={assignAdminOsmId}
+                  onChange={(e) => setAssignAdminOsmId(e.target.value)}
+                  options={[{ value: '', label: '— Belum diassign —' }, ...adminOsmUsers.map((u) => ({ value: u.id, label: u.name }))]}
+                  className="text-xs py-1.5"
+                />
+                <p className="text-[10px] text-ink-tertiary mt-1">Bisa juga diassign nanti dari halaman "Penugasan Project · Doccon".</p>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* ── Catatan ──────────────────────────────────────────────────── */}
         <Textarea
           label="Catatan"
@@ -280,7 +561,7 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
         {/* ── Info box ─────────────────────────────────────────────────── */}
         {isCreate && (
           <div className="rounded-lg bg-blue-50 border border-blue-100 px-3.5 py-2.5 text-[11px] text-blue-700 leading-relaxed">
-            Project ini akan otomatis dibuat di <strong>Report Project</strong> dan <strong>SLA Monitoring</strong>.
+            Project ini akan otomatis dibuat di <strong>Report Project</strong>, <strong>SLA Monitoring</strong>, dan <strong>Cost Monitoring</strong>.
             PIC Doccon akan terisi setelah Anda assign Doccon dari halaman ini.
           </div>
         )}
