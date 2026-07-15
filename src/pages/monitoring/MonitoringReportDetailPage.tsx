@@ -361,7 +361,7 @@ export function MonitoringReportDetailPage() {
   const reportDetailProjectId = useUIStore((s) => s.reportDetailProjectId)
   const selectedMonth = useUIStore((s) => s.selectedReportMonth)
   const setSelectedMonth = useUIStore((s) => s.setSelectedReportMonth)
-  const { canDeleteMonitoring, canEditMonitoring, isEngineerOS, isDoccon, canAssignDoccon } = useMonitoringRole()
+  const { canDeleteMonitoring, canEditMonitoring, isEngineerOS, isDoccon, isKadepParaf, isKadiv, canAssignDoccon } = useMonitoringRole()
   const allUsers = useAuthStore((s) => s.users)
   const session = useAuthStore((s) => s.session)
   const currentUser = allUsers.find((u) => u.id === session?.userId)
@@ -468,7 +468,7 @@ export function MonitoringReportDetailPage() {
               </span>
             </div>
           </div>
-          {!isEngineerOS && !isDoccon && (
+          {!isEngineerOS && !isDoccon && !isKadepParaf && !isKadiv && (
             <Button
               size="sm"
               variant="ghost"
@@ -553,7 +553,7 @@ export function MonitoringReportDetailPage() {
               </span>
             </button>
           ))}
-          {!isEngineerOS && (
+          {!isEngineerOS && !isKadepParaf && !isKadiv && (
             <div className="ml-auto flex items-center px-4">
               {activeTab === 'customer' || activeTab === 'vendor' ? (
                 <Button
@@ -720,7 +720,7 @@ export function MonitoringReportDetailPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
                           <button onClick={() => openModal({ type: 'monitoring-report-document-detail', documentId: doc.id })} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Detail"><Eye size={13} /></button>
-                          {!isEngineerOS && <button onClick={() => openModal({ type: 'monitoring-report-document-edit', documentId: doc.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>}
+                          {!isEngineerOS && !isKadepParaf && !isKadiv && <button onClick={() => openModal({ type: 'monitoring-report-document-edit', documentId: doc.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>}
                           {isEngineerOS && (
                             <button
                               onClick={() => { setUploadingDocId(doc.id); uploadInputRef.current?.click() }}
@@ -730,7 +730,7 @@ export function MonitoringReportDetailPage() {
                               <Upload size={13} />
                             </button>
                           )}
-                          {canEditMonitoring && <button onClick={() => setConfirmDeleteDocId(doc.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus Dokumen"><Trash2 size={13} /></button>}
+                          {canEditMonitoring && !isKadiv && <button onClick={() => setConfirmDeleteDocId(doc.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus Dokumen"><Trash2 size={13} /></button>}
                         </div>
                       </td>
                     </tr>
@@ -761,7 +761,7 @@ export function MonitoringReportDetailPage() {
             {tabDocs.length === 0 && (
               <div className="flex flex-col items-center justify-center py-12 text-ink-tertiary">
                 <p className="text-sm">Belum ada dokumen {activeTab === 'customer' ? 'customer' : 'vendor'} untuk periode <strong>{reportMonthLabel(selectedMonth)}</strong>.</p>
-                {!isEngineerOS && (
+                {!isEngineerOS && !isKadepParaf && !isKadiv && (
                   <Button
                     size="sm" className="mt-3"
                     onClick={() => openModal({ type: 'monitoring-report-document-create', projectId: project.id, docType: activeTab as 'customer' | 'vendor' })}
@@ -816,8 +816,8 @@ export function MonitoringReportDetailPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
                           <button onClick={() => openModal({ type: 'monitoring-billing-detail', billingId: b.id })} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Detail"><Eye size={13} /></button>
-                          <button onClick={() => openModal({ type: 'monitoring-billing-edit', billingId: b.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>
-                          {canDeleteMonitoring && <button onClick={() => setConfirmDeleteBillingId(b.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>}
+                          {!isKadepParaf && !isKadiv && <button onClick={() => openModal({ type: 'monitoring-billing-edit', billingId: b.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>}
+                          {canDeleteMonitoring && !isKadiv && <button onClick={() => setConfirmDeleteBillingId(b.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>}
                         </div>
                       </td>
                     </tr>
@@ -828,13 +828,15 @@ export function MonitoringReportDetailPage() {
             {billingDocs.length === 0 && (
               <div className="flex flex-col items-center justify-center py-12 text-ink-tertiary">
                 <p className="text-sm">Belum ada billing document untuk project ini.</p>
-                <Button
-                  size="sm" className="mt-3"
-                  onClick={() => openModal({ type: 'monitoring-billing-create', projectId: project.id })}
-                  leftIcon={<Plus size={13} />}
-                >
-                  Tambah Document Pertama
-                </Button>
+                {!isEngineerOS && !isKadepParaf && !isKadiv && (
+                  <Button
+                    size="sm" className="mt-3"
+                    onClick={() => openModal({ type: 'monitoring-billing-create', projectId: project.id })}
+                    leftIcon={<Plus size={13} />}
+                  >
+                    Tambah Document Pertama
+                  </Button>
+                )}
               </div>
             )}
           </>

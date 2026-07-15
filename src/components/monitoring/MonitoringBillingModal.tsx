@@ -291,7 +291,8 @@ export function MonitoringBillingModal({ open, onClose, mode, projectId, billing
                             type="checkbox"
                             checked={isLinked(pickerDoc.id, att.id)}
                             onChange={() => toggleLink(pickerDoc.id, att.id)}
-                            className="accent-pertamina-red"
+                            disabled={isKadepParaf || isKadiv}
+                            className="accent-pertamina-red disabled:cursor-not-allowed disabled:opacity-60"
                           />
                           <Paperclip size={13} className="text-ink-tertiary shrink-0" />
                           <div className="flex-1 min-w-0">
@@ -327,12 +328,14 @@ export function MonitoringBillingModal({ open, onClose, mode, projectId, billing
                             <div className="text-xs font-medium text-red-600">Attachment sumber sudah tidak ada</div>
                           )}
                         </div>
-                        <button
-                          onClick={() => billingId && store.billingUnlinkAttachment(billingId, link.reportDocumentId, link.attachmentId)}
-                          className="shrink-0 rounded p-0.5 text-ink-muted hover:text-pertamina-red hover:bg-pertamina-red-50 transition"
-                        >
-                          <X size={12} />
-                        </button>
+                        {!isKadepParaf && !isKadiv && (
+                          <button
+                            onClick={() => billingId && store.billingUnlinkAttachment(billingId, link.reportDocumentId, link.attachmentId)}
+                            className="shrink-0 rounded p-0.5 text-ink-muted hover:text-pertamina-red hover:bg-pertamina-red-50 transition"
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
                       </div>
                     )
                   })}
@@ -345,10 +348,12 @@ export function MonitoringBillingModal({ open, onClose, mode, projectId, billing
           <div className="border-t border-border-subtle pt-4">
             <div className="flex items-center justify-between mb-3">
               <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Attachment Manual ({attachments.length})</div>
-              <>
-                <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />
-                <Button size="sm" variant="ghost" onClick={() => fileInputRef.current?.click()} leftIcon={<Upload size={12} />}>Upload</Button>
-              </>
+              {!isKadepParaf && !isKadiv && (
+                <>
+                  <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />
+                  <Button size="sm" variant="ghost" onClick={() => fileInputRef.current?.click()} leftIcon={<Upload size={12} />}>Upload</Button>
+                </>
+              )}
             </div>
             {attachments.length === 0 ? (
               <p className="text-xs text-ink-tertiary">Belum ada attachment manual.</p>
@@ -361,12 +366,14 @@ export function MonitoringBillingModal({ open, onClose, mode, projectId, billing
                       <div className="text-xs font-medium text-ink-primary truncate">{att.name}</div>
                       <div className="text-[10px] text-ink-tertiary">{fmtSize(att.size)} · {att.uploadedByName} · {formatDateShort(att.uploadedAt)}</div>
                     </div>
-                    <button
-                      onClick={() => store.removeBillingAttachment(existing.id, att.id)}
-                      className="shrink-0 rounded p-0.5 text-ink-muted hover:text-pertamina-red hover:bg-pertamina-red-50 transition"
-                    >
-                      <X size={12} />
-                    </button>
+                    {!isKadepParaf && !isKadiv && (
+                      <button
+                        onClick={() => store.removeBillingAttachment(existing.id, att.id)}
+                        className="shrink-0 rounded p-0.5 text-ink-muted hover:text-pertamina-red hover:bg-pertamina-red-50 transition"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>

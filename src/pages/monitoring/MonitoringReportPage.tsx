@@ -243,7 +243,7 @@ export function MonitoringReportPage() {
   const setReportDetailProjectId = useUIStore((s) => s.setReportDetailProjectId)
   const selectedMonth = useUIStore((s) => s.selectedReportMonth)
   const setSelectedMonth = useUIStore((s) => s.setSelectedReportMonth)
-  const { canDeleteMonitoring, canManageProjectPeriod, isDoccon, isEngineerOS, isKadiv, currentUserId } = useMonitoringRole()
+  const { canDeleteMonitoring, canManageProjectPeriod, isDoccon, isEngineerOS, isKadiv, isKadepParaf, currentUserId } = useMonitoringRole()
   const assignments = useMonitoringAssignmentStore((s) => s.assignments)
   const users       = useAuthStore((s) => s.users)
 
@@ -742,7 +742,7 @@ export function MonitoringReportPage() {
                             >
                               <Eye size={13} />
                             </button>
-                            {!isDoccon && (
+                            {!isDoccon && !isKadepParaf && !isKadiv && (
                               <button
                                 onClick={() => openModal({ type: 'monitoring-report-project-edit', projectId: p.id })}
                                 className="rounded p-1.5 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.05] transition"
@@ -751,7 +751,7 @@ export function MonitoringReportPage() {
                                 <Pencil size={13} />
                               </button>
                             )}
-                            {canManageProjectPeriod && (
+                            {canManageProjectPeriod && !isKadiv && (
                               <>
                                 <button
                                   onClick={() => setConfirmExcludeMonthId(p.id)}
@@ -769,7 +769,7 @@ export function MonitoringReportPage() {
                                 </button>
                               </>
                             )}
-                            {canDeleteMonitoring && (
+                            {canDeleteMonitoring && !isKadiv && (
                               <button
                                 onClick={() => setConfirmDeleteId(p.id)}
                                 className="rounded p-1.5 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition"
@@ -959,7 +959,7 @@ export function MonitoringReportPage() {
                         >
                           <Eye size={12} />
                         </button>
-                        {!isDoccon && (
+                        {!isDoccon && !isKadepParaf && !isKadiv && (
                           <button
                             onClick={() => openModal({ type: 'monitoring-report-project-edit', projectId: p.id })}
                             className="rounded p-1.5 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.05] transition bg-white/80 shadow-sm"
@@ -968,7 +968,7 @@ export function MonitoringReportPage() {
                             <Pencil size={12} />
                           </button>
                         )}
-                        {canManageProjectPeriod && (
+                        {canManageProjectPeriod && !isKadiv && (
                           <>
                             <button
                               onClick={() => setConfirmExcludeMonthId(p.id)}
@@ -986,7 +986,7 @@ export function MonitoringReportPage() {
                             </button>
                           </>
                         )}
-                        {canDeleteMonitoring && (
+                        {canDeleteMonitoring && !isKadiv && (
                           <button
                             onClick={() => setConfirmDeleteId(p.id)}
                             className="rounded p-1.5 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition bg-white/80 shadow-sm"

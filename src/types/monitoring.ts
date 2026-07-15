@@ -133,8 +133,8 @@ export interface ReportDocument {
   updatedAt: string
   createdByUserId: string
   createdByName: string
-  // Pipeline type: 'engineer' = Engineer → Doccon → Kadiv → Customer → Sales
-  //                'doccon'   = Doccon langsung → Kadiv → Customer → Sales
+  // Pipeline type: 'engineer' = Engineer → Doccon → Paraf Kadep → Kadiv → Customer → Sales
+  //                'doccon'   = Doccon langsung → Paraf Kadep → Kadiv → Customer → Sales
   startPhase?: 'engineer' | 'doccon'
   // Per-document Doccon assignment (Kadep assigns)
   assignedDocconUserId?: string | null

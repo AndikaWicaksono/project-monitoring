@@ -6,7 +6,6 @@ import { Input, Textarea } from '../ui/Input'
 import { useMonitoringReportStore } from '../../store/useMonitoringReportStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useAuthStore } from '../../store/useAuthStore'
-import { usePermissions } from '../../hooks/usePermissions'
 import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { classNames, formatDateTime, formatDateShort } from '../../utils/helpers'
 import { reportMonthLabel } from '../../types/monitoring'
@@ -80,12 +79,9 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
   const selectedMonth = useUIStore((s) => s.selectedReportMonth)
   const session = useAuthStore((s) => s.session)
   const users = useAuthStore((s) => s.users)
-  const { hasPermission } = usePermissions()
-  const { isDoccon, isAdminOSM, isKadiv, isEngineerOS, isKadepParaf } = useMonitoringRole()
+  const { isDoccon, isKadiv, isEngineerOS, isKadepParaf } = useMonitoringRole()
 
   const currentUser = users.find((u) => u.id === session?.userId)
-  const canApprove = hasPermission('canApproveHandoff')
-  const canEdit = hasPermission('canEditTask')
 
   const existing = documentId ? store.getDocumentById(documentId) : undefined
   const project = existing ? store.getProjectById(existing.projectId) : (projectId ? store.getProjectById(projectId) : undefined)
@@ -487,7 +483,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
           <div className="border-t border-border-subtle pt-4">
             <div className="flex items-center justify-between mb-3">
               <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Attachment ({existing.attachments.length})</div>
-              {(existing.status !== 'APPROVED' || existing.salesFlagIssue) && (
+              {!isKadepParaf && !isKadiv && (existing.status !== 'APPROVED' || existing.salesFlagIssue) && (
                 <>
                   <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />
                   <Button size="sm" variant="ghost" onClick={() => fileInputRef.current?.click()} leftIcon={<Upload size={12} />}>Upload</Button>
@@ -505,7 +501,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
                       <div className="text-xs font-medium text-ink-primary truncate">{att.name}</div>
                       <div className="text-[10px] text-ink-tertiary">{fmtSize(att.size)} · {att.uploadedByName} · {formatDateShort(att.uploadedAt)}</div>
                     </div>
-                    {existing.status !== 'APPROVED' && (
+                    {!isKadepParaf && !isKadiv && existing.status !== 'APPROVED' && (
                       <button
                         onClick={() => store.removeAttachment(existing.id, att.id)}
                         className="shrink-0 rounded p-0.5 text-ink-muted hover:text-pertamina-red hover:bg-pertamina-red-50 transition"
@@ -902,14 +898,14 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
                   <input type="radio" name="startPhase" checked={startPhase === 'engineer'} onChange={() => setStartPhase('engineer')} className="accent-pertamina-red" />
                   <div>
                     <div className="text-xs font-medium text-ink-primary">Perlu input Engineer</div>
-                    <div className="text-[10px] text-ink-tertiary">Engineer → Doccon → Kadiv → Customer → Sales</div>
+                    <div className="text-[10px] text-ink-tertiary">Engineer → Doccon → Paraf Kadep → Kadiv → Customer → Sales</div>
                   </div>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="radio" name="startPhase" checked={startPhase === 'doccon'} onChange={() => setStartPhase('doccon')} className="accent-pertamina-red" />
                   <div>
                     <div className="text-xs font-medium text-ink-primary">Doccon langsung</div>
-                    <div className="text-[10px] text-ink-tertiary">Doccon → Kadiv → Customer → Sales</div>
+                    <div className="text-[10px] text-ink-tertiary">Doccon → Paraf Kadep → Kadiv → Customer → Sales</div>
                   </div>
                 </label>
               </div>

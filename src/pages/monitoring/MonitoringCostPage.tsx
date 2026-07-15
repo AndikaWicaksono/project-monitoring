@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useMemo, useState, useEffect } from 'react'
 import { Plus, Search, Download, Eye, Pencil, Trash2, Filter, ChevronDown, ChevronUp, BarChart2 } from 'lucide-react'
 import { useMonitoringCostStore } from '../../store/useMonitoringCostStore'
 import { useMonitoringAssignmentStore } from '../../store/useMonitoringAssignmentStore'
@@ -81,6 +81,7 @@ export function MonitoringCostPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<MonitoringCostStatus | ''>('')
   const [sortBy, setSortBy] = useState<'kode-asc' | 'kode-desc' | 'nama-asc' | 'nama-desc'>('kode-asc')
+  const [currentPage, setCurrentPage] = useState(1)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null)
   const [panelTab, setPanelTab] = useState<'breakdown' | 'realizations'>('breakdown')
@@ -109,6 +110,25 @@ export function MonitoringCostPage() {
       return 0
     })
   }, [costs, search, statusFilter, sortBy, isAdminOSM, currentUserId, assignments])
+
+  const PAGE_SIZE = 10
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  useEffect(() => { setCurrentPage(1) }, [search, statusFilter, sortBy])
+  const paginatedCosts = useMemo(
+    () => filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filtered, currentPage],
+  )
+  function getPageNumbers(current: number, total: number): (number | '...')[] {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+    const pages: (number | '...')[] = [1]
+    if (current > 3) pages.push('...')
+    const start = Math.max(2, current - 1)
+    const end   = Math.min(total - 1, current + 1)
+    for (let i = start; i <= end; i++) pages.push(i)
+    if (current < total - 2) pages.push('...')
+    pages.push(total)
+    return pages
+  }
 
   const totalContractValue = useMemo(() => filtered.reduce((s, c) => s + c.projectValue, 0), [filtered])
   const totalActualCost = useMemo(() =>
@@ -202,7 +222,7 @@ export function MonitoringCostPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c) => {
+              {paginatedCosts.map((c) => {
                 const isExpanded = expandedId === c.id
                 const costRealizations = realizations.filter((r) => r.projectId === c.id)
                 const effectiveStatus = getEffectiveCostStatus(c.startDate, c.endDate, c.status === 'cancelled')
@@ -466,10 +486,50 @@ export function MonitoringCostPage() {
           </table>
         </div>
 
-        {filtered.length === 0 && (
+        {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-ink-tertiary">
             <Search size={32} className="mb-2 opacity-30" />
             <p className="text-sm">{costs.length === 0 ? 'Belum ada data cost. Klik "Tambah".' : 'Tidak ada data yang cocok.'}</p>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border-subtle bg-black/[0.015]">
+            <span className="text-[11px] text-ink-tertiary">
+              Menampilkan {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} dari {filtered.length} project
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="rounded-lg border border-border px-2.5 py-1 text-[11px] font-medium text-ink-secondary hover:bg-black/[0.04] disabled:opacity-40 disabled:cursor-not-allowed transition"
+              >
+                ← Prev
+              </button>
+              {getPageNumbers(currentPage, totalPages).map((pg, i) =>
+                pg === '...' ? (
+                  <span key={`ellipsis-${i}`} className="px-1 text-[11px] text-ink-tertiary">…</span>
+                ) : (
+                  <button
+                    key={pg}
+                    onClick={() => setCurrentPage(pg as number)}
+                    className={classNames(
+                      'rounded-lg border px-2.5 py-1 text-[11px] font-medium transition min-w-[28px]',
+                      currentPage === pg
+                        ? 'bg-pertamina-red text-white border-pertamina-red shadow-sm'
+                        : 'border-border text-ink-secondary hover:bg-black/[0.04]',
+                    )}
+                  >
+                    {pg}
+                  </button>
+                ),
+              )}
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="rounded-lg border border-border px-2.5 py-1 text-[11px] font-medium text-ink-secondary hover:bg-black/[0.04] disabled:opacity-40 disabled:cursor-not-allowed transition"
+              >
+                Next →
+              </button>
+            </div>
           </div>
         )}
       </div>
