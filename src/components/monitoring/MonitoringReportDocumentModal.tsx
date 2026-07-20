@@ -419,7 +419,12 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
               </div>
               <div>
                 <div className="text-[11px] uppercase tracking-widest text-ink-tertiary">Tgl Feedback</div>
-                <div className="text-sm text-ink-secondary mt-0.5">{existing.tanggalFeedback ? formatDateShort(existing.tanggalFeedback) : '—'}</div>
+                <div className="text-sm text-ink-secondary mt-0.5">
+                  {(() => {
+                    const feedbackDate = existing.customerConfirmedAt ?? existing.vendorConfirmedAt ?? existing.tanggalFeedback
+                    return feedbackDate ? formatDateShort(feedbackDate) : '—'
+                  })()}
+                </div>
               </div>
               <div>
                 <div className="text-[11px] uppercase tracking-widest text-ink-tertiary">Deadline ke Sales</div>

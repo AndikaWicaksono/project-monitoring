@@ -90,6 +90,20 @@ export function downloadCsv(rows: Array<Record<string, string | number>>, filena
   URL.revokeObjectURL(url)
 }
 
+// Sama kayak downloadCsv, tapi terima teks CSV mentah yang udah jadi (bukan array of rows) —
+// dipakai buat download template import.
+export function downloadCsvText(csv: string, filename: string) {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
 export function classNames(...parts: Array<string | number | false | null | undefined>): string {
   return parts.filter((p) => typeof p === 'string' && p.length > 0).join(' ')
 }

@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react'
-import { TrendingUp, FileText, ClipboardList, Plus, Trash2, FileSignature } from 'lucide-react'
+import { TrendingUp, FileText, ClipboardList, Plus, Trash2, FileSignature, Wallet } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Input, Textarea } from '../ui/Input'
@@ -13,10 +13,14 @@ import { useUIStore } from '../../store/useUIStore'
 import { uid } from '../../utils/helpers'
 import type { DeliverablePlanItem, DeliverablePlanTargetType, MonitoringCostStatus } from '../../types/monitoring'
 
+function fmtIDR(n: number): string {
+  return new Intl.NumberFormat('id-ID').format(n)
+}
+
 const TARGET_TYPE_OPTIONS: { value: DeliverablePlanTargetType; label: string }[] = [
   { value: 'report_customer', label: 'Laporan Customer' },
   { value: 'report_vendor', label: 'Laporan Vendor' },
-  { value: 'billing_tracker', label: 'Dokumen Tracker (BAPP, dst)' },
+  { value: 'billing_tracker', label: 'Event-Based Report (BAPP, dst)' },
 ]
 
 interface Props {
@@ -62,6 +66,20 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
   // ── SLA-specific ─────────────────────────────────────────────────────────
   const [targetSLA,     setTargetSLA]     = useState<string>('99')
 
+  // ── Cost Monitoring-specific ────────────────────────────────────────────
+  const [projectValue,        setProjectValue]        = useState(0)
+  const [costBased,           setCostBased]           = useState(0)
+  const [displayProjectValue, setDisplayProjectValue] = useState('')
+  const [displayCostBased,    setDisplayCostBased]    = useState('')
+
+  function handleIDRChange(field: 'projectValue' | 'costBased', raw: string) {
+    const digits = raw.replace(/[^0-9]/g, '')
+    const numVal = digits === '' ? 0 : parseInt(digits, 10)
+    const formatted = digits === '' ? '' : fmtIDR(numVal)
+    if (field === 'projectValue') { setProjectValue(numVal); setDisplayProjectValue(formatted) }
+    else { setCostBased(numVal); setDisplayCostBased(formatted) }
+  }
+
   // ── Deliverable Plan ─────────────────────────────────────────────────────
   const [deliverablePlan, setDeliverablePlan] = useState<DeliverablePlanItem[]>([])
   const [assignDocconId,  setAssignDocconId]  = useState('')
@@ -88,6 +106,12 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
       // Load current targetSLA from SLA store
       const existingSLA = slaStore.projects.find((p) => p.kodeProject === existing.kodeProject)
       setTargetSLA(existingSLA ? String(existingSLA.targetSLA) : '99')
+      // Load current Nilai Kontrak / Cost Based from Cost Monitoring store
+      const existingCost = costStore.costs.find((c) => c.projectCode === existing.kodeProject)
+      setProjectValue(existingCost?.projectValue ?? 0)
+      setCostBased(existingCost?.costBased ?? 0)
+      setDisplayProjectValue(existingCost?.projectValue ? fmtIDR(existingCost.projectValue) : '')
+      setDisplayCostBased(existingCost?.costBased ? fmtIDR(existingCost.costBased) : '')
       setDeliverablePlan(existing.deliverablePlan ?? [])
       setAssignDocconId('')
       setAssignAdminOsmId('')
@@ -97,6 +121,7 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
       setStartDate(`${selectedMonth}-01`); setEndDate(''); setIsCancelled(false)
       setPicLaporan(''); setSalesCustomer(''); setEmailTujuan('')
       setTargetSLA('99')
+      setProjectValue(0); setCostBased(0); setDisplayProjectValue(''); setDisplayCostBased('')
       setDeliverablePlan([]); setAssignDocconId(''); setAssignAdminOsmId('')
     }
     setErrors({})
@@ -190,6 +215,8 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
       startDate:        startDateTrim || null,
       endDate:          endDateTrim || null,
       status:           costStatus,
+      projectValue,
+      costBased,
     }
 
     if (mode === 'create') {
@@ -213,8 +240,6 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
         projectCode: kodeProject.trim(),
         year: parseInt(kontrakMulai.split('-')[0], 10) || new Date().getFullYear(),
         ...costSyncFields,
-        projectValue: 0,
-        costBased: 0,
         actualCost: 0,
         amandemen: '',
         tkdn: 0,
@@ -442,6 +467,44 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
             />
             {errors.targetSLA && <p className="text-[11px] text-danger mt-1">{errors.targetSLA}</p>}
           </div>
+        </div>
+
+        {/* ── Cost Monitoring section ──────────────────────────────────── */}
+        <div className="pt-1">
+          <div className="flex items-center gap-2 mb-3">
+            <Wallet size={13} className="text-emerald-600 shrink-0" />
+            <span className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider">Data Cost Monitoring</span>
+            <div className="flex-1 h-px bg-emerald-100" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-medium text-ink-secondary">Nilai Kontrak (IDR)</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={displayProjectValue}
+                  onChange={(e) => handleIDRChange('projectValue', e.target.value)}
+                  className="input-base"
+                  placeholder="0"
+                />
+              </label>
+            </div>
+            <div>
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-medium text-ink-secondary">Cost Based (IDR)</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={displayCostBased}
+                  onChange={(e) => handleIDRChange('costBased', e.target.value)}
+                  className="input-base"
+                  placeholder="0"
+                />
+              </label>
+            </div>
+          </div>
+          <p className="text-[10px] text-ink-tertiary mt-1.5">Bisa juga diisi/diubah nanti dari halaman Cost Monitoring.</p>
         </div>
 
         {/* ── Deliverable Plan section ─────────────────────────────────── */}

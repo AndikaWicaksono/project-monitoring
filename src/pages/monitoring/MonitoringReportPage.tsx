@@ -15,55 +15,7 @@ import { Button } from '../../components/ui/Button'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { classNames, downloadCsv, formatDateShort } from '../../utils/helpers'
 import { reportMonthLabel, prevReportMonth, nextReportMonth, type ReportDocument } from '../../types/monitoring'
-
-// ── Bottleneck helpers ───────────────────────────────────────────────────────
-
-function daysBetween(a: string | null | undefined, b: string | null | undefined): number | null {
-  if (!a || !b) return null
-  const ms = new Date(b).getTime() - new Date(a).getTime()
-  return ms > 0 ? Math.round(ms / 86400000) : 0
-}
-
-function computeBottleneck(docs: ReportDocument[]) {
-  const todayMs = new Date().getTime()
-
-  const engineerDays: number[] = []
-  let stuckEngineer = 0
-  const customerDays: number[] = []
-  let stuckCustomer = 0
-  const docconDays: number[] = []
-  let stuckDoccon = 0
-
-  for (const d of docs) {
-    const eDays = daysBetween(d.engineerStartedAt, d.engineerSubmittedAt ?? (d.engineerStartedAt ? new Date().toISOString() : null))
-    if (eDays != null) engineerDays.push(eDays)
-    if ((d.currentPhase ?? 'engineer') === 'engineer' && (d.status === 'DRAFT' || d.status === 'SUBMITTED' || d.status === 'REVISION_REQUIRED')) {
-      const start = d.engineerStartedAt ? new Date(d.engineerStartedAt).getTime() : null
-      if (start && (todayMs - start) / 86400000 > 5) stuckEngineer++
-    }
-    const cDays = daysBetween(d.customerReceivedAt, d.customerApprovedAt ?? (d.customerReceivedAt && d.status === 'UNDER_REVIEW' ? new Date().toISOString() : null))
-    if (cDays != null) customerDays.push(cDays)
-    if (d.status === 'UNDER_REVIEW') {
-      const start = d.customerReceivedAt ? new Date(d.customerReceivedAt).getTime() : null
-      if (start && (todayMs - start) / 86400000 > 3) stuckCustomer++
-    }
-    const dDays = daysBetween(d.docconReceivedAt, d.docconDeliveredAt ?? (d.docconReceivedAt && d.currentPhase === 'doccon' && d.docconSubStatus !== 'delivered' ? new Date().toISOString() : null))
-    if (dDays != null) docconDays.push(dDays)
-    if (d.currentPhase === 'doccon' && d.docconSubStatus && d.docconSubStatus !== 'delivered') {
-      const start = d.docconReceivedAt ? new Date(d.docconReceivedAt).getTime() : null
-      if (start && (todayMs - start) / 86400000 > 2) stuckDoccon++
-    }
-  }
-
-  const avgNum = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null
-  const avgStr = (n: number | null) => n !== null ? n.toFixed(1) : '—'
-
-  return {
-    engineerAvg: avgStr(avgNum(engineerDays)), engineerAvgNum: avgNum(engineerDays), stuckEngineer,
-    customerAvg: avgStr(avgNum(customerDays)), customerAvgNum: avgNum(customerDays), stuckCustomer,
-    docconAvg:   avgStr(avgNum(docconDays)),   docconAvgNum:   avgNum(docconDays),   stuckDoccon,
-  }
-}
+import { computeBottleneck, type StuckItem } from '../../utils/reportBottleneck'
 
 // ── Phase pipeline bar ───────────────────────────────────────────────────────
 
@@ -178,17 +130,18 @@ function getProjectStatus(docs: ReportDocument[]): { label: string; cls: string;
 // ── Bottleneck analytics card ────────────────────────────────────────────────
 
 function BottleneckCard({
-  label, icon, avg, avgNum, stuck, sla, slaNum, color,
+  label, icon, avg, avgNum, stuckItems, sla, slaNum, color,
 }: {
   label: string
   icon: React.ReactNode
   avg: string
   avgNum: number | null
-  stuck: number
+  stuckItems: StuckItem[]
   sla: string
   slaNum: number
   color: 'blue' | 'purple' | 'amber'
 }) {
+  const stuck = stuckItems.length
   const ratio = avgNum !== null ? avgNum / slaNum : null
   const isOver  = ratio !== null && ratio > 1
   const isWarn  = ratio !== null && ratio >= 0.8 && !isOver
@@ -211,9 +164,22 @@ function BottleneckCard({
           {icon} {label}
         </div>
         {stuck > 0 ? (
-          <span className="chip bg-red-100 text-red-700 text-[10px] flex items-center gap-0.5 font-semibold">
-            <AlertTriangle size={9} /> {stuck} stuck
-          </span>
+          <Tooltip
+            side="bottom"
+            content={
+              <div className="space-y-1">
+                {stuckItems.map((item, i) => (
+                  <div key={i}>
+                    <span className="font-semibold">{item.kodeProject}</span> — {item.judul} ({item.days}h)
+                  </div>
+                ))}
+              </div>
+            }
+          >
+            <span className="chip bg-red-100 text-red-700 text-[10px] flex items-center gap-0.5 font-semibold cursor-help">
+              <AlertTriangle size={9} /> {stuck} stuck
+            </span>
+          </Tooltip>
         ) : avgNum !== null ? (
           <span className="chip bg-emerald-100 text-emerald-700 text-[10px] font-medium">On Track</span>
         ) : null}
@@ -305,15 +271,30 @@ export function MonitoringReportPage() {
     setPicFilter('')
   }
 
-  // Project IDs yang punya dokumen PENDING_KADIV di periode aktif (untuk Kadiv priority sort)
+  // Project IDs yang punya dokumen ATAU Event-Based Report PENDING_KADIV di periode aktif
+  // (untuk Kadiv priority sort — biar Kadiv gak perlu nyari sendiri project mana yang perlu approval-nya).
   const pendingKadivProjectIds = useMemo(() => {
     if (!isKadiv) return new Set<string>()
-    return new Set(
-      documents
-        .filter((d) => d.status === 'PENDING_KADIV' && d.currentPhase === 'kadiv' && d.period === selectedMonth)
-        .map((d) => d.projectId)
-    )
-  }, [documents, selectedMonth, isKadiv])
+    const fromDocs = documents
+      .filter((d) => d.status === 'PENDING_KADIV' && d.currentPhase === 'kadiv' && d.period === selectedMonth)
+      .map((d) => d.projectId)
+    const fromBilling = billingDocuments
+      .filter((b) => b.status === 'PENDING_KADIV' && b.currentPhase === 'kadiv' && (b.period == null || b.period === selectedMonth))
+      .map((b) => b.projectId)
+    return new Set([...fromDocs, ...fromBilling])
+  }, [documents, billingDocuments, selectedMonth, isKadiv])
+
+  // Sama seperti di atas tapi buat Kadep (PENDING_KADEP_PARAF) — priority sort buat akun Kadep.
+  const pendingKadepProjectIds = useMemo(() => {
+    if (!isKadepParaf) return new Set<string>()
+    const fromDocs = documents
+      .filter((d) => d.status === 'PENDING_KADEP_PARAF' && d.currentPhase === 'kadep' && d.period === selectedMonth)
+      .map((d) => d.projectId)
+    const fromBilling = billingDocuments
+      .filter((b) => b.status === 'PENDING_KADEP_PARAF' && b.currentPhase === 'kadep' && (b.period == null || b.period === selectedMonth))
+      .map((b) => b.projectId)
+    return new Set([...fromDocs, ...fromBilling])
+  }, [documents, billingDocuments, selectedMonth, isKadepParaf])
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -337,6 +318,12 @@ export function MonitoringReportPage() {
       return true
     })
     return [...list].sort((a, b) => {
+      // Kadep: projects with pending paraf float to top
+      if (isKadepParaf) {
+        const aPending = pendingKadepProjectIds.has(a.id) ? 0 : 1
+        const bPending = pendingKadepProjectIds.has(b.id) ? 0 : 1
+        if (aPending !== bPending) return aPending - bPending
+      }
       // Kadiv: projects with pending approval float to top
       if (isKadiv) {
         const aPending = pendingKadivProjectIds.has(a.id) ? 0 : 1
@@ -349,7 +336,7 @@ export function MonitoringReportPage() {
       if (sortBy === 'nama-desc') return b.namaKontrak.localeCompare(a.namaKontrak)
       return 0
     })
-  }, [projects, search, deptFilter, clientFilter, picFilter, selectedMonth, sortBy, assignments, isDoccon, isKadiv, pendingKadivProjectIds, currentUserId, users])
+  }, [projects, search, deptFilter, clientFilter, picFilter, selectedMonth, sortBy, assignments, isDoccon, isKadiv, isKadepParaf, pendingKadivProjectIds, pendingKadepProjectIds, currentUserId, users])
 
   const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -375,7 +362,7 @@ export function MonitoringReportPage() {
     [documents, selectedMonth, filtered],
   )
 
-  const bottleneck = useMemo(() => computeBottleneck(periodDocs), [periodDocs])
+  const bottleneck = useMemo(() => computeBottleneck(periodDocs, projects), [periodDocs, projects])
 
   function getProjectDocs(projectId: string) {
     return documents.filter((d) => d.projectId === projectId && d.period === selectedMonth)
@@ -419,17 +406,17 @@ export function MonitoringReportPage() {
         <BottleneckCard
           label="Engineer Phase" icon={<Clock size={13} />}
           avg={bottleneck.engineerAvg} avgNum={bottleneck.engineerAvgNum}
-          stuck={bottleneck.stuckEngineer} sla="5 hari" slaNum={5} color="blue"
+          stuckItems={bottleneck.stuckEngineerItems} sla="5 hari" slaNum={5} color="blue"
         />
         <BottleneckCard
           label="Customer Phase" icon={<AlertCircle size={13} />}
           avg={bottleneck.customerAvg} avgNum={bottleneck.customerAvgNum}
-          stuck={bottleneck.stuckCustomer} sla="3 hari" slaNum={3} color="purple"
+          stuckItems={bottleneck.stuckCustomerItems} sla="3 hari" slaNum={3} color="purple"
         />
         <BottleneckCard
           label="Doccon Phase" icon={<CheckCircle2 size={13} />}
           avg={bottleneck.docconAvg} avgNum={bottleneck.docconAvgNum}
-          stuck={bottleneck.stuckDoccon} sla="2 hari" slaNum={2} color="amber"
+          stuckItems={bottleneck.stuckDocconItems} sla="2 hari" slaNum={2} color="amber"
         />
       </div>}
 
@@ -598,6 +585,11 @@ export function MonitoringReportPage() {
 
                     const pendingKadivCount = isKadiv
                       ? documents.filter((d) => d.projectId === p.id && d.status === 'PENDING_KADIV' && d.currentPhase === 'kadiv' && d.period === selectedMonth).length
+                        + billingDocs.filter((b) => b.status === 'PENDING_KADIV' && b.currentPhase === 'kadiv').length
+                      : 0
+                    const pendingKadepCount = isKadepParaf
+                      ? documents.filter((d) => d.projectId === p.id && d.status === 'PENDING_KADEP_PARAF' && d.currentPhase === 'kadep' && d.period === selectedMonth).length
+                        + billingDocs.filter((b) => b.status === 'PENDING_KADEP_PARAF' && b.currentPhase === 'kadep').length
                       : 0
 
                     return (
@@ -605,7 +597,7 @@ export function MonitoringReportPage() {
                         key={p.id}
                         className={classNames(
                           'hover:bg-black/[0.02] transition-colors cursor-pointer group',
-                          pendingKadivCount > 0 ? 'bg-blue-50/50' : '',
+                          pendingKadivCount > 0 ? 'bg-blue-50/50' : pendingKadepCount > 0 ? 'bg-cyan-50/50' : '',
                         )}
                         onClick={() => openDetail(p.id)}
                       >
@@ -619,6 +611,11 @@ export function MonitoringReportPage() {
                               {pendingKadivCount > 0 && (
                                 <span className="flex items-center gap-0.5 chip bg-red-100 text-red-700 text-[9px] font-semibold">
                                   <Stamp size={8} /> {pendingKadivCount} Perlu Approval
+                                </span>
+                              )}
+                              {pendingKadepCount > 0 && (
+                                <span className="flex items-center gap-0.5 chip bg-cyan-100 text-cyan-700 text-[9px] font-semibold">
+                                  <Stamp size={8} /> {pendingKadepCount} Perlu Paraf
                                 </span>
                               )}
                             </div>
@@ -863,11 +860,23 @@ export function MonitoringReportPage() {
                   const billingPct  = billingDocs.length > 0 ? Math.round((billingDone / billingDocs.length) * 100) : 0
                   const projDocs    = getProjectDocs(p.id)
 
+                  const pendingKadivCount = isKadiv
+                    ? documents.filter((d) => d.projectId === p.id && d.status === 'PENDING_KADIV' && d.currentPhase === 'kadiv' && d.period === selectedMonth).length
+                      + billingDocs.filter((b) => b.status === 'PENDING_KADIV' && b.currentPhase === 'kadiv').length
+                    : 0
+                  const pendingKadepCount = isKadepParaf
+                    ? documents.filter((d) => d.projectId === p.id && d.status === 'PENDING_KADEP_PARAF' && d.currentPhase === 'kadep' && d.period === selectedMonth).length
+                      + billingDocs.filter((b) => b.status === 'PENDING_KADEP_PARAF' && b.currentPhase === 'kadep').length
+                    : 0
+
                   return (
                     <div
                       key={p.id}
                       onClick={() => openDetail(p.id)}
-                      className="group relative rounded-xl border border-border-subtle bg-white hover:border-pertamina-red/30 hover:shadow-md transition-all cursor-pointer overflow-hidden flex flex-col"
+                      className={classNames(
+                        'group relative rounded-xl border bg-white hover:border-pertamina-red/30 hover:shadow-md transition-all cursor-pointer overflow-hidden flex flex-col',
+                        pendingKadivCount > 0 ? 'border-blue-200 bg-blue-50/30' : pendingKadepCount > 0 ? 'border-cyan-200 bg-cyan-50/30' : 'border-border-subtle',
+                      )}
                     >
                       {/* Top accent bar */}
                       <div className="h-1 bg-pertamina-red w-full" />
@@ -880,6 +889,20 @@ export function MonitoringReportPage() {
                           </span>
                           <WarningBadge docs={projDocs} />
                         </div>
+                        {(pendingKadivCount > 0 || pendingKadepCount > 0) && (
+                          <div className="flex items-center gap-1.5 flex-wrap -mt-1">
+                            {pendingKadivCount > 0 && (
+                              <span className="flex items-center gap-0.5 chip bg-red-100 text-red-700 text-[9px] font-semibold">
+                                <Stamp size={8} /> {pendingKadivCount} Perlu Approval
+                              </span>
+                            )}
+                            {pendingKadepCount > 0 && (
+                              <span className="flex items-center gap-0.5 chip bg-cyan-100 text-cyan-700 text-[9px] font-semibold">
+                                <Stamp size={8} /> {pendingKadepCount} Perlu Paraf
+                              </span>
+                            )}
+                          </div>
+                        )}
 
                         {/* Client */}
                         <div className="flex flex-col gap-0.5">

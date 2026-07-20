@@ -278,7 +278,9 @@ export const SEED_USERS: User[] = [
     teamId: null,
     departmentId: null,
     avatarColor: '#10B981',
-    active: true,
+    // Dinonaktifkan sementara — fase finish project sekarang cukup sampai Doccon "Kirim ke Sales"
+    // (submitToSales), gak perlu konfirmasi balik dari akun Sales lagi.
+    active: false,
     createdAt: nowIso(),
     createdBy: 'usr_super',
     lastLoginAt: null,

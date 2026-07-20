@@ -4,7 +4,7 @@ import { useMonitoringReportStore } from '../../../store/useMonitoringReportStor
 import { useAuthStore } from '../../../store/useAuthStore'
 import { useUIStore } from '../../../store/useUIStore'
 import { classNames } from '../../../utils/helpers'
-import { reportMonthLabel } from '../../../types/monitoring'
+import { reportMonthLabel, currentReportMonth } from '../../../types/monitoring'
 
 function daysAgo(iso: string): string {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
@@ -24,22 +24,36 @@ export function DocconEngineerSubmitPanel() {
 
   const pendingItems = useMemo(() => {
     if (!currentUser) return []
+    const todayYm = currentReportMonth()
     return documents
-      .filter((d) => {
+      .map((d) => {
         const isAssigned = d.assignedDocconUserId === currentUser.id || d.docconPIC === currentUser.name
-        if (!isAssigned) return false
+        if (!isAssigned) return null
+        // Dokumen boleh udah di-generate duluan buat planning (rolling window beberapa bulan ke
+        // depan), tapi baru perlu ditagih ke Doccon begitu periodenya bulan ini atau udah lewat —
+        // dokumen periode bulan depan belum waktunya, jangan ikut nongol di sini.
+        if (d.period > todayYm) return null
         // Engineer sudah submit → Doccon perlu kompilasi
-        if (d.status === 'SUBMITTED' && d.currentPhase === 'engineer') return true
-        // Doccon-start doc baru dibuat → Doccon perlu mulai
-        if (d.startPhase === 'doccon' && d.status === 'DRAFT' && d.currentPhase === 'doccon') return true
-        return false
+        if (d.status === 'SUBMITTED' && d.currentPhase === 'engineer') return { doc: d, reason: 'engineer' as const }
+        // Doccon-start doc baru dibuat (mis. dari Deliverable Plan) → Doccon perlu mulai, belum lewat Engineer
+        if (d.startPhase === 'doccon' && d.status === 'DRAFT' && d.currentPhase === 'doccon') return { doc: d, reason: 'doccon-start' as const }
+        return null
       })
-      .map((d) => ({ doc: d, proj: projects.find((p) => p.id === d.projectId) }))
+      .filter((item): item is { doc: typeof documents[number]; reason: 'engineer' | 'doccon-start' } => item !== null)
+      .map((item) => ({ ...item, proj: projects.find((p) => p.id === item.doc.projectId) }))
       .filter((item) => item.proj)
       .sort((a, b) => new Date(a.doc.updatedAt).getTime() - new Date(b.doc.updatedAt).getTime())
   }, [documents, projects, currentUser])
 
   if (pendingItems.length === 0) return null
+
+  const hasEngineerSubmitted = pendingItems.some((i) => i.reason === 'engineer')
+  const hasDocconStart       = pendingItems.some((i) => i.reason === 'doccon-start')
+  const caption = hasEngineerSubmitted && hasDocconStart
+    ? 'Sebagian dari Engineer, sebagian dokumen baru — menunggu aksimu'
+    : hasDocconStart
+      ? 'Dokumen baru (belum lewat Engineer) — menunggu aksimu'
+      : 'Engineer sudah submit — menunggu aksimu'
 
   return (
     <div className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 overflow-hidden">
@@ -53,7 +67,7 @@ export function DocconEngineerSubmitPanel() {
             {pendingItems.length} dokumen siap dikompilasi
           </h3>
           <p className="text-[11px] text-amber-700">
-            Engineer sudah submit — menunggu aksimu
+            {caption}
           </p>
         </div>
         <span className="rounded-full bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 shrink-0">

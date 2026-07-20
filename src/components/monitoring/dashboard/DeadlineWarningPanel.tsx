@@ -2,13 +2,18 @@ import { useMemo } from 'react'
 import { AlertTriangle, ArrowRight, Clock } from 'lucide-react'
 import { useMonitoringReportStore } from '../../../store/useMonitoringReportStore'
 import { useUIStore } from '../../../store/useUIStore'
-import type { ReportDocument } from '../../../types/monitoring'
+import { isDocCompleted, type DocPhase } from '../../../types/monitoring'
 
-function isDocCompleted(doc: ReportDocument): boolean {
-  if (doc.currentPhase === 'completed') return true
-  if (doc.currentPhase === 'sales' && doc.salesSubmittedAt) return true
-  if (doc.docconSubStatus === 'delivered' && doc.salesAcceptedAt && !doc.salesFlagIssue) return true
-  return false
+const PHASE_LABELS: Record<DocPhase, string> = {
+  engineer:        'Engineer',
+  doccon:          'Doccon',
+  kadep:           'Paraf Kadep',
+  kadiv:           'Kadiv',
+  customer_email:  'Customer',
+  vendor_confirm:  'Vendor',
+  sales:           'Sales',
+  completed:       'Selesai',
+  customer:        'Customer', // legacy phase, backward compat
 }
 
 export function DeadlineWarningPanel() {
@@ -114,11 +119,7 @@ export function DeadlineWarningPanel() {
                   <span className={`chip text-[9px] px-1.5 py-0.5 ${badgeColor}`}>{badgeLabel}</span>
                   <span className="text-[10px] text-ink-tertiary flex items-center gap-0.5">
                     <Clock size={8} />
-                    {doc.currentPhase === 'engineer' ? 'Engineer' :
-                     doc.currentPhase === 'doccon' ? 'Doccon' :
-                     doc.currentPhase === 'kadiv' ? 'Kadiv' :
-                     doc.currentPhase === 'customer_email' ? 'Customer' :
-                     doc.currentPhase ?? 'Draft'}
+                    {(doc.currentPhase ? PHASE_LABELS[doc.currentPhase] : undefined) ?? 'Draft'}
                   </span>
                   {doc.assignedDocconName && (
                     <span className="text-[10px] text-ink-tertiary">· {doc.assignedDocconName}</span>

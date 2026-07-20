@@ -479,6 +479,15 @@ export function getEffectiveCostStatus(
   return 'closed'
 }
 
+// Dokumen dianggap "selesai" buat keperluan deadline-warning — dipakai DeadlineWarningPanel &
+// Executive Summary aggregator, satu sumber biar gak drift.
+export function isDocCompleted(doc: ReportDocument): boolean {
+  if (doc.currentPhase === 'completed') return true
+  if (doc.currentPhase === 'sales' && doc.salesSubmittedAt) return true
+  if (doc.docconSubStatus === 'delivered' && doc.salesAcceptedAt && !doc.salesFlagIssue) return true
+  return false
+}
+
 export const BULAN_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
 
 export function reportMonthLabel(yearMonth: string): string {

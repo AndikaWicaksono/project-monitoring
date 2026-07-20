@@ -413,10 +413,12 @@ export type PageView =
   | 'monitoring-report-detail'
   | 'monitoring-sla'
   | 'monitoring-sla-detail'
+  | 'monitoring-sla-report'
   | 'monitoring-cost'
   | 'monitoring-cost-detail'
   | 'monitoring-bap'
   | 'monitoring-assignment'
+  | 'monitoring-executive-summary'
   | 'sales-inbox'
 
 /* ============================================================

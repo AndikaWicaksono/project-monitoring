@@ -42,6 +42,20 @@ body::before {
   z-index: 1;
 }
 
+/* Halaman print (mis. Executive Summary) — matikan overlay tekstur & scroll-clip layar biasa
+   supaya konten ngalir natural ke banyak halaman pas di-print, bukan kepotong satu layar. */
+@media print {
+  html, body, #root {
+    height: auto;
+  }
+  body {
+    overflow: visible;
+  }
+  body::before {
+    display: none;
+  }
+}
+
 *::-webkit-scrollbar {
   width: 6px;
   height: 6px;

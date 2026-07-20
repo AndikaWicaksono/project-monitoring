@@ -71,6 +71,7 @@ export function Sidebar() {
           'fixed inset-y-0 left-0 z-50 lg:relative lg:translate-x-0',
           mobileOpen ? 'translate-x-0 shadow-modal' : '-translate-x-full lg:translate-x-0',
           'transition-[transform,width] duration-300 ease-out',
+          'print:hidden',
         )}
       >
       <div className="flex items-center justify-between gap-2 border-b border-border-subtle/70 px-4 py-4">

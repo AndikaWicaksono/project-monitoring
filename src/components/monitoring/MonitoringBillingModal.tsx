@@ -63,7 +63,6 @@ export function MonitoringBillingModal({ open, onClose, mode, projectId, billing
   const [docType, setDocType] = useState('')
   const [pic, setPic] = useState('')
   const [targetDate, setTargetDate] = useState('')
-  const [actualDate, setActualDate] = useState('')
   const [keterangan, setKeterangan] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [actionComment, setActionComment] = useState('')
@@ -75,10 +74,9 @@ export function MonitoringBillingModal({ open, onClose, mode, projectId, billing
       setDocType(existing.docType)
       setPic(existing.pic)
       setTargetDate(existing.targetDate ?? '')
-      setActualDate(existing.actualDate ?? '')
       setKeterangan(existing.keterangan)
     } else {
-      setDocType(''); setPic(''); setTargetDate(''); setActualDate(''); setKeterangan('')
+      setDocType(''); setPic(''); setTargetDate(''); setKeterangan('')
     }
     setErrors({})
     setActionComment('')
@@ -96,14 +94,14 @@ export function MonitoringBillingModal({ open, onClose, mode, projectId, billing
     if (mode === 'create' && projectId) {
       store.addBillingDocument({
         projectId, docType, pic: pic.trim(),
-        targetDate: targetDate || null, actualDate: actualDate || null,
+        targetDate: targetDate || null, actualDate: null,
         keterangan: keterangan.trim(),
         createdByUserId: currentUser?.id ?? '', createdByName: currentUser?.name ?? '',
       })
     } else if (mode === 'edit' && billingId) {
       store.updateBillingDocument(billingId, {
         docType, pic: pic.trim(),
-        targetDate: targetDate || null, actualDate: actualDate || null,
+        targetDate: targetDate || null,
         keterangan: keterangan.trim(),
       })
     }
@@ -160,7 +158,7 @@ export function MonitoringBillingModal({ open, onClose, mode, projectId, billing
     else store.billingLinkAttachment(billingId, reportDocumentId, attachmentId, currentUser.name)
   }
 
-  const titleStr = mode === 'create' ? 'Tambah Dokumen Tracker' : mode === 'edit' ? 'Edit Dokumen Tracker' : 'Detail Dokumen Tracker'
+  const titleStr = mode === 'create' ? 'Tambah Event-Based Report' : mode === 'edit' ? 'Edit Event-Based Report' : 'Detail Event-Based Report'
   const descStr = existing ? `${existing.docType} — ${existing.pic}` : undefined
 
   return (
@@ -506,18 +504,13 @@ export function MonitoringBillingModal({ open, onClose, mode, projectId, billing
             {errors.pic && <p className="text-[11px] text-danger mt-1">{errors.pic}</p>}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div>
             <Input
               label="Target Date"
               type="date"
               value={targetDate}
               onChange={(e) => setTargetDate(e.target.value)}
-            />
-            <Input
-              label="Actual Date"
-              type="date"
-              value={actualDate}
-              onChange={(e) => setActualDate(e.target.value)}
+              hint="Actual Date terisi otomatis begitu Kadiv approve"
             />
           </div>
 

@@ -14,17 +14,21 @@ import { MonitoringReportPage } from './pages/monitoring/MonitoringReportPage'
 import { MonitoringReportDetailPage } from './pages/monitoring/MonitoringReportDetailPage'
 import { MonitoringSLAPage } from './pages/monitoring/MonitoringSLAPage'
 import { MonitoringSLADetailPage } from './pages/monitoring/MonitoringSLADetailPage'
+import { MonitoringSLAReportPage } from './pages/monitoring/MonitoringSLAReportPage'
 import { MonitoringCostPage } from './pages/monitoring/MonitoringCostPage'
 import { MonitoringCostDetailPage } from './pages/monitoring/MonitoringCostDetailPage'
 import { MonitoringBAPPage } from './pages/monitoring/MonitoringBAPPage'
 import { MonitoringAssignmentPage } from './pages/monitoring/MonitoringAssignmentPage'
+import { MonitoringExecutiveSummaryPage } from './pages/monitoring/MonitoringExecutiveSummaryPage'
 import { SalesInboxPage } from './pages/SalesInboxPage'
 import { useMonitoringRole } from './hooks/useMonitoringRole'
+import { useCostMasterDataSync } from './hooks/useCostMasterDataSync'
 
 function App() {
   const view = useUIStore((s) => s.view)
-  const { isAdminOSM, isDoccon, isSales, canViewCost, isKadep, isKadiv } = useMonitoringRole()
+  const { isAdminOSM, isDoccon, isSales, canViewCost, isKadep, isKadiv, isKadepParaf, isSuperAdmin } = useMonitoringRole()
   useKeyboardShortcuts()
+  useCostMasterDataSync()
 
   function renderPage() {
     if (view === 'project-board') return <ProjectBoardPage />
@@ -46,12 +50,20 @@ function App() {
     if (view === 'monitoring-report-detail') return <MonitoringReportDetailPage />
     if (view === 'monitoring-sla') return <MonitoringSLAPage />
     if (view === 'monitoring-sla-detail') return <MonitoringSLADetailPage />
+    if (view === 'monitoring-sla-report') {
+      if (!isKadiv && !isKadepParaf && !isSuperAdmin) return <MonitoringDashboardPage />
+      return <MonitoringSLAReportPage />
+    }
     if (view === 'monitoring-cost') return <MonitoringCostPage />
     if (view === 'monitoring-cost-detail') return <MonitoringCostDetailPage />
     if (view === 'monitoring-bap') return <MonitoringBAPPage />
     if (view === 'monitoring-assignment') {
       if (!isKadep && !isKadiv) return <MonitoringDashboardPage />
       return <MonitoringAssignmentPage />
+    }
+    if (view === 'monitoring-executive-summary') {
+      if (!isKadiv && !isKadepParaf && !isSuperAdmin) return <MonitoringDashboardPage />
+      return <MonitoringExecutiveSummaryPage />
     }
     return <DashboardPage />
   }

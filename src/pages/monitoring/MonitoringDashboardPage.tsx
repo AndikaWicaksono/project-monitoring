@@ -1,4 +1,7 @@
+import { FileDown } from 'lucide-react'
 import { useMonitoringRole } from '../../hooks/useMonitoringRole'
+import { useUIStore } from '../../store/useUIStore'
+import { Button } from '../../components/ui/Button'
 import { classNames } from '../../utils/helpers'
 import { EngineerWarningPanel } from '../../components/monitoring/dashboard/EngineerWarningPanel'
 import { DocconSalesWarningPanel } from '../../components/monitoring/dashboard/DocconSalesWarningPanel'
@@ -17,14 +20,23 @@ import { CostLeadingLaggingChart } from '../../components/monitoring/dashboard/C
 import { CostTopOverBudgetCard } from '../../components/monitoring/dashboard/CostTopOverBudgetCard'
 
 export function MonitoringDashboardPage() {
-  const { isCostAdmin, isDoccon, isEngineerOS, isKadiv, isKadep, canViewCost } = useMonitoringRole()
+  const { isCostAdmin, isDoccon, isEngineerOS, isKadiv, isKadep, isKadepParaf, isSuperAdmin, canViewCost } = useMonitoringRole()
+  const setView = useUIStore((s) => s.setView)
 
   // cost admin (OSM/DMO/SCS) → Cost only; doccon & engineer → SLA & Report; kadiv/kadep → keduanya
   const showSLAReport = !isCostAdmin
   const showCost      = canViewCost
+  const canExportSummary = isKadiv || isKadepParaf || isSuperAdmin
 
   return (
     <div className="absolute inset-0 overflow-y-auto p-5 space-y-4">
+      {canExportSummary && (
+        <div className="flex items-center justify-end">
+          <Button variant="ghost" size="sm" leftIcon={<FileDown size={14} />} onClick={() => setView('monitoring-executive-summary')}>
+            Export Executive Summary
+          </Button>
+        </div>
+      )}
       {isEngineerOS && <EngineerWarningPanel />}
       {isDoccon && <DocconEngineerSubmitPanel />}
       {isDoccon && <DocconSalesWarningPanel />}

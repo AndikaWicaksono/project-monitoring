@@ -125,12 +125,16 @@ function PhaseStepperMini({ doc }: { doc: ReportDocument }) {
     NEW_CUSTOMER_PHASES
 
   const currentIdx = steps.findIndex((s) => s.key === current)
+  // Fase terakhir di tiap pipeline (Sales / Selesai / Doccon) berarti prosesnya sudah kelar —
+  // gak ada fase "sesudah" itu buat bikin dia lewat dari status "aktif", jadi begitu tercapai
+  // langsung dianggap selesai (✓ hijau), bukan nyangkut selamanya di style "aktif" (● biru).
+  const isTerminalReached = currentIdx >= 0 && currentIdx === steps.length - 1
 
   return (
     <div className="flex items-center gap-0.5 mt-1.5 flex-wrap">
       {steps.map((step, idx) => {
-        const done   = currentIdx >= 0 && idx < currentIdx
-        const active = step.key === current
+        const done   = currentIdx >= 0 && (idx < currentIdx || (idx === currentIdx && isTerminalReached))
+        const active = step.key === current && !isTerminalReached
         return (
           <div key={step.key} className="flex items-center gap-0.5">
             <span className={classNames(
@@ -421,7 +425,7 @@ export function MonitoringReportDetailPage() {
   const tabs: { key: ActiveTab; label: string; count: number }[] = ([
     { key: 'customer', label: 'Report Customer',  count: custDocs.length },
     { key: 'vendor',   label: 'Report Vendor',    count: vendDocs.length },
-    { key: 'billing',  label: 'Document Tracker', count: billingDocs.length },
+    { key: 'billing',  label: 'Event-Based Report', count: billingDocs.length },
     { key: 'sla',      label: 'Document Progress',count: allPeriodDocs.length },
   ] as { key: ActiveTab; label: string; count: number }[]).filter((t) => !isEngineerOS || t.key === 'customer')
 
@@ -703,7 +707,10 @@ export function MonitoringReportDetailPage() {
                         {doc.tanggalSubmit ? formatDateShort(doc.tanggalSubmit) : <span className="text-ink-muted">—</span>}
                       </td>
                       <td className="px-4 py-3 text-xs text-ink-secondary whitespace-nowrap">
-                        {doc.tanggalFeedback ? formatDateShort(doc.tanggalFeedback) : <span className="text-ink-muted">—</span>}
+                        {(() => {
+                          const feedbackDate = doc.customerConfirmedAt ?? doc.vendorConfirmedAt ?? doc.tanggalFeedback
+                          return feedbackDate ? formatDateShort(feedbackDate) : <span className="text-ink-muted">—</span>
+                        })()}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className={classNames('chip text-[10px]', REVISION_CLS[doc.revision] ?? 'bg-slate-100 text-slate-600')}>{doc.revision}</span>
@@ -817,7 +824,7 @@ export function MonitoringReportDetailPage() {
                         <div className="flex items-center gap-1">
                           <button onClick={() => openModal({ type: 'monitoring-billing-detail', billingId: b.id })} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Detail"><Eye size={13} /></button>
                           {!isKadepParaf && !isKadiv && <button onClick={() => openModal({ type: 'monitoring-billing-edit', billingId: b.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>}
-                          {canDeleteMonitoring && !isKadiv && <button onClick={() => setConfirmDeleteBillingId(b.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>}
+                          {(canDeleteMonitoring || isDoccon) && !isKadiv && <button onClick={() => setConfirmDeleteBillingId(b.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>}
                         </div>
                       </td>
                     </tr>

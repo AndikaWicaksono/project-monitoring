@@ -1,11 +1,14 @@
 import { Fragment, useMemo, useState, useEffect } from 'react'
-import { Plus, Search, Download, Eye, Pencil, Trash2, Filter, ChevronDown, ChevronUp, BarChart2 } from 'lucide-react'
+import { Plus, Search, Download, Eye, Pencil, Trash2, Filter, ChevronDown, ChevronUp, BarChart2, Upload } from 'lucide-react'
 import { useMonitoringCostStore } from '../../store/useMonitoringCostStore'
 import { useMonitoringAssignmentStore } from '../../store/useMonitoringAssignmentStore'
+import { useAuthStore } from '../../store/useAuthStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { Button } from '../../components/ui/Button'
 import { MonitoringCostMonthlyDetailModal } from '../../components/monitoring/MonitoringCostMonthlyDetailModal'
+import { MonitoringCostBreakdownImportModal } from '../../components/monitoring/MonitoringCostBreakdownImportModal'
+import { MonitoringCostRealizationImportModal } from '../../components/monitoring/MonitoringCostRealizationImportModal'
 import { classNames, downloadCsv, formatDateShort } from '../../utils/helpers'
 import { formatCurrency, getEffectiveCostStatus, type MonitoringCostStatus } from '../../types/monitoring'
 
@@ -74,9 +77,10 @@ export function MonitoringCostPage() {
   const openModal = useUIStore((s) => s.openModal)
   const setView = useUIStore((s) => s.setView)
   const setCostDetailId = useUIStore((s) => s.setCostDetailId)
-  const { canEditCostForProject, canManageCostMaster, isAdminOSM, currentUserId } = useMonitoringRole()
+  const { canEditCostForProject, canManageCostMaster, isAdminOSM, currentUserId, isSuperAdmin } = useMonitoringRole()
   const assignments = useMonitoringAssignmentStore((s) => s.assignments)
   const getByKode = useMonitoringAssignmentStore((s) => s.getByKode)
+  const users = useAuthStore((s) => s.users)
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<MonitoringCostStatus | ''>('')
@@ -88,6 +92,8 @@ export function MonitoringCostPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [confirmDeleteRealId, setConfirmDeleteRealId] = useState<string | null>(null)
   const [monthDetail, setMonthDetail] = useState<{ costId: string; month: string } | null>(null)
+  const [breakdownImportId, setBreakdownImportId] = useState<string | null>(null)
+  const [realizationImportId, setRealizationImportId] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -276,10 +282,19 @@ export function MonitoringCostPage() {
                       <td className="px-4 py-3 text-xs whitespace-nowrap">
                         {(() => {
                           const asgn = getByKode(c.projectCode)
-                          return (
-                            <span className={asgn?.assignedAdminOsmName ? 'text-emerald-700 font-medium' : 'text-ink-tertiary'}>
-                              {asgn?.assignedAdminOsmName ?? 'Belum diassign'}
-                            </span>
+                          const adminOsm = asgn?.assignedAdminOsmId ? users.find((u) => u.id === asgn.assignedAdminOsmId) : null
+                          return adminOsm ? (
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="h-5 w-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0"
+                                style={{ backgroundColor: adminOsm.avatarColor }}
+                              >
+                                {adminOsm.name[0]}
+                              </div>
+                              <span className="text-xs font-medium text-ink-primary">{adminOsm.name}</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-ink-muted italic">Belum diassign</span>
                           )
                         })()}
                       </td>
@@ -321,21 +336,45 @@ export function MonitoringCostPage() {
                                   )}
                                 </button>
                               </div>
-                              {panelTab === 'realizations' && canEditCostForProject(c.projectCode) && (
-                                <button
-                                  onClick={() => openModal({ type: 'monitoring-cost-realization-create', costId: c.id })}
-                                  className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 transition"
-                                >
-                                  <Plus size={11} /> Tambah Realisasi
-                                </button>
+                              {panelTab === 'realizations' && (
+                                <div className="flex items-center gap-1">
+                                  {isSuperAdmin && (
+                                    <button
+                                      onClick={() => setRealizationImportId(c.id)}
+                                      className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-ink-secondary hover:bg-black/[0.04] transition"
+                                    >
+                                      <Upload size={11} /> Import Realisasi
+                                    </button>
+                                  )}
+                                  {canEditCostForProject(c.projectCode) && (
+                                    <button
+                                      onClick={() => openModal({ type: 'monitoring-cost-realization-create', costId: c.id })}
+                                      className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 transition"
+                                    >
+                                      <Plus size={11} /> Tambah Realisasi
+                                    </button>
+                                  )}
+                                </div>
                               )}
-                              {panelTab === 'breakdown' && canManageCostMaster && (
-                                <button
-                                  onClick={() => openModal({ type: 'monitoring-cost-planning', costId: c.id })}
-                                  className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 transition"
-                                >
-                                  <BarChart2 size={11} /> Kelola Breakdown Bulanan
-                                </button>
+                              {panelTab === 'breakdown' && (
+                                <div className="flex items-center gap-1">
+                                  {isSuperAdmin && (
+                                    <button
+                                      onClick={() => setBreakdownImportId(c.id)}
+                                      className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-ink-secondary hover:bg-black/[0.04] transition"
+                                    >
+                                      <Upload size={11} /> Import Breakdown
+                                    </button>
+                                  )}
+                                  {canManageCostMaster && (
+                                    <button
+                                      onClick={() => openModal({ type: 'monitoring-cost-planning', costId: c.id })}
+                                      className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 transition"
+                                    >
+                                      <BarChart2 size={11} /> Kelola Breakdown Bulanan
+                                    </button>
+                                  )}
+                                </div>
                               )}
                             </div>
 
@@ -570,6 +609,30 @@ export function MonitoringCostPage() {
           </div>
         </div>
       )}
+
+      {isSuperAdmin && breakdownImportId && (() => {
+        const targetCost = costs.find((c) => c.id === breakdownImportId)
+        if (!targetCost) return null
+        return (
+          <MonitoringCostBreakdownImportModal
+            open={!!breakdownImportId}
+            onClose={() => setBreakdownImportId(null)}
+            cost={targetCost}
+          />
+        )
+      })()}
+
+      {isSuperAdmin && realizationImportId && (() => {
+        const targetCost = costs.find((c) => c.id === realizationImportId)
+        if (!targetCost) return null
+        return (
+          <MonitoringCostRealizationImportModal
+            open={!!realizationImportId}
+            onClose={() => setRealizationImportId(null)}
+            cost={targetCost}
+          />
+        )
+      })()}
     </div>
   )
 }

@@ -64,7 +64,7 @@ export function Header() {
     (sidebarTeamFilter ? 1 : 0)
 
   return (
-    <header className="border-b border-border-subtle bg-white/85 backdrop-blur-xl">
+    <header className="border-b border-border-subtle bg-white/85 backdrop-blur-xl print:hidden">
       <div className="h-1 w-full bg-gradient-to-r from-pertamina-red via-pertamina-red-dark to-pertamina-red" />
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3">
         {/* Hamburger - mobile only */}

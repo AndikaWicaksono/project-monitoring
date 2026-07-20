@@ -26,8 +26,6 @@ export function DocconAssignmentSection({ canAssign }: Props) {
   const reportProjects  = useMonitoringReportStore((s) => s.projects)
   const slaProjects     = useMonitoringSLAStore((s) => s.projects)
   const costs           = useMonitoringCostStore((s) => s.costs)
-  const addCost         = useMonitoringCostStore((s) => s.addCost)
-  const updateCost      = useMonitoringCostStore((s) => s.updateCost)
   const deleteReport    = useMonitoringReportStore((s) => s.deleteProject)
   const deleteSLA       = useMonitoringSLAStore((s) => s.deleteProject)
   const users           = useAuthStore((s) => s.users)
@@ -67,46 +65,8 @@ export function DocconAssignmentSection({ canAssign }: Props) {
     return [...map.values()].sort((a, b) => a.kodeProject.localeCompare(b.kodeProject))
   }, [reportProjects, slaProjects])
 
-  // Sinkronisasi otomatis — pastikan SEMUA project di Master Data (Report/SLA) selalu punya record
-  // Cost Monitoring, termasuk project yang dibuat manual (bukan cuma yang ada di seed data). Selain
-  // bikin record yang belum ada, efek ini juga menjaga identitas & kontrak Cost tetap sinkron dengan
-  // Report Project (satu sumber kebenaran) — jadi Nurlaela cukup edit sekali di Master Data.
-  useEffect(() => {
-    for (const p of allProjects) {
-      const rp = reportProjects.find((r) => r.kodeProject === p.kodeProject)
-      const syncFields = {
-        projectClient:    p.client,
-        projectName:      p.namaProject,
-        contractNumber:   rp?.contractNumber ?? '',
-        categoryContract: rp?.categoryContract ?? '',
-        dateOfContract:   rp?.dateOfContract ?? null,
-        startDate:        rp?.startDate ?? null,
-        endDate:          rp?.endDate ?? null,
-        status:           rp?.isCancelled ? ('cancelled' as const) : ('active' as const),
-      }
-      const existingCost = costs.find((c) => c.projectCode === p.kodeProject)
-      if (!existingCost) {
-        addCost({
-          projectId: p.kodeProject, projectCode: p.kodeProject, year: new Date().getFullYear(),
-          ...syncFields,
-          projectValue: 0, costBased: 0, actualCost: 0, amandemen: '', tkdn: 0, description: '',
-          createdByUserId: user?.id ?? 'system', createdByName: user?.name ?? 'System',
-        })
-        continue
-      }
-      const isDrifted =
-        existingCost.projectClient    !== syncFields.projectClient ||
-        existingCost.projectName      !== syncFields.projectName ||
-        existingCost.contractNumber   !== syncFields.contractNumber ||
-        existingCost.categoryContract !== syncFields.categoryContract ||
-        existingCost.dateOfContract   !== syncFields.dateOfContract ||
-        existingCost.startDate        !== syncFields.startDate ||
-        existingCost.endDate          !== syncFields.endDate ||
-        existingCost.status           !== syncFields.status
-      if (isDrifted) updateCost(existingCost.id, syncFields)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allProjects, reportProjects, costs])
+  // Sinkronisasi & self-heal Cost Monitoring sekarang jalan global (lihat App.tsx) — gak dipanggil
+  // di sini lagi supaya gak double-run tiap kali halaman ini di-render.
 
   // Count assigned projects per doccon
   const workload = useMemo(() => {

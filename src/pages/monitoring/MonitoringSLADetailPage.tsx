@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react'
-import { ChevronLeft, Plus, Pencil, Trash2, ArrowLeft, Lock, Unlock, RotateCcw, CheckCircle2, TrendingUp } from 'lucide-react'
+import { ChevronLeft, Plus, Pencil, Trash2, ArrowLeft, Lock, Unlock, RotateCcw, CheckCircle2, TrendingUp, Printer, Clock, Upload } from 'lucide-react'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from 'recharts'
 import { toast } from 'react-hot-toast'
 import { useMonitoringSLAStore } from '../../store/useMonitoringSLAStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { Button } from '../../components/ui/Button'
+import { MonitoringSLAProjectImportModal } from '../../components/monitoring/MonitoringSLAProjectImportModal'
 import { classNames } from '../../utils/helpers'
 import {
   SLA_MONTHS, slaMonthLabel, computeComponentAvg, computeProjectMonthAvg,
@@ -23,6 +24,7 @@ export function MonitoringSLADetailPage() {
   const setView = useUIStore((s) => s.setView)
   const slaDetailProjectId = useUIStore((s) => s.slaDetailProjectId)
   const { canDeleteMonitoring, canUnlockRecord, isEngineerOS, isDoccon, canEditMonitoring, isSuperAdmin } = useMonitoringRole()
+  const [importOpen, setImportOpen] = useState(false)
 
   const project = projects.find((p) => p.id === slaDetailProjectId)
   const projectComponents = useMemo(() => components.filter((c) => c.projectId === slaDetailProjectId), [components, slaDetailProjectId])
@@ -40,6 +42,31 @@ export function MonitoringSLADetailPage() {
 
   const grand = project ? computeProjectGrandAvg(components, monthlyRecords, project.id, year) : null
   const grandStatus = project ? slaStatusCalc(grand, project.targetSLA) : null
+
+  // Narasi ringkas per-project — dipakai di tampilan biasa & versi print/export.
+  // Sengaja gak di-useMemo, murah dihitung tiap render, konsisten sama gaya grand/grandStatus di atas.
+  function computeNarrative(): { monthsWithData: number; monthsAboveTarget: number; worstComp: { name: string; belowCount: number } | null } | null {
+    if (!project || projectComponents.length === 0) return null
+    let monthsWithData = 0, monthsAboveTarget = 0
+    for (const m of SLA_MONTHS) {
+      const avg = computeProjectMonthAvg(components, monthlyRecords, project.id, m, year)
+      if (avg !== null) {
+        monthsWithData++
+        if (avg >= project.targetSLA) monthsAboveTarget++
+      }
+    }
+    let worstComp: { name: string; belowCount: number } | null = null
+    for (const comp of projectComponents) {
+      const belowCount = monthlyRecords.filter((r) => r.componentId === comp.id && r.year === year && r.achievement < project.targetSLA).length
+      if (belowCount > 0 && (!worstComp || belowCount > worstComp.belowCount)) {
+        worstComp = { name: comp.componentName, belowCount }
+      }
+    }
+    return { monthsWithData, monthsAboveTarget, worstComp }
+  }
+  const narrative = computeNarrative()
+
+  const generatedAt = new Date().toLocaleString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
   if (!project) {
     return (
@@ -71,9 +98,9 @@ export function MonitoringSLADetailPage() {
   }
 
   return (
-    <div className="absolute inset-0 overflow-y-auto p-5 space-y-4">
+    <div className="absolute inset-0 overflow-y-auto p-5 space-y-4 print:static print:h-auto print:overflow-visible print:p-0">
       {/* Back + breadcrumb */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 print:hidden">
         <button
           onClick={() => setView('monitoring-sla')}
           className="flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs text-ink-secondary hover:text-pertamina-red hover:border-pertamina-red/40 hover:bg-pertamina-red-50 transition"
@@ -84,8 +111,17 @@ export function MonitoringSLADetailPage() {
         <span className="text-ink-tertiary text-xs">/</span>
         <span className="text-xs text-ink-primary font-medium">{project.kodeProject}</span>
         {isEngineerOS && (
-          <span className="ml-auto chip bg-amber-50 text-amber-700 text-[10px]">Mode Baca Saja</span>
+          <span className="chip bg-amber-50 text-amber-700 text-[10px]">Mode Baca Saja</span>
         )}
+        <Button variant="ghost" size="sm" className="ml-auto" leftIcon={<Printer size={13} />} onClick={() => window.print()}>
+          Print / Export SLA Report
+        </Button>
+      </div>
+
+      {/* Print-only header: judul laporan + generated date (gak kelihatan di layar biasa) */}
+      <div className="hidden print:block">
+        <h1 className="text-lg font-bold text-ink-primary">Laporan SLA — {project.kodeProject}</h1>
+        <p className="text-[11px] text-ink-tertiary flex items-center gap-1 mt-0.5"><Clock size={10} /> Digenerate pada {generatedAt}</p>
       </div>
 
       {/* Header card */}
@@ -108,10 +144,15 @@ export function MonitoringSLADetailPage() {
               <span><span className="text-ink-tertiary">Grand Avg ({year}):</span> <strong className={grand !== null && grand >= project.targetSLA ? 'text-emerald-700' : 'text-pertamina-red'}>{grand !== null ? fmt2(grand) : '—'}</strong></span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 print:hidden">
             <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="input-base text-xs py-1.5 w-auto pr-7">
               {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
+            {isSuperAdmin && (
+              <Button variant="ghost" size="sm" onClick={() => setImportOpen(true)} leftIcon={<Upload size={13} />}>
+                Import Data
+              </Button>
+            )}
             {canEditMonitoring && (
               <Button size="sm" onClick={() => openModal({ type: 'monitoring-sla-component-add', projectId: project.id })} leftIcon={<Plus size={13} />}>
                 Tambah Komponen
@@ -120,6 +161,20 @@ export function MonitoringSLADetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Narasi ringkas — insight otomatis dari data yang sama */}
+      {narrative && (
+        <div
+          className={classNames(
+            'rounded-lg border-l-4 px-3.5 py-2.5 text-sm leading-relaxed',
+            grandStatus === 'TERCAPAI' ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-amber-300 bg-amber-50 text-amber-800',
+          )}
+        >
+          {project.kodeProject} mencapai target SLA di {narrative.monthsAboveTarget} dari {narrative.monthsWithData} bulan yang tercatat tahun {year}
+          {' '}(rata-rata {grand !== null ? fmt2(grand) : '—'}%, target {project.targetSLA}%).
+          {narrative.worstComp && ` Component paling sering di bawah target: ${narrative.worstComp.name} (${narrative.worstComp.belowCount} bulan).`}
+        </div>
+      )}
 
       {/* Component trend line chart */}
       {projectComponents.length > 0 && (() => {
@@ -184,7 +239,7 @@ export function MonitoringSLADetailPage() {
                 ))}
                 <th className="text-center px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">Avg</th>
                 <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">Status</th>
-                <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap">Aksi</th>
+                <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-widest text-ink-tertiary whitespace-nowrap print:hidden">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
@@ -246,7 +301,7 @@ export function MonitoringSLADetailPage() {
                           {compStatus === 'TERCAPAI' ? 'Tercapai' : 'Tidak Tercapai'}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 print:hidden">
                         {canEditMonitoring && (
                           <div className="flex items-center gap-1">
                             <button
@@ -292,7 +347,7 @@ export function MonitoringSLADetailPage() {
                             {locked && <span className="ml-2 inline-flex items-center gap-0.5 text-ink-muted"><Lock size={9} /> terkunci</span>}
                             {rec.reconfirmRequested && <span className="ml-2 inline-flex items-center gap-0.5 text-amber-600"><RotateCcw size={9} /> menunggu reconfirm</span>}
                           </td>
-                          <td className="pr-4 py-2">
+                          <td className="pr-4 py-2 print:hidden">
                             <div className="flex items-center gap-1">
                               {canUnlockRecord && locked && !isSuperAdmin && (
                                 <button onClick={() => handleUnlockRecord(rec.id)} className="rounded p-1 text-ink-tertiary hover:text-amber-600 hover:bg-amber-50 transition" title="Buka kunci">
@@ -380,7 +435,7 @@ export function MonitoringSLADetailPage() {
         })
 
         return (
-          <div className="surface rounded-xl p-4 space-y-3">
+          <div className="surface rounded-xl p-4 space-y-3 print:hidden">
             <h3 className="text-xs font-semibold text-ink-primary flex items-center gap-2">
               <RotateCcw size={13} className="text-amber-500" />
               Reconfirm / Recheck SLA
@@ -580,6 +635,17 @@ export function MonitoringSLADetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {isSuperAdmin && (
+        <MonitoringSLAProjectImportModal
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          projectId={project.id}
+          projectComponents={projectComponents}
+          monthlyRecords={monthlyRecords}
+          year={year}
+        />
       )}
     </div>
   )

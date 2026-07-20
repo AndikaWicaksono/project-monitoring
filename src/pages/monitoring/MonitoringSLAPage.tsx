@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react'
-import { Plus, Search, Download, Eye, Pencil, Trash2, Filter } from 'lucide-react'
+import { Plus, Search, Download, Eye, Pencil, Trash2, Filter, Printer } from 'lucide-react'
 import { useMonitoringSLAStore } from '../../store/useMonitoringSLAStore'
 import { useMonitoringAssignmentStore } from '../../store/useMonitoringAssignmentStore'
 import { useUIStore } from '../../store/useUIStore'
@@ -23,7 +23,7 @@ export function MonitoringSLAPage() {
   const openModal = useUIStore((s) => s.openModal)
   const setView = useUIStore((s) => s.setView)
   const setSlaDetailProjectId = useUIStore((s) => s.setSlaDetailProjectId)
-  const { canDeleteMonitoring, canEditMonitoring, canManageSLAMaster, isDoccon, currentUserId } = useMonitoringRole()
+  const { canDeleteMonitoring, canEditMonitoring, canManageSLAMaster, isDoccon, currentUserId, isKadiv, isKadepParaf, isSuperAdmin } = useMonitoringRole()
   const assignments = useMonitoringAssignmentStore((s) => s.assignments)
 
   const [search, setSearch] = useState('')
@@ -144,6 +144,11 @@ export function MonitoringSLAPage() {
 
           <span className="text-[11px] text-ink-tertiary ml-auto">{filtered.length} project</span>
           <Button variant="ghost" size="sm" onClick={handleExport} leftIcon={<Download size={13} />}>Export</Button>
+          {(isKadiv || isKadepParaf || isSuperAdmin) && (
+            <Button variant="ghost" size="sm" onClick={() => setView('monitoring-sla-report')} leftIcon={<Printer size={13} />}>
+              Print SLA Report
+            </Button>
+          )}
           {canManageSLAMaster && <Button size="sm" onClick={() => openModal({ type: 'monitoring-sla-project-create' })} leftIcon={<Plus size={13} />}>Tambah</Button>}
         </div>
 
