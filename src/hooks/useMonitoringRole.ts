@@ -3,7 +3,7 @@ import { useMonitoringAssignmentStore } from '../store/useMonitoringAssignmentSt
 
 const MONITORING_ROLES = new Set([
   'admin_osm', 'admin_dmo', 'admin_scs',
-  'doccon_osm', 'engineer_os', 'sales', 'kadep', 'kadep_paraf', 'pcrm',
+  'doccon_osm', 'engineer_os', 'sales', 'kadep', 'kadep_paraf', 'pcrm', 'site_ops_manager',
 ])
 
 const COST_SATKER_MAP: Record<string, string> = {
@@ -29,6 +29,7 @@ export function useMonitoringRole() {
   // Kadep asli (Kepala Departemen) — paraf laporan & minta revisi ke Doccon. Berbeda dari isKadep (Nurlaela / Jr. Analyst, assign Doccon).
   const isKadepParaf = roleId === 'kadep_paraf'
   const isPcrm       = roleId === 'pcrm'
+  const isSOM        = roleId === 'site_ops_manager'
   const isCostAdmin  = isAdminOSM || isAdminDMO || isAdminSCS
 
   // Realisasi pengeluaran: DMO/SCS tetap broad-role, Admin OSM sekarang per-project
@@ -38,6 +39,14 @@ export function useMonitoringRole() {
     if (!isAdminOSM) return false
     const asgn = assignments.find((a) => a.kodeProject === kodeProject)
     return !!asgn?.assignedAdminOsmId && asgn.assignedAdminOsmId === (user?.id ?? null)
+  }
+
+  // SOM di-assign per-project (mirip Admin OSM) — cuma SOM yang diassign ke project ini yang boleh approve.
+  function canApproveSOMForProject(kodeProject: string): boolean {
+    if (isSuperAdmin) return true
+    if (!isSOM) return false
+    const asgn = assignments.find((a) => a.kodeProject === kodeProject)
+    return !!asgn?.assignedSOMId && asgn.assignedSOMId === (user?.id ?? null)
   }
 
   return {
@@ -54,6 +63,8 @@ export function useMonitoringRole() {
     isKadep,
     isKadepParaf,
     isPcrm,
+    isSOM,
+    canApproveSOMForProject,
     canDeleteMonitoring:    isSuperAdmin || (roleId !== 'doccon_osm' && roleId !== 'engineer_os' && roleId !== 'kadep' && roleId !== 'kadep_paraf'),
     canManageProjectPeriod: isSuperAdmin || (!isEngineerOS && !isKadep && !isKadepParaf),
     canEditMonitoring:      isSuperAdmin || (!isEngineerOS && !isKadep && !isKadepParaf),

@@ -9,6 +9,23 @@ export function nowIso(): string {
   return new Date().toISOString()
 }
 
+// Daftar bulan YTD (Januari s/d bulan berjalan) tahun ini, format YYYY-MM — dihitung dari
+// tanggal sekarang, bukan hardcoded, biar chart "Aktual vs Plan"/"Status Anggaran" gak
+// ketinggalan begitu bulan berganti.
+// Bulan berjalan sekarang, format YYYY-MM — dihitung dari tanggal sekarang, bukan hardcoded,
+// dipakai buat nentuin status "Not Yet" pada breakdown bulanan Cost Monitoring.
+export function getCurrentPeriod(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+export function getYtdMonths(): string[] {
+  const now = new Date()
+  const year = now.getFullYear()
+  const currentMonth = now.getMonth() + 1
+  return Array.from({ length: currentMonth }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`)
+}
+
 export function safeDate(value: string | null | undefined): Date | null {
   if (!value) return null
   const d = parseISO(value)

@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Modal } from '../ui/Modal'
-import { classNames } from '../../utils/helpers'
+import { classNames, getCurrentPeriod } from '../../utils/helpers'
 import {
   formatCurrency,
   reportMonthLabel,
@@ -33,10 +33,8 @@ const REAL_STATUS: Record<string, { label: string; cls: string }> = {
   READY_TO_RELEASE: { label: 'Ready to Release', cls: 'bg-amber-100 text-amber-700' },
 }
 
-const TODAY_MONTH = '2026-06'
-
-function computeStatus(planned: number, actual: number, month: string): MonthBudgetStatus {
-  if (month > TODAY_MONTH) return 'not_yet'
+function computeStatus(planned: number, actual: number, month: string, todayMonth: string): MonthBudgetStatus {
+  if (month > todayMonth) return 'not_yet'
   if (planned === 0) return 'not_yet'
   const ratio = actual / planned
   if (ratio > 1.0) return 'over_budget'
@@ -52,6 +50,7 @@ function variantClass(variance: number): string {
 }
 
 export function MonitoringCostMonthlyDetailModal({ open, onClose, cost, month, realizations }: Props) {
+  const todayMonth = useMemo(() => getCurrentPeriod(), [])
   const plan = cost.costBasedMonthly?.[month]
 
   const monthRealizations = useMemo(
@@ -67,8 +66,8 @@ export function MonitoringCostMonthlyDetailModal({ open, onClose, cost, month, r
   const totalPlanned = plan?.planned ?? 0
   const variance = totalActual - totalPlanned
   const variancePct = totalPlanned > 0 ? (variance / totalPlanned) * 100 : 0
-  const status = computeStatus(totalPlanned, totalActual, month)
-  const isFuture = month > TODAY_MONTH
+  const status = computeStatus(totalPlanned, totalActual, month, todayMonth)
+  const isFuture = month > todayMonth
 
   // Build item comparison: merge planned items with actual per-item actuals
   const itemRows = useMemo(() => {
@@ -84,7 +83,7 @@ export function MonitoringCostMonthlyDetailModal({ open, onClose, cost, month, r
       const actual = actualByItem.get(item.itemBiaya) ?? 0
       const v = actual - item.planned
       const vPct = item.planned > 0 ? (v / item.planned) * 100 : 0
-      rows.push({ ...item, actual, variance: v, variancePct: vPct, status: computeStatus(item.planned, actual, month) })
+      rows.push({ ...item, actual, variance: v, variancePct: vPct, status: computeStatus(item.planned, actual, month, todayMonth) })
       actualByItem.delete(item.itemBiaya)
     })
 
@@ -94,7 +93,7 @@ export function MonitoringCostMonthlyDetailModal({ open, onClose, cost, month, r
     })
 
     return rows
-  }, [plan, monthRealizations, month])
+  }, [plan, monthRealizations, month, todayMonth])
 
   return (
     <Modal

@@ -9,7 +9,8 @@ import { useAuthStore } from '../../store/useAuthStore'
 import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { classNames, formatDateTime, formatDateShort } from '../../utils/helpers'
 import { reportMonthLabel } from '../../types/monitoring'
-import type { ReportDocumentType, ReportDocumentActionType, DocPhase } from '../../types/monitoring'
+import type { ReportDocumentType, ReportDocumentActionType } from '../../types/monitoring'
+import { getDocPhaseSteps } from '../../utils/docPhaseSteps'
 
 const STATUS_CLS: Record<string, string> = {
   DRAFT:             'bg-slate-100 text-slate-700',
@@ -19,6 +20,7 @@ const STATUS_CLS: Record<string, string> = {
   APPROVED:          'bg-emerald-100 text-emerald-700',
   COMPILING:         'bg-violet-100 text-violet-700',
   QC_REVIEW:         'bg-amber-100 text-amber-700',
+  PENDING_SOM:       'bg-teal-100 text-teal-700',
   PENDING_KADEP_PARAF: 'bg-cyan-100 text-cyan-700',
   PENDING_KADIV:     'bg-blue-100 text-blue-700',
   KADIV_APPROVED:    'bg-teal-100 text-teal-700',
@@ -28,7 +30,8 @@ const STATUS_LABEL: Record<string, string> = {
   REVISION_REQUIRED: 'Revisi Diminta', APPROVED: 'Disetujui',
   COMPILING: 'Kompilasi Doccon',
   QC_REVIEW: 'QC Review',
-  PENDING_KADEP_PARAF: 'Menunggu Paraf Kadep',
+  PENDING_SOM: 'Menunggu Site Ops Manager',
+  PENDING_KADEP_PARAF: 'Menunggu TTD Kadep',
   PENDING_KADIV: 'Menunggu Kadiv',
   KADIV_APPROVED: 'Disetujui Kadiv',
 }
@@ -46,17 +49,22 @@ const ACTION_META: Record<ReportDocumentActionType, { label: string; icon: React
   RESUBMIT:           { label: 'Resubmit',              icon: <RefreshCw size={13} />,    color: 'bg-violet-500' },
   DOCCON_COMPILE:     { label: 'Mulai Kompilasi',       icon: <FileText size={13} />,     color: 'bg-violet-500' },
   DOCCON_QC_REVIEW:   { label: 'Mulai QC Review',       icon: <FileText size={13} />,     color: 'bg-amber-500' },
+  DOCCON_SUBMIT_SOM:  { label: 'Dikirim ke Site Ops Manager', icon: <Send size={13} />,   color: 'bg-teal-600' },
+  SOM_APPROVE:        { label: 'Disetujui Site Ops Manager', icon: <CheckCircle2 size={13} />, color: 'bg-teal-700' },
+  SOM_REJECT:         { label: 'Revisi oleh Site Ops Manager', icon: <RotateCcw size={13} />, color: 'bg-pertamina-red' },
   DOCCON_SUBMIT_KADEP: { label: 'Dikirim ke Kadep',     icon: <Send size={13} />,         color: 'bg-cyan-600' },
-  KADEP_PARAF:        { label: 'Diparaf Kadep',         icon: <CheckCircle2 size={13} />, color: 'bg-cyan-700' },
+  KADEP_PARAF:        { label: 'TTD Kadep',             icon: <CheckCircle2 size={13} />, color: 'bg-cyan-700' },
   KADEP_REJECT:       { label: 'Revisi oleh Kadep',      icon: <RotateCcw size={13} />,    color: 'bg-pertamina-red' },
   SUBMIT_KADIV:       { label: 'Dikirim ke Kadiv',      icon: <Send size={13} />,         color: 'bg-blue-600' },
   KADIV_APPROVE:      { label: 'Disetujui Kadiv',       icon: <CheckCircle2 size={13} />, color: 'bg-emerald-600' },
   KADIV_REJECT:       { label: 'Dikembalikan Kadiv',    icon: <RotateCcw size={13} />,   color: 'bg-pertamina-red' },
   CUSTOMER_NOTIFIED:  { label: 'Customer Dinotifikasi', icon: <Mail size={13} />,         color: 'bg-cyan-500' },
   CUSTOMER_CONFIRMED: { label: 'Customer Konfirmasi',   icon: <CheckCircle2 size={13} />, color: 'bg-teal-600' },
+  CUSTOMER_REJECT:    { label: 'Revisi oleh Customer',  icon: <RotateCcw size={13} />,    color: 'bg-pertamina-red' },
   VENDOR_CONFIRMED:   { label: 'Vendor Konfirmasi',     icon: <CheckCircle2 size={13} />, color: 'bg-indigo-600' },
   SUBMIT_SALES:       { label: 'Dikirim ke Sales',      icon: <Send size={13} />,         color: 'bg-pertamina-red' },
   ESCALATE_ENGINEER:  { label: 'Eskalasi ke Engineer',  icon: <RotateCcw size={13} />,    color: 'bg-orange-500' },
+  DOCCON_RESUBMIT_CUSTOMER: { label: 'Kirim Ulang ke Customer', icon: <Send size={13} />,  color: 'bg-teal-600' },
 }
 
 function fmtSize(bytes: number): string {
@@ -79,7 +87,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
   const selectedMonth = useUIStore((s) => s.selectedReportMonth)
   const session = useAuthStore((s) => s.session)
   const users = useAuthStore((s) => s.users)
-  const { isDoccon, isKadiv, isEngineerOS, isKadepParaf } = useMonitoringRole()
+  const { isDoccon, isKadiv, isEngineerOS, isKadepParaf, isSOM, canApproveSOMForProject } = useMonitoringRole()
 
   const currentUser = users.find((u) => u.id === session?.userId)
 
@@ -95,11 +103,14 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
   const [docconPIC, setDocconPIC] = useState('')
   const [actionComment, setActionComment] = useState('')
   const [startPhase, setStartPhase] = useState<'engineer' | 'doccon'>('engineer')
+  const [requiresKadiv, setRequiresKadiv] = useState(true)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showCustomerConfirmPanel, setShowCustomerConfirmPanel] = useState(false)
   const [showVendorConfirmPanel, setShowVendorConfirmPanel] = useState(false)
   const [showDocconEscalatePanel, setShowDocconEscalatePanel] = useState(false)
   const [showKadepRevisionPanel, setShowKadepRevisionPanel] = useState(false)
+  const [showSOMRevisionPanel, setShowSOMRevisionPanel] = useState(false)
+  const [showCustomerRevisionPanel, setShowCustomerRevisionPanel] = useState(false)
 
   useEffect(() => {
     if ((mode === 'edit' || mode === 'detail') && existing) {
@@ -109,11 +120,13 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
       setEngineerPIC(existing.engineerPIC ?? '')
       setCustomerPIC(existing.customerPIC ?? '')
       setDocconPIC(existing.docconPIC ?? '')
+      setRequiresKadiv(existing.requiresKadiv !== false)
     } else {
       setJudul(''); setDeskripsi('')
       setDeadlineToSales(''); setEngineerPIC(''); setCustomerPIC('')
       // Auto-fill PIC Doccon dengan nama user yang sedang login jika role doccon
       setDocconPIC(isDoccon && currentUser ? currentUser.name : '')
+      setRequiresKadiv(true)
     }
     setErrors({})
     setActionComment('')
@@ -122,6 +135,8 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
     setShowVendorConfirmPanel(false)
     setShowDocconEscalatePanel(false)
     setShowKadepRevisionPanel(false)
+    setShowSOMRevisionPanel(false)
+    setShowCustomerRevisionPanel(false)
   }, [open, mode, documentId])
 
   function handleSave() {
@@ -134,6 +149,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
       engineerPIC: engineerPIC.trim(),
       customerPIC: customerPIC.trim(),
       docconPIC: docconPIC.trim(),
+      requiresKadiv,
     }
     if (mode === 'create' && projectId && docType) {
       store.addDocument({
@@ -168,13 +184,19 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
   }
 
   // New workflow handler
-  function handleNewWorkflow(action: 'compile' | 'qcReview' | 'submitKadep' | 'kadepParaf' | 'kadepReject' | 'kadivApprove' | 'kadivReject' | 'customerConfirm' | 'vendorConfirm' | 'toSales' | 'docconResubmitKadiv' | 'docconEscalate') {
+  function handleNewWorkflow(action: 'compile' | 'qcReview' | 'submitKadep' | 'submitSOM' | 'somApprove' | 'somReject' | 'kadepParaf' | 'kadepReject' | 'kadivApprove' | 'kadivReject' | 'customerConfirm' | 'customerReject' | 'vendorConfirm' | 'toSales' | 'docconResubmitKadiv' | 'docconResubmitCustomer' | 'docconEscalate') {
     if (!documentId || !currentUser) return
     const uid = currentUser.id
     const name = currentUser.name
     if (action === 'compile') store.docconCompile(documentId, uid, name)
     else if (action === 'qcReview') store.docconStartQCReview(documentId, uid, name)
     else if (action === 'submitKadep') store.docconSubmitToKadep(documentId, uid, name)
+    else if (action === 'submitSOM') store.docconSubmitToSOM(documentId, uid, name)
+    else if (action === 'somApprove') store.somApprove(documentId, uid, name, actionComment)
+    else if (action === 'somReject') {
+      if (!actionComment.trim()) { alert('Komentar wajib diisi untuk revisi'); return }
+      store.somReject(documentId, uid, name, actionComment)
+    }
     else if (action === 'kadepParaf') store.kadepParaf(documentId, uid, name)
     else if (action === 'kadepReject') {
       if (!actionComment.trim()) { alert('Komentar wajib diisi untuk revisi'); return }
@@ -186,17 +208,24 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
       store.kadivReject(documentId, uid, name, actionComment)
     }
     else if (action === 'docconResubmitKadiv') store.docconResubmitAfterRevision(documentId, uid, name)
+    else if (action === 'docconResubmitCustomer') store.docconResubmitDirectToCustomer(documentId, uid, name)
     else if (action === 'docconEscalate') {
       if (!actionComment.trim()) { alert('Catatan eskalasi wajib diisi'); return }
       store.docconEscalateToEngineer(documentId, uid, name, actionComment)
     }
     else if (action === 'customerConfirm') store.recordCustomerConfirmed(documentId, uid, name)
+    else if (action === 'customerReject') {
+      if (!actionComment.trim()) { alert('Catatan revisi wajib diisi'); return }
+      store.recordCustomerRevision(documentId, uid, name, actionComment)
+    }
     else if (action === 'vendorConfirm') store.recordVendorConfirmed(documentId, uid, name, actionComment)
     else if (action === 'toSales') store.submitToSales(documentId, uid, name)
     setActionComment('')
     setShowCustomerConfirmPanel(false)
     setShowVendorConfirmPanel(false)
     setShowDocconEscalatePanel(false)
+    setShowCustomerRevisionPanel(false)
+    setShowSOMRevisionPanel(false)
     setShowKadepRevisionPanel(false)
     onClose()
   }
@@ -250,96 +279,25 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
             </div>
           </div>
 
-          {/* Phase stepper — two variants */}
+          {/* Phase stepper */}
           {existing.currentPhase && (() => {
-            const isVendorDoc = existing.docType === 'vendor'
-            const phase = existing.currentPhase as string
-
-            const CUSTOMER_PHASES: { key: string; label: string }[] = [
-              { key: 'engineer', label: 'Engineer' },
-              { key: 'doccon',   label: 'Doccon' },
-              { key: 'kadep',    label: 'Paraf Kadep' },
-              { key: 'kadiv',    label: 'Kadiv' },
-              { key: 'customer_email', label: 'Customer' },
-              { key: 'sales',    label: 'Sales' },
-            ]
-            const VENDOR_PHASES: { key: string; label: string }[] = [
-              { key: 'doccon',        label: 'Input' },
-              { key: 'kadep',         label: 'Paraf Kadep' },
-              { key: 'kadiv',         label: 'Kadiv' },
-              { key: 'vendor_confirm', label: 'Vendor' },
-              { key: 'completed',     label: 'Selesai' },
-            ]
-
-            // Legacy 3-step phases (keep backward compat for old 'customer' phase)
-            const LEGACY_PHASES: { key: string; label: string }[] = [
-              { key: 'engineer', label: 'Engineer' },
-              { key: 'customer', label: 'Customer' },
-              { key: 'doccon',   label: 'Doccon' },
-            ]
-
-            const isLegacy = phase === 'customer' || (
-              !isVendorDoc &&
-              !['engineer','doccon','kadep','kadiv','customer_email','sales'].includes(phase)
-            )
-
-            let PHASES: { key: string; label: string }[]
-            let isDone: (p: string) => boolean
-
-            if (isLegacy) {
-              PHASES = LEGACY_PHASES
-              isDone = (p: string) => {
-                if (p === 'engineer') return phase === 'customer' || phase === 'doccon'
-                if (p === 'customer') return phase === 'doccon'
-                if (p === 'doccon') return existing.docconSubStatus === 'delivered'
-                return false
-              }
-            } else if (isVendorDoc) {
-              PHASES = VENDOR_PHASES
-              isDone = (p: string) => {
-                if (p === 'doccon') return ['kadep','kadiv','vendor_confirm','completed'].includes(phase)
-                if (p === 'kadep') return ['kadiv','vendor_confirm','completed'].includes(phase)
-                if (p === 'kadiv') return ['vendor_confirm','completed'].includes(phase)
-                if (p === 'vendor_confirm') return phase === 'completed'
-                if (p === 'completed') return false
-                return false
-              }
-            } else if (existing.startPhase === 'doccon') {
-              PHASES = [
-                { key: 'doccon',         label: 'Doccon' },
-                { key: 'kadep',          label: 'Paraf Kadep' },
-                { key: 'kadiv',          label: 'Kadiv' },
-                { key: 'customer_email', label: 'Customer' },
-                { key: 'sales',          label: 'Sales' },
-              ]
-              isDone = (p: string) => {
-                if (p === 'doccon') return ['kadep','kadiv','customer_email','sales'].includes(phase)
-                if (p === 'kadep') return ['kadiv','customer_email','sales'].includes(phase)
-                if (p === 'kadiv') return ['customer_email','sales'].includes(phase)
-                if (p === 'customer_email') return phase === 'sales'
-                if (p === 'sales') return false
-                return false
-              }
-            } else {
-              PHASES = CUSTOMER_PHASES
-              isDone = (p: string) => {
-                if (p === 'engineer') return ['doccon','kadep','kadiv','customer_email','sales'].includes(phase)
-                if (p === 'doccon') return ['kadep','kadiv','customer_email','sales'].includes(phase)
-                if (p === 'kadep') return ['kadiv','customer_email','sales'].includes(phase)
-                if (p === 'kadiv') return ['customer_email','sales'].includes(phase)
-                if (p === 'customer_email') return phase === 'sales'
-                if (p === 'sales') return false
-                return false
-              }
-            }
+            const phase = existing.currentPhase
+            const isLegacy = existing.docType !== 'vendor' && (phase === 'customer' || !['engineer', 'doccon', 'som', 'kadep', 'kadiv', 'customer_email', 'sales'].includes(phase))
+            const PHASES = getDocPhaseSteps(existing)
+            const currentIdx = PHASES.findIndex((s) => s.key === phase)
+            // Fase 'sales' baru dianggap selesai kalau udah beneran diklik "Kirim ke Sales"
+            // (salesSubmittedAt keisi) — nyampe fase ini doang belum tentu udah terkirim.
+            const isTerminalReached = currentIdx >= 0 && currentIdx === PHASES.length - 1 && (phase !== 'sales' || !!existing.salesSubmittedAt)
+            const isDone = (idx: number) => currentIdx >= 0 && (idx < currentIdx || (idx === currentIdx && isTerminalReached))
+            const isActive = (idx: number) => PHASES[idx].key === phase && !isTerminalReached
 
             return (
               <div className="rounded-xl border border-border-subtle bg-black/[0.02] px-4 py-3 space-y-2">
                 <div className="text-[10px] uppercase tracking-widest text-ink-tertiary font-semibold">Phase Pipeline</div>
                 <div className="flex flex-wrap items-center gap-2">
                   {PHASES.map((step, idx) => {
-                    const done = isDone(step.key)
-                    const active = step.key === phase
+                    const done = isDone(idx)
+                    const active = isActive(idx)
                     return (
                       <div key={step.key} className="flex items-center gap-2">
                         <div className={classNames(
@@ -367,6 +325,15 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
                     <CheckCircle2 size={12} className="text-teal-600 shrink-0" />
                     <div className="text-[11px] text-teal-700 font-medium">
                       Disetujui Kadiv: {existing.kadivApprovedByName} · {formatDateTime(existing.kadivApprovedAt)}
+                    </div>
+                  </div>
+                )}
+                {/* Kadiv dilewati (requiresKadiv === false) */}
+                {!existing.kadivApprovedAt && existing.requiresKadiv === false && existing.kadepParafAt && (
+                  <div className="flex items-center gap-2 mt-1 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+                    <CheckCircle2 size={12} className="text-slate-500 shrink-0" />
+                    <div className="text-[11px] text-slate-600 font-medium">
+                      Kadiv dilewati untuk dokumen ini — langsung disetujui Kadep ({existing.kadepParafByName} · {formatDateTime(existing.kadepParafAt)})
                     </div>
                   </div>
                 )}
@@ -488,7 +455,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
           <div className="border-t border-border-subtle pt-4">
             <div className="flex items-center justify-between mb-3">
               <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Attachment ({existing.attachments.length})</div>
-              {!isKadepParaf && !isKadiv && (existing.status !== 'APPROVED' || existing.salesFlagIssue) && (
+              {!isKadepParaf && !isKadiv && !isSOM && (existing.status !== 'APPROVED' || existing.salesFlagIssue) && (
                 <>
                   <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />
                   <Button size="sm" variant="ghost" onClick={() => fileInputRef.current?.click()} leftIcon={<Upload size={12} />}>Upload</Button>
@@ -506,7 +473,7 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
                       <div className="text-xs font-medium text-ink-primary truncate">{att.name}</div>
                       <div className="text-[10px] text-ink-tertiary">{fmtSize(att.size)} · {att.uploadedByName} · {formatDateShort(att.uploadedAt)}</div>
                     </div>
-                    {!isKadepParaf && !isKadiv && existing.status !== 'APPROVED' && (
+                    {!isKadepParaf && !isKadiv && !isSOM && existing.status !== 'APPROVED' && (
                       <button
                         onClick={() => store.removeAttachment(existing.id, att.id)}
                         className="shrink-0 rounded p-0.5 text-ink-muted hover:text-pertamina-red hover:bg-pertamina-red-50 transition"
@@ -604,8 +571,8 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
               )
             }
 
-            // ── Both types — Doccon selesai QC, kirim ke Kadep ──
-            if (st === 'QC_REVIEW' && phase === 'doccon' && isDoccon) {
+            // ── Vendor doc — Doccon selesai QC, kirim langsung ke Kadep (gak ada SOM di flow vendor) ──
+            if (isVendor && st === 'QC_REVIEW' && phase === 'doccon' && isDoccon) {
               panels.push(
                 <div key="doccon-submit-kadep" className="border-t border-border-subtle pt-4 space-y-3">
                   <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Aksi Doccon</div>
@@ -614,18 +581,70 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
               )
             }
 
+            // ── Customer doc — Doccon selesai QC, kirim ke Site Operation Manager ──
+            if (!isVendor && st === 'QC_REVIEW' && phase === 'doccon' && isDoccon) {
+              panels.push(
+                <div key="doccon-submit-som" className="border-t border-border-subtle pt-4 space-y-3">
+                  <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Aksi Doccon</div>
+                  <Button size="sm" onClick={() => handleNewWorkflow('submitSOM')} leftIcon={<Send size={13} />}>Selesai QC, Kirim ke Site Ops Manager</Button>
+                </div>
+              )
+            }
+
+            // ── Customer doc — SOM approve/reject ──
+            if (!isVendor && st === 'PENDING_SOM' && phase === 'som' && canApproveSOMForProject(project?.kodeProject ?? '')) {
+              panels.push(
+                <div key="som-approve" className="border-t border-border-subtle pt-4 space-y-3">
+                  <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Persetujuan Site Operation Manager</div>
+                  <div className="rounded-lg bg-teal-50 border border-teal-200 px-3 py-2 text-[11px] text-teal-800">
+                    Dokumen sudah melalui QC Review Doccon. Setujui untuk meneruskan ke Kadep, atau kembalikan jika masih perlu perbaikan.
+                  </div>
+                  {!showSOMRevisionPanel ? (
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" onClick={() => handleNewWorkflow('somApprove')} leftIcon={<CheckCircle2 size={13} />}>
+                        Setujui &amp; Kirim ke Kadep
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setShowSOMRevisionPanel(true)} leftIcon={<RotateCcw size={13} />}>
+                        Revisi ke Doccon
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Textarea
+                        label="Catatan revisi (wajib)"
+                        value={actionComment}
+                        onChange={(e) => setActionComment(e.target.value)}
+                        rows={2}
+                        placeholder="Jelaskan bagian mana yang perlu diperbaiki Doccon…"
+                      />
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => { setShowSOMRevisionPanel(false); setActionComment('') }}>Batal</Button>
+                        <Button size="sm" variant="danger" onClick={() => handleNewWorkflow('somReject')} leftIcon={<RotateCcw size={13} />}>
+                          Kembalikan ke Doccon
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            }
+
             // ── Both types — Kadep paraf ──
             if (st === 'PENDING_KADEP_PARAF' && phase === 'kadep' && isKadepParaf) {
+              const skipsKadiv = existing.requiresKadiv === false
+              const nextTargetLabel = isVendor ? 'Vendor' : 'Customer'
               panels.push(
                 <div key="kadep-paraf" className="border-t border-border-subtle pt-4 space-y-3">
-                  <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Paraf Kadep</div>
+                  <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">TTD Kadep</div>
                   <div className="rounded-lg bg-cyan-50 border border-cyan-200 px-3 py-2 text-[11px] text-cyan-800">
-                    Dokumen sudah melalui QC Review Doccon. Paraf untuk meneruskan ke Kadiv, atau kembalikan jika masih perlu perbaikan.
+                    {skipsKadiv
+                      ? `Dokumen sudah melalui QC Review Doccon. Dokumen ini tidak memerlukan approval Kadiv — TTD untuk meneruskan langsung ke ${nextTargetLabel}, atau kembalikan jika masih perlu perbaikan.`
+                      : 'Dokumen sudah melalui QC Review Doccon. TTD untuk meneruskan ke Kadiv, atau kembalikan jika masih perlu perbaikan.'}
                   </div>
                   {!showKadepRevisionPanel ? (
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" onClick={() => handleNewWorkflow('kadepParaf')} leftIcon={<CheckCircle2 size={13} />}>
-                        Paraf &amp; Kirim ke Kadiv
+                        {skipsKadiv ? `TTD & Kirim ke ${nextTargetLabel}` : 'TTD & Kirim ke Kadiv'}
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => setShowKadepRevisionPanel(true)} leftIcon={<RotateCcw size={13} />}>
                         Revisi ke Doccon
@@ -652,20 +671,29 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
               )
             }
 
-            // ── Customer doc — Doccon menangani dokumen yang dikembalikan Kadiv/Kadep ──
+            // ── Customer doc — Doccon menangani dokumen yang dikembalikan Customer/SOM/Kadiv/Kadep ──
             if (!isVendor && st === 'REVISION_REQUIRED' && phase === 'doccon' && isDoccon) {
               const lastRev = existing.revisionHistory?.[existing.revisionHistory.length - 1]
-              const returnedBy = lastRev?.changedByName ? `${lastRev.changedByName}` : 'Kadiv/Kadep'
+              const returnedBy = lastRev?.changedByName ? `${lastRev.changedByName}` : 'SOM/Kadep/Kadiv'
+              const isCustomerRevision = existing.pendingCustomerRevision === true
               panels.push(
                 <div key="doccon-revision" className="border-t border-border-subtle pt-4 space-y-3">
                   <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Dokumen Dikembalikan</div>
                   <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-[11px] text-red-700">
-                    {returnedBy} meminta revisi{lastRev?.note ? `: "${lastRev.note}"` : '.'} Perbaiki dokumen dan mulai ulang QC Review, atau eskalasi ke Engineer jika diperlukan.
+                    {returnedBy} meminta revisi{lastRev?.note ? `: "${lastRev.note}"` : '.'}
+                    {isCustomerRevision
+                      ? ' Setelah diperbaiki, bisa dikirim langsung balik ke Customer, atau diproses ulang lewat approval penuh.'
+                      : ' Perbaiki dokumen dan mulai ulang QC Review, atau eskalasi ke Engineer jika diperlukan.'}
                   </div>
                   {!showDocconEscalatePanel ? (
                     <div className="flex flex-wrap gap-2">
-                      <Button size="sm" onClick={() => handleNewWorkflow('docconResubmitKadiv')} leftIcon={<FileText size={13} />}>
-                        Perbaiki &amp; Mulai QC Ulang
+                      {isCustomerRevision && (
+                        <Button size="sm" onClick={() => handleNewWorkflow('docconResubmitCustomer')} leftIcon={<Send size={13} />}>
+                          Perbaiki &amp; Kirim Langsung ke Customer
+                        </Button>
+                      )}
+                      <Button size="sm" variant={isCustomerRevision ? 'ghost' : 'primary'} onClick={() => handleNewWorkflow('docconResubmitKadiv')} leftIcon={<FileText size={13} />}>
+                        {isCustomerRevision ? 'Perbaiki & Proses Approval Ulang' : 'Perbaiki & Mulai QC Ulang'}
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => setShowDocconEscalatePanel(true)} leftIcon={<RotateCcw size={13} />}>
                         Eskalasi ke Engineer
@@ -733,25 +761,46 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
               )
             }
 
-            // ── Customer doc — Doccon catat konfirmasi customer ──
+            // ── Customer doc — Doccon catat konfirmasi/revisi customer ──
             if (!isVendor && st === 'KADIV_APPROVED' && phase === 'customer_email' && isDoccon) {
               panels.push(
                 <div key="customer-confirm" className="border-t border-border-subtle pt-4 space-y-3">
                   <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Konfirmasi Customer</div>
                   <div className="rounded-lg bg-cyan-50 border border-cyan-200 px-3 py-2 text-[11px] text-cyan-800">
-                    Kirim email ke customer. Setelah customer membalas konfirmasi, catat di sini.
+                    Kirim email ke customer. Setelah customer membalas, catat hasilnya di sini.
                   </div>
-                  {!showCustomerConfirmPanel ? (
-                    <Button size="sm" onClick={() => setShowCustomerConfirmPanel(true)} leftIcon={<Mail size={13} />}>
-                      Catat Konfirmasi Customer
-                    </Button>
-                  ) : (
+                  {!showCustomerConfirmPanel && !showCustomerRevisionPanel ? (
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" onClick={() => setShowCustomerConfirmPanel(true)} leftIcon={<Mail size={13} />}>
+                        Catat Konfirmasi Customer
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setShowCustomerRevisionPanel(true)} leftIcon={<RotateCcw size={13} />}>
+                        Customer Minta Revisi
+                      </Button>
+                    </div>
+                  ) : showCustomerConfirmPanel ? (
                     <div className="space-y-2">
                       <p className="text-[11px] text-ink-secondary">Konfirmasi bahwa customer sudah memberikan persetujuan via email?</p>
                       <div className="flex gap-2">
                         <Button size="sm" variant="ghost" onClick={() => setShowCustomerConfirmPanel(false)}>Batal</Button>
                         <Button size="sm" onClick={() => handleNewWorkflow('customerConfirm')} leftIcon={<CheckCircle2 size={13} />}>
                           Ya, Customer Sudah Konfirmasi
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Textarea
+                        label="Catatan revisi dari Customer (wajib)"
+                        value={actionComment}
+                        onChange={(e) => setActionComment(e.target.value)}
+                        rows={2}
+                        placeholder="Salin/ringkas permintaan revisi dari balasan email customer…"
+                      />
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => { setShowCustomerRevisionPanel(false); setActionComment('') }}>Batal</Button>
+                        <Button size="sm" variant="danger" onClick={() => handleNewWorkflow('customerReject')} leftIcon={<RotateCcw size={13} />}>
+                          Catat & Proses Revisi
                         </Button>
                       </div>
                     </div>
@@ -903,19 +952,32 @@ export function MonitoringReportDocumentModal({ open, onClose, mode, documentId,
                   <input type="radio" name="startPhase" checked={startPhase === 'engineer'} onChange={() => setStartPhase('engineer')} className="accent-pertamina-red" />
                   <div>
                     <div className="text-xs font-medium text-ink-primary">Perlu input Engineer</div>
-                    <div className="text-[10px] text-ink-tertiary">Engineer → Doccon → Paraf Kadep → Kadiv → Customer → Sales</div>
+                    <div className="text-[10px] text-ink-tertiary">Engineer → Doccon → SOM → TTD Kadep → Kadiv → Customer → Sales</div>
                   </div>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="radio" name="startPhase" checked={startPhase === 'doccon'} onChange={() => setStartPhase('doccon')} className="accent-pertamina-red" />
                   <div>
                     <div className="text-xs font-medium text-ink-primary">Doccon langsung</div>
-                    <div className="text-[10px] text-ink-tertiary">Doccon → Paraf Kadep → Kadiv → Customer → Sales</div>
+                    <div className="text-[10px] text-ink-tertiary">Doccon → SOM → TTD Kadep → Kadiv → Customer → Sales</div>
                   </div>
                 </label>
               </div>
             </div>
           )}
+          <div>
+            <div className="text-[11px] uppercase tracking-widest text-ink-tertiary mb-2">Approval</div>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="requiresKadiv" checked={requiresKadiv} onChange={() => setRequiresKadiv(true)} className="accent-pertamina-red" />
+                <div className="text-xs font-medium text-ink-primary">Perlu approval Kadiv</div>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="requiresKadiv" checked={!requiresKadiv} onChange={() => setRequiresKadiv(false)} className="accent-pertamina-red" />
+                <div className="text-xs font-medium text-ink-primary">Cukup Kadep saja</div>
+              </label>
+            </div>
+          </div>
           {(() => {
             const activeDocType = docType ?? existing?.docType
             const isVendorForm = activeDocType === 'vendor'

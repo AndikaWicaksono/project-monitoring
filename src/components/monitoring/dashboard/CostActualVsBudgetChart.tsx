@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts'
 import { useMonitoringCostStore } from '../../../store/useMonitoringCostStore'
+import { getYtdMonths } from '../../../utils/helpers'
+import { slaMonthLabel } from '../../../types/monitoring'
 
 const TOOLTIP_STYLE = { background: '#ffffff', border: '1px solid rgba(15,23,42,0.1)', borderRadius: 8, fontSize: 12, boxShadow: '0 8px 24px rgba(15,23,42,0.10)' }
-const MONTHS_YTD = ['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06']
 
 function fmt(v: number) {
   if (Math.abs(v) >= 1e9) return `${(v / 1e9).toFixed(1)}M`
@@ -20,21 +21,26 @@ function fmtFull(v: number) {
 export function CostActualVsBudgetChart() {
   const costs = useMonitoringCostStore((s) => s.costs)
   const realizations = useMonitoringCostStore((s) => s.realizations)
+  const ytdMonths = useMemo(() => getYtdMonths(), [])
+  const ytdYear = ytdMonths[0]?.slice(0, 4) ?? String(new Date().getFullYear())
+  const ytdLabel = ytdMonths.length > 1
+    ? `${slaMonthLabel(1)}–${slaMonthLabel(ytdMonths.length)} ${ytdYear}`
+    : `${slaMonthLabel(1)} ${ytdYear}`
 
   const data = useMemo(() => costs.map((c) => {
-    const ytdPlanned = MONTHS_YTD.reduce((s, m) => s + (c.costBasedMonthly?.[m]?.planned ?? 0), 0)
+    const ytdPlanned = ytdMonths.reduce((s, m) => s + (c.costBasedMonthly?.[m]?.planned ?? 0), 0)
     const ytdActual  = realizations
-      .filter((r) => r.projectId === c.id && MONTHS_YTD.includes(r.period ?? ''))
+      .filter((r) => r.projectId === c.id && ytdMonths.includes(r.period ?? ''))
       .reduce((s, r) => s + r.realisasiBiaya, 0)
     const code = c.projectCode.replace(/-00$/, '')
     return { code, 'Plan YTD': ytdPlanned, 'Aktual YTD': ytdActual, isOver: ytdActual > ytdPlanned }
-  }), [costs, realizations])
+  }), [costs, realizations, ytdMonths])
 
   return (
     <div className="surface rounded-xl p-4 flex flex-col" style={{ height: 300 }}>
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-sm font-semibold text-ink-primary">Aktual vs Plan per Project</h3>
-        <span className="rounded-md bg-black/[0.04] px-2 py-0.5 text-[10px] text-ink-tertiary">Jan–Jun 2026</span>
+        <span className="rounded-md bg-black/[0.04] px-2 py-0.5 text-[10px] text-ink-tertiary">{ytdLabel}</span>
       </div>
       <div className="flex-1">
         {costs.length === 0 ? (

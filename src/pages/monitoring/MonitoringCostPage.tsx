@@ -9,12 +9,11 @@ import { Button } from '../../components/ui/Button'
 import { MonitoringCostMonthlyDetailModal } from '../../components/monitoring/MonitoringCostMonthlyDetailModal'
 import { MonitoringCostBreakdownImportModal } from '../../components/monitoring/MonitoringCostBreakdownImportModal'
 import { MonitoringCostRealizationImportModal } from '../../components/monitoring/MonitoringCostRealizationImportModal'
-import { classNames, downloadCsv, formatDateShort } from '../../utils/helpers'
+import { classNames, downloadCsv, formatDateShort, getCurrentPeriod } from '../../utils/helpers'
 import { formatCurrency, getEffectiveCostStatus, type MonitoringCostStatus } from '../../types/monitoring'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const TODAY_MONTH = '2026-06'
 const ALL_MONTHS = [
   '2026-01','2026-02','2026-03','2026-04','2026-05','2026-06',
   '2026-07','2026-08','2026-09','2026-10','2026-11','2026-12',
@@ -51,8 +50,8 @@ const REAL_STATUS: Record<string, { label: string; cls: string }> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function computeMonthStatus(planned: number, actual: number, month: string): MonthBudgetStatus {
-  if (month > TODAY_MONTH) return 'not_yet'
+function computeMonthStatus(planned: number, actual: number, month: string, todayMonth: string): MonthBudgetStatus {
+  if (month > todayMonth) return 'not_yet'
   if (planned === 0) return 'not_yet'
   const ratio = actual / planned
   if (ratio > 1.0) return 'over_budget'
@@ -94,6 +93,8 @@ export function MonitoringCostPage() {
   const [monthDetail, setMonthDetail] = useState<{ costId: string; month: string } | null>(null)
   const [breakdownImportId, setBreakdownImportId] = useState<string | null>(null)
   const [realizationImportId, setRealizationImportId] = useState<string | null>(null)
+
+  const todayMonth = useMemo(() => getCurrentPeriod(), [])
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -241,7 +242,7 @@ export function MonitoringCostPage() {
                   const planned = plan?.planned ?? 0
                   const monthReals = costRealizations.filter((r) => r.period === m)
                   const actual = monthReals.reduce((s, r) => s + r.realisasiBiaya, 0)
-                  return { month: m, planned, actual, status: computeMonthStatus(planned, actual, m) }
+                  return { month: m, planned, actual, status: computeMonthStatus(planned, actual, m, todayMonth) }
                 }) : []
 
                 // Cumulative
@@ -392,7 +393,7 @@ export function MonitoringCostPage() {
                                     </thead>
                                     <tbody className="divide-y divide-border-subtle">
                                       {monthRowsWithCum.map((row) => {
-                                        const isFuture = row.month > TODAY_MONTH
+                                        const isFuture = row.month > todayMonth
                                         const variance = row.actual - row.planned
                                         const variancePct = row.planned > 0 ? (variance / row.planned) * 100 : 0
                                         const isMonthExpanded = expandedMonth === `${c.id}:${row.month}`

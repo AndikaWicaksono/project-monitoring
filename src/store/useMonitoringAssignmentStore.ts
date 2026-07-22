@@ -15,6 +15,9 @@ export interface DocconAssignment {
   assignedAdminOsmId?: string | null
   assignedAdminOsmName?: string | null
   assignedAdminOsmAt?: string | null
+  assignedSOMId?: string | null
+  assignedSOMName?: string | null
+  assignedSOMAt?: string | null
 }
 
 interface MonitoringAssignmentState {
@@ -29,6 +32,13 @@ interface MonitoringAssignmentState {
     kodeProject: string,
     adminOsmId: string | null,
     adminOsmName: string | null,
+    byUserId: string | null,
+    byName: string | null,
+  ) => void
+  assignSOM: (
+    kodeProject: string,
+    somId: string | null,
+    somName: string | null,
     byUserId: string | null,
     byName: string | null,
   ) => void
@@ -119,6 +129,29 @@ export const useMonitoringAssignmentStore = create<MonitoringAssignmentState>()(
             assignedAdminOsmId: adminOsmId,
             assignedAdminOsmName: adminOsmId ? adminOsmName : null,
             assignedAdminOsmAt: adminOsmId ? nowIso() : null,
+          }
+          if (idx >= 0) {
+            const updated = [...state.assignments]
+            updated[idx] = { ...updated[idx], ...patch }
+            return { assignments: updated }
+          }
+          // New record for a project not in seed
+          return {
+            assignments: [
+              ...state.assignments,
+              { id: uid(), kodeProject, assignedDocconId: null, assignedAt: null, assignedByUserId: byUserId, assignedByName: byName, ...patch },
+            ],
+          }
+        })
+      },
+
+      assignSOM: (kodeProject, somId, somName, byUserId, byName) => {
+        set((state) => {
+          const idx = state.assignments.findIndex((a) => a.kodeProject === kodeProject)
+          const patch = {
+            assignedSOMId: somId,
+            assignedSOMName: somId ? somName : null,
+            assignedSOMAt: somId ? nowIso() : null,
           }
           if (idx >= 0) {
             const updated = [...state.assignments]

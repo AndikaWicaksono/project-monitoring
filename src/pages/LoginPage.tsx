@@ -21,6 +21,8 @@ const DEMO_ACCOUNTS = [
   { email: 'doccon.osm@pertamina.id', password: 'osm123', label: 'Doccon — Resyah' },
   { email: 'annita@pertamina.id', password: 'doccon123', label: 'Doccon — Annita' },
   { email: 'addini@pertamina.id', password: 'doccon123', label: 'Doccon — Addini' },
+  { email: 'som1@pertamina.id', password: 'som123', label: 'Site Ops Manager — Fadli' },
+  { email: 'som2@pertamina.id', password: 'som123', label: 'Site Ops Manager — Yuni' },
   { email: 'engineer.os@pertamina.id', password: 'eos123', label: 'Engineer OS' },
 ]
 

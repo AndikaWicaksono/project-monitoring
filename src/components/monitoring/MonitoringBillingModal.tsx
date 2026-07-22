@@ -12,7 +12,7 @@ import type { BillingDocumentStatus, BillingDocPhase, BillingDocumentActionType 
 
 const STATUS_META: Record<BillingDocumentStatus, { label: string; cls: string }> = {
   DRAFT:                { label: 'Draft',                cls: 'bg-slate-100 text-slate-700' },
-  PENDING_KADEP_PARAF:  { label: 'Menunggu Paraf Kadep', cls: 'bg-cyan-100 text-cyan-700' },
+  PENDING_KADEP_PARAF:  { label: 'Menunggu TTD Kadep',   cls: 'bg-cyan-100 text-cyan-700' },
   REVISION_REQUIRED:    { label: 'Revisi Diminta',       cls: 'bg-red-100 text-red-700' },
   PENDING_KADIV:        { label: 'Menunggu Kadiv',       cls: 'bg-blue-100 text-blue-700' },
   COMPLETED:            { label: 'Selesai',              cls: 'bg-emerald-100 text-emerald-700' },
@@ -20,7 +20,7 @@ const STATUS_META: Record<BillingDocumentStatus, { label: string; cls: string }>
 
 const PHASE_STEPS: { key: BillingDocPhase; label: string }[] = [
   { key: 'doccon', label: 'Doccon' },
-  { key: 'kadep', label: 'Paraf Kadep' },
+  { key: 'kadep', label: 'Kadep' },
   { key: 'kadiv', label: 'Kadiv' },
   { key: 'completed', label: 'Selesai' },
 ]
@@ -28,7 +28,7 @@ const PHASE_STEPS: { key: BillingDocPhase; label: string }[] = [
 const ACTION_META: Record<BillingDocumentActionType, { label: string; icon: React.ReactNode; color: string }> = {
   CREATE:              { label: 'Dibuat',                icon: <Clock size={13} />,        color: 'bg-slate-500' },
   DOCCON_SUBMIT_KADEP: { label: 'Dikirim ke Kadep',       icon: <Send size={13} />,         color: 'bg-cyan-600' },
-  KADEP_PARAF:         { label: 'Diparaf Kadep',          icon: <CheckCircle2 size={13} />, color: 'bg-cyan-700' },
+  KADEP_PARAF:         { label: 'TTD Kadep',              icon: <CheckCircle2 size={13} />, color: 'bg-cyan-700' },
   KADEP_REJECT:        { label: 'Revisi oleh Kadep',      icon: <RotateCcw size={13} />,    color: 'bg-pertamina-red' },
   DOCCON_RESUBMIT:     { label: 'Dikirim Ulang ke Kadep', icon: <RefreshCw size={13} />,    color: 'bg-violet-500' },
   KADIV_APPROVE:       { label: 'Disetujui Kadiv',        icon: <CheckCircle2 size={13} />, color: 'bg-emerald-600' },
@@ -54,7 +54,7 @@ export function MonitoringBillingModal({ open, onClose, mode, projectId, billing
   const session = useAuthStore((s) => s.session)
   const users = useAuthStore((s) => s.users)
   const currentUser = users.find((u) => u.id === session?.userId)
-  const { isDoccon, isKadepParaf, isKadiv } = useMonitoringRole()
+  const { isDoccon, isKadepParaf, isKadiv, isSOM } = useMonitoringRole()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const existing = billingId ? store.getBillingDocumentById(billingId) : undefined
@@ -289,7 +289,7 @@ export function MonitoringBillingModal({ open, onClose, mode, projectId, billing
                             type="checkbox"
                             checked={isLinked(pickerDoc.id, att.id)}
                             onChange={() => toggleLink(pickerDoc.id, att.id)}
-                            disabled={isKadepParaf || isKadiv}
+                            disabled={isKadepParaf || isKadiv || isSOM}
                             className="accent-pertamina-red disabled:cursor-not-allowed disabled:opacity-60"
                           />
                           <Paperclip size={13} className="text-ink-tertiary shrink-0" />
@@ -326,7 +326,7 @@ export function MonitoringBillingModal({ open, onClose, mode, projectId, billing
                             <div className="text-xs font-medium text-red-600">Attachment sumber sudah tidak ada</div>
                           )}
                         </div>
-                        {!isKadepParaf && !isKadiv && (
+                        {!isKadepParaf && !isKadiv && !isSOM && (
                           <button
                             onClick={() => billingId && store.billingUnlinkAttachment(billingId, link.reportDocumentId, link.attachmentId)}
                             className="shrink-0 rounded p-0.5 text-ink-muted hover:text-pertamina-red hover:bg-pertamina-red-50 transition"
@@ -346,7 +346,7 @@ export function MonitoringBillingModal({ open, onClose, mode, projectId, billing
           <div className="border-t border-border-subtle pt-4">
             <div className="flex items-center justify-between mb-3">
               <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Attachment Manual ({attachments.length})</div>
-              {!isKadepParaf && !isKadiv && (
+              {!isKadepParaf && !isKadiv && !isSOM && (
                 <>
                   <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />
                   <Button size="sm" variant="ghost" onClick={() => fileInputRef.current?.click()} leftIcon={<Upload size={12} />}>Upload</Button>
@@ -364,7 +364,7 @@ export function MonitoringBillingModal({ open, onClose, mode, projectId, billing
                       <div className="text-xs font-medium text-ink-primary truncate">{att.name}</div>
                       <div className="text-[10px] text-ink-tertiary">{fmtSize(att.size)} · {att.uploadedByName} · {formatDateShort(att.uploadedAt)}</div>
                     </div>
-                    {!isKadepParaf && !isKadiv && (
+                    {!isKadepParaf && !isKadiv && !isSOM && (
                       <button
                         onClick={() => store.removeBillingAttachment(existing.id, att.id)}
                         className="shrink-0 rounded p-0.5 text-ink-muted hover:text-pertamina-red hover:bg-pertamina-red-50 transition"
@@ -397,14 +397,14 @@ export function MonitoringBillingModal({ open, onClose, mode, projectId, billing
           )}
           {existing.currentPhase === 'kadep' && isKadepParaf && existing.status === 'PENDING_KADEP_PARAF' && (
             <div className="border-t border-border-subtle pt-4 space-y-3">
-              <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">Paraf Kadep</div>
+              <div className="text-[11px] uppercase tracking-widest text-ink-tertiary font-semibold">TTD Kadep</div>
               <div className="rounded-lg bg-cyan-50 border border-cyan-200 px-3 py-2 text-[11px] text-cyan-800">
-                Paraf untuk meneruskan ke Kadiv, atau kembalikan jika checklist lampiran masih perlu perbaikan.
+                TTD untuk meneruskan ke Kadiv, atau kembalikan jika checklist lampiran masih perlu perbaikan.
               </div>
               {!showKadepRevisionPanel ? (
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" onClick={() => handleWorkflow('kadepParaf')} leftIcon={<CheckCircle2 size={13} />}>
-                    Paraf &amp; Kirim ke Kadiv
+                    TTD &amp; Kirim ke Kadiv
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setShowKadepRevisionPanel(true)} leftIcon={<RotateCcw size={13} />}>
                     Revisi ke Doccon

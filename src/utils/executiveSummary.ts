@@ -16,6 +16,7 @@ export interface ExecutiveSummaryData {
     totalProjects: number
     totalDocuments: number
     bottleneck: ReturnType<typeof computeBottleneck>
+    pendingSomCount: number
     pendingKadepCount: number
     pendingKadivCount: number
   }
@@ -64,6 +65,7 @@ export function useExecutiveSummaryData(): ExecutiveSummaryData {
   return useMemo(() => {
     // ── Report ──────────────────────────────────────────────────────────────
     const bottleneck = computeBottleneck(documents, reportProjects)
+    const pendingSomDocCount = documents.filter((d) => d.status === 'PENDING_SOM' && d.currentPhase === 'som').length
     const pendingKadepDocCount = documents.filter((d) => d.status === 'PENDING_KADEP_PARAF' && d.currentPhase === 'kadep').length
     const pendingKadivDocCount = documents.filter((d) => d.status === 'PENDING_KADIV' && d.currentPhase === 'kadiv').length
 
@@ -120,6 +122,7 @@ export function useExecutiveSummaryData(): ExecutiveSummaryData {
         totalProjects: reportProjects.length,
         totalDocuments: documents.length,
         bottleneck,
+        pendingSomCount: pendingSomDocCount,
         pendingKadepCount: pendingKadepDocCount,
         pendingKadivCount: pendingKadivDocCount,
       },
@@ -165,11 +168,11 @@ export function generateNarrative(data: ExecutiveSummaryData): NarrativeLine[] {
   const { report, billing, sla, cost, deadlines } = data
 
   // Report progress
-  const doneDocs = report.totalDocuments - report.pendingKadepCount - report.pendingKadivCount
+  const doneDocs = report.totalDocuments - report.pendingSomCount - report.pendingKadepCount - report.pendingKadivCount
   lines.push({
     tone: 'positive',
     text: `Terdapat ${report.totalProjects} project laporan aktif dengan total ${report.totalDocuments} dokumen tercatat. `
-      + `${doneDocs} dokumen sudah melewati tahap paraf/approval, sementara ${report.pendingKadepCount} menunggu paraf Kadep dan ${report.pendingKadivCount} menunggu approval Kadiv.`,
+      + `${doneDocs} dokumen sudah melewati tahap paraf/approval, sementara ${report.pendingSomCount} menunggu approval Site Operation Manager, ${report.pendingKadepCount} menunggu paraf Kadep, dan ${report.pendingKadivCount} menunggu approval Kadiv.`,
   })
 
   // Bottleneck

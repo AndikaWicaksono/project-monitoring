@@ -1,27 +1,20 @@
 import { useMemo } from 'react'
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts'
 import { useMonitoringReportStore } from '../../../store/useMonitoringReportStore'
+import { bucketReportDocStatus, REPORT_DOC_STATUS_BUCKET_META, type ReportDocStatusBucket } from '../../../utils/reportDocStatusBucket'
 
 const TOOLTIP_STYLE = { background: '#ffffff', border: '1px solid rgba(15,23,42,0.1)', borderRadius: 8, fontSize: 12, boxShadow: '0 8px 24px rgba(15,23,42,0.12)' }
 const LABEL_STYLE = { color: '#475569' }
-
-const STATUS_META = [
-  { key: 'DRAFT',             label: 'Draft',         color: '#64748b' },
-  { key: 'SUBMITTED',         label: 'Submitted',      color: '#3b82f6' },
-  { key: 'UNDER_REVIEW',      label: 'Under Review',   color: '#d97706' },
-  { key: 'REVISION_REQUIRED', label: 'Revisi Diminta', color: '#E31E24' },
-  { key: 'APPROVED',          label: 'Disetujui',      color: '#059669' },
-]
 
 export function ReportStatusDistributionChart() {
   const documents = useMonitoringReportStore((s) => s.documents)
 
   const data = useMemo(() => {
-    return STATUS_META.map((s) => ({
-      name: s.label,
-      value: documents.filter((d) => d.status === s.key).length,
-      color: s.color,
-    })).filter((d) => d.value > 0)
+    const counts: Record<ReportDocStatusBucket, number> = { DRAFT: 0, PENDING: 0, REVISION: 0, APPROVED: 0 }
+    documents.forEach((d) => { counts[bucketReportDocStatus(d.status)]++ })
+    return (Object.keys(REPORT_DOC_STATUS_BUCKET_META) as ReportDocStatusBucket[])
+      .map((key) => ({ name: REPORT_DOC_STATUS_BUCKET_META[key].label, value: counts[key], color: REPORT_DOC_STATUS_BUCKET_META[key].color }))
+      .filter((d) => d.value > 0)
   }, [documents])
 
   return (

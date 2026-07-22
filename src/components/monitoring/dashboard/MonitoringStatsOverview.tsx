@@ -7,6 +7,20 @@ import { useMonitoringCostStore } from '../../../store/useMonitoringCostStore'
 import { getEffectiveCostStatus } from '../../../types/monitoring'
 import { useMonitoringRole } from '../../../hooks/useMonitoringRole'
 
+// Hitung berapa item yang createdAt-nya jatuh di bulan berjalan — dipakai buat teks trend
+// singkat di bawah angka utama kartu KPI (cuma dipasang di metrik kumulatif yang wajar
+// dibandingkan "penambahan bulan ini"; metrik status kayak Project Aktif/Closed dilewati
+// karena "+N bulan ini" gak punya makna yang jujur buat angka itu).
+function countThisMonth(items: { createdAt: string }[]): number {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth()
+  return items.filter((i) => {
+    const d = new Date(i.createdAt)
+    return d.getFullYear() === year && d.getMonth() === month
+  }).length
+}
+
 export function MonitoringStatsOverview() {
   const { canViewCost } = useMonitoringRole()
 
@@ -23,6 +37,9 @@ export function MonitoringStatsOverview() {
     totalCostProjects: costs.length,
     billingCompleted: billingDocuments.filter((b) => b.status === 'COMPLETED').length,
     billingTotal:     billingDocuments.length,
+    costsThisMonth:   countThisMonth(costs),
+    reportsThisMonth: countThisMonth(reportProjects),
+    slaThisMonth:     countThisMonth(slaProjects),
   }), [reportProjects, slaProjects, costs, billingDocuments])
 
   // Kartu khusus admin_osm (cost monitoring)
@@ -53,6 +70,7 @@ export function MonitoringStatsOverview() {
       bg: 'bg-amber-100',
       tone: 'text-amber-700',
       valueTone: 'text-amber-700',
+      trend: stats.costsThisMonth > 0 ? `+${stats.costsThisMonth} baru bulan ini` : undefined,
     },
     {
       label: 'Billing Selesai',
@@ -75,6 +93,7 @@ export function MonitoringStatsOverview() {
       bg: 'bg-cyan-100',
       tone: 'text-cyan-700',
       valueTone: 'text-cyan-700',
+      trend: stats.slaThisMonth > 0 ? `+${stats.slaThisMonth} baru bulan ini` : undefined,
     },
     {
       label: 'Total Laporan',
@@ -84,6 +103,7 @@ export function MonitoringStatsOverview() {
       bg: 'bg-violet-100',
       tone: 'text-violet-700',
       valueTone: 'text-violet-700',
+      trend: stats.reportsThisMonth > 0 ? `+${stats.reportsThisMonth} baru bulan ini` : undefined,
     },
     {
       label: 'Billing Selesai',
@@ -113,6 +133,7 @@ export function MonitoringStatsOverview() {
             <div>
               <div className="text-[11px] uppercase tracking-widest text-ink-tertiary">{c.label}</div>
               <div className={`mt-1.5 text-2xl font-semibold ${c.valueTone}`}>{c.value}</div>
+              {c.trend && <div className="mt-1 text-[10px] font-medium text-emerald-600">{c.trend}</div>}
             </div>
             <div className={`grid h-9 w-9 place-items-center rounded-lg ${c.bg} ${c.tone}`}>{c.icon}</div>
           </div>

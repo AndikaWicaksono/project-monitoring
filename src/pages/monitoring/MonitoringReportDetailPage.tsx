@@ -8,7 +8,8 @@ import { useMonitoringRole } from '../../hooks/useMonitoringRole'
 import { Button } from '../../components/ui/Button'
 import { classNames, formatDateShort } from '../../utils/helpers'
 import { reportMonthLabel, prevReportMonth, nextReportMonth, getEffectiveCostStatus } from '../../types/monitoring'
-import type { ReportDocument, ReportDocumentStatus, BillingDocument, BillingDocumentStatus, BillingDocPhase, DocPhase, MonitoringCostStatus } from '../../types/monitoring'
+import type { ReportDocument, ReportDocumentStatus, BillingDocument, BillingDocumentStatus, BillingDocPhase, MonitoringCostStatus } from '../../types/monitoring'
+import { getDocPhaseSteps } from '../../utils/docPhaseSteps'
 
 type ActiveTab = 'customer' | 'vendor' | 'billing' | 'sla'
 
@@ -27,14 +28,15 @@ const DOC_STATUS_META: Record<ReportDocumentStatus, { label: string; cls: string
   APPROVED:          { label: 'Disetujui',          cls: 'bg-emerald-100 text-emerald-700' },
   COMPILING:         { label: 'Kompilasi Doccon',   cls: 'bg-violet-100 text-violet-700' },
   QC_REVIEW:         { label: 'QC Review',           cls: 'bg-amber-100 text-amber-700' },
-  PENDING_KADEP_PARAF: { label: 'Menunggu Paraf Kadep', cls: 'bg-cyan-100 text-cyan-700' },
+  PENDING_SOM:       { label: 'Menunggu Site Ops Manager', cls: 'bg-teal-100 text-teal-700' },
+  PENDING_KADEP_PARAF: { label: 'Menunggu TTD Kadep', cls: 'bg-cyan-100 text-cyan-700' },
   PENDING_KADIV:     { label: 'Menunggu Kadiv',     cls: 'bg-blue-100 text-blue-700' },
   KADIV_APPROVED:    { label: 'Disetujui Kadiv',    cls: 'bg-teal-100 text-teal-700' },
 }
 
 const BILLING_STATUS_META: Record<BillingDocumentStatus, { label: string; cls: string }> = {
   DRAFT:               { label: 'Draft',                cls: 'bg-slate-100 text-slate-700' },
-  PENDING_KADEP_PARAF: { label: 'Menunggu Paraf Kadep', cls: 'bg-cyan-100 text-cyan-700' },
+  PENDING_KADEP_PARAF: { label: 'Menunggu TTD Kadep', cls: 'bg-cyan-100 text-cyan-700' },
   REVISION_REQUIRED:   { label: 'Revisi Diminta',       cls: 'bg-red-100 text-red-700' },
   PENDING_KADIV:       { label: 'Menunggu Kadiv',       cls: 'bg-blue-100 text-blue-700' },
   COMPLETED:           { label: 'Selesai',              cls: 'bg-pertamina-red-50 text-pertamina-red font-semibold' },
@@ -42,7 +44,7 @@ const BILLING_STATUS_META: Record<BillingDocumentStatus, { label: string; cls: s
 
 const BILLING_PHASE_STEPS: { key: BillingDocPhase; label: string }[] = [
   { key: 'doccon', label: 'Doccon' },
-  { key: 'kadep', label: 'Paraf Kadep' },
+  { key: 'kadep', label: 'Kadep' },
   { key: 'kadiv', label: 'Kadiv' },
   { key: 'completed', label: 'Selesai' },
 ]
@@ -83,52 +85,19 @@ const REVISION_CLS: Record<string, string> = {
 }
 
 // ── Phase stepper ──────────────────────────────────────────────────────────
-
-const NEW_CUSTOMER_PHASES: { key: DocPhase; label: string }[] = [
-  { key: 'engineer',      label: 'Engineer' },
-  { key: 'doccon',        label: 'Doccon' },
-  { key: 'kadep',         label: 'Paraf Kadep' },
-  { key: 'kadiv',         label: 'Kadiv' },
-  { key: 'customer_email', label: 'Customer' },
-  { key: 'sales',         label: 'Sales' },
-]
-
-const DOCCON_START_PHASES: { key: DocPhase; label: string }[] = [
-  { key: 'doccon',         label: 'Doccon' },
-  { key: 'kadep',          label: 'Paraf Kadep' },
-  { key: 'kadiv',          label: 'Kadiv' },
-  { key: 'customer_email', label: 'Customer' },
-  { key: 'sales',          label: 'Sales' },
-]
-
-const NEW_VENDOR_PHASES: { key: DocPhase; label: string }[] = [
-  { key: 'doccon',        label: 'Doccon' },
-  { key: 'kadep',         label: 'Paraf Kadep' },
-  { key: 'kadiv',         label: 'Kadiv' },
-  { key: 'vendor_confirm', label: 'Vendor' },
-  { key: 'completed',     label: 'Selesai' },
-]
-
-const LEGACY_PHASES: { key: DocPhase; label: string }[] = [
-  { key: 'engineer', label: 'Engineer' },
-  { key: 'customer', label: 'Customer' },
-  { key: 'doccon',   label: 'Doccon' },
-]
+// Susunan phase per doc (termasuk insersi SOM & skip-Kadiv) — lihat src/utils/docPhaseSteps.ts
 
 function PhaseStepperMini({ doc }: { doc: ReportDocument }) {
   const current = doc.currentPhase ?? 'engineer'
-
-  const steps =
-    doc.docType === 'vendor'      ? NEW_VENDOR_PHASES :
-    current === 'customer'        ? LEGACY_PHASES :
-    doc.startPhase === 'doccon'   ? DOCCON_START_PHASES :
-    NEW_CUSTOMER_PHASES
-
+  const steps = getDocPhaseSteps(doc)
   const currentIdx = steps.findIndex((s) => s.key === current)
   // Fase terakhir di tiap pipeline (Sales / Selesai / Doccon) berarti prosesnya sudah kelar —
   // gak ada fase "sesudah" itu buat bikin dia lewat dari status "aktif", jadi begitu tercapai
   // langsung dianggap selesai (✓ hijau), bukan nyangkut selamanya di style "aktif" (● biru).
-  const isTerminalReached = currentIdx >= 0 && currentIdx === steps.length - 1
+  // Kecuali fase 'sales': nyampe fase ini (misal abis customer konfirmasi) BELUM TENTU udah
+  // beneran dikirim ke Sales — itu masih perlu klik "Kirim ke Sales" (submitToSales) secara
+  // terpisah, jadi baru dianggap selesai kalau salesSubmittedAt sudah keisi.
+  const isTerminalReached = currentIdx >= 0 && currentIdx === steps.length - 1 && (current !== 'sales' || !!doc.salesSubmittedAt)
 
   return (
     <div className="flex items-center gap-0.5 mt-1.5 flex-wrap">
@@ -161,7 +130,7 @@ function PhaseStepperMini({ doc }: { doc: ReportDocument }) {
 // ── Dependency badge ───────────────────────────────────────────────────────
 
 function DependencyBadge({ doc }: { doc: ReportDocument }) {
-  if (doc.currentPhase === 'kadep') return <span className="chip bg-cyan-100 text-cyan-700 text-[9px]">Menunggu Paraf</span>
+  if (doc.currentPhase === 'kadep') return <span className="chip bg-cyan-100 text-cyan-700 text-[9px]">Menunggu TTD</span>
   if (doc.currentPhase !== 'doccon') return null
   if (doc.status === 'QC_REVIEW') return <span className="chip bg-purple-100 text-purple-700 text-[9px]">QC Review</span>
   if (doc.status === 'COMPILING') return <span className="chip bg-amber-100 text-amber-700 text-[9px]">Compiling</span>
@@ -198,6 +167,11 @@ function SLAComplianceTab({ docs }: { docs: ReportDocument[] }) {
     d.kadivApprovedAt != null ||
     ['kadiv', 'customer_email', 'vendor_confirm', 'sales', 'completed'].includes(d.currentPhase ?? '')
 
+  // Kalau requiresKadiv === false, dokumen gak pernah mampir ke fase Kadiv jadi kadivApprovedAt
+  // selamanya null — pakai kadepParafAt sebagai substitusi "gate approval" biar metrik SLA yang
+  // ngukur dari titik ini tetap kehitung, bukan silently ke-exclude terus.
+  const getGateApprovedAt = (d: ReportDocument) => d.kadivApprovedAt ?? (d.requiresKadiv === false ? d.kadepParafAt : null)
+
   // ── Phase 1: Engineer (SLA ≤5 hari)
   // Hanya customer doc; vendor doc diinput langsung oleh Doccon, bukan Engineer
   // Ukur: engineerStartedAt → engineerSubmittedAt
@@ -216,12 +190,12 @@ function SLAComplianceTab({ docs }: { docs: ReportDocument[] }) {
   const DK_SLA = 3
   const dkDone = docs.filter((d) => {
     const recv = getDocconReceivedAt(d)
-    if (isNewFlow(d)) return !!(recv && d.kadivApprovedAt)
+    if (isNewFlow(d)) return !!(recv && getGateApprovedAt(d))
     return !!(recv && d.docconDeliveredAt)
   })
   const dkOnTime = dkDone.filter((d) => {
     const recv = getDocconReceivedAt(d)
-    const end = isNewFlow(d) ? d.kadivApprovedAt : d.docconDeliveredAt
+    const end = isNewFlow(d) ? getGateApprovedAt(d) : d.docconDeliveredAt
     return (daysBetween(recv, end) ?? 999) <= DK_SLA
   })
   const dkPct = dkDone.length ? Math.round((dkOnTime.length / dkDone.length) * 100) : null
@@ -233,7 +207,7 @@ function SLAComplianceTab({ docs }: { docs: ReportDocument[] }) {
   const CONF_SLA = 2
   const confDone = docs.filter((d) => {
     if (isNewFlow(d)) {
-      if (!d.kadivApprovedAt) return false
+      if (!getGateApprovedAt(d)) return false
       return !!(d.customerConfirmedAt ?? d.vendorConfirmedAt)
     }
     return !!(d.customerReceivedAt && d.customerApprovedAt)
@@ -241,7 +215,7 @@ function SLAComplianceTab({ docs }: { docs: ReportDocument[] }) {
   const confOnTime = confDone.filter((d) => {
     if (isNewFlow(d)) {
       const end = d.customerConfirmedAt ?? d.vendorConfirmedAt
-      return (daysBetween(d.kadivApprovedAt, end) ?? 999) <= CONF_SLA
+      return (daysBetween(getGateApprovedAt(d), end) ?? 999) <= CONF_SLA
     }
     return (daysBetween(d.customerReceivedAt, d.customerApprovedAt) ?? 999) <= CONF_SLA
   })
@@ -310,14 +284,14 @@ function SLAComplianceTab({ docs }: { docs: ReportDocument[] }) {
                 const eDays = !isVendor ? daysBetween(doc.engineerStartedAt, doc.engineerSubmittedAt) : null
 
                 // Doccon→Kadiv (gunakan fallback dari activity jika docconReceivedAt null)
-                const dkEnd = newFlow ? doc.kadivApprovedAt : doc.docconDeliveredAt
+                const dkEnd = newFlow ? getGateApprovedAt(doc) : doc.docconDeliveredAt
                 const dkDays = daysBetween(getDocconReceivedAt(doc), dkEnd)
 
                 // Konfirmasi
                 let confDays: number | null = null
                 if (newFlow) {
                   const confEnd = doc.customerConfirmedAt ?? doc.vendorConfirmedAt
-                  confDays = daysBetween(doc.kadivApprovedAt, confEnd)
+                  confDays = daysBetween(getGateApprovedAt(doc), confEnd)
                 } else {
                   confDays = daysBetween(doc.customerReceivedAt, doc.customerApprovedAt)
                 }
@@ -365,7 +339,7 @@ export function MonitoringReportDetailPage() {
   const reportDetailProjectId = useUIStore((s) => s.reportDetailProjectId)
   const selectedMonth = useUIStore((s) => s.selectedReportMonth)
   const setSelectedMonth = useUIStore((s) => s.setSelectedReportMonth)
-  const { canDeleteMonitoring, canEditMonitoring, isEngineerOS, isDoccon, isKadepParaf, isKadiv, canAssignDoccon } = useMonitoringRole()
+  const { canDeleteMonitoring, canEditMonitoring, isEngineerOS, isDoccon, isKadepParaf, isKadiv, isSOM, canAssignDoccon } = useMonitoringRole()
   const allUsers = useAuthStore((s) => s.users)
   const session = useAuthStore((s) => s.session)
   const currentUser = allUsers.find((u) => u.id === session?.userId)
@@ -472,7 +446,7 @@ export function MonitoringReportDetailPage() {
               </span>
             </div>
           </div>
-          {!isEngineerOS && !isDoccon && !isKadepParaf && !isKadiv && (
+          {!isEngineerOS && !isDoccon && !isKadepParaf && !isKadiv && !isSOM && (
             <Button
               size="sm"
               variant="ghost"
@@ -557,7 +531,7 @@ export function MonitoringReportDetailPage() {
               </span>
             </button>
           ))}
-          {!isEngineerOS && !isKadepParaf && !isKadiv && (
+          {!isEngineerOS && !isKadepParaf && !isKadiv && !isSOM && (
             <div className="ml-auto flex items-center px-4">
               {activeTab === 'customer' || activeTab === 'vendor' ? (
                 <Button
@@ -727,7 +701,7 @@ export function MonitoringReportDetailPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
                           <button onClick={() => openModal({ type: 'monitoring-report-document-detail', documentId: doc.id })} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Detail"><Eye size={13} /></button>
-                          {!isEngineerOS && !isKadepParaf && !isKadiv && <button onClick={() => openModal({ type: 'monitoring-report-document-edit', documentId: doc.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>}
+                          {!isEngineerOS && !isKadepParaf && !isKadiv && !isSOM && <button onClick={() => openModal({ type: 'monitoring-report-document-edit', documentId: doc.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>}
                           {isEngineerOS && (
                             <button
                               onClick={() => { setUploadingDocId(doc.id); uploadInputRef.current?.click() }}
@@ -737,7 +711,7 @@ export function MonitoringReportDetailPage() {
                               <Upload size={13} />
                             </button>
                           )}
-                          {canEditMonitoring && !isKadiv && <button onClick={() => setConfirmDeleteDocId(doc.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus Dokumen"><Trash2 size={13} /></button>}
+                          {canEditMonitoring && !isKadiv && !isSOM && <button onClick={() => setConfirmDeleteDocId(doc.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus Dokumen"><Trash2 size={13} /></button>}
                         </div>
                       </td>
                     </tr>
@@ -768,7 +742,7 @@ export function MonitoringReportDetailPage() {
             {tabDocs.length === 0 && (
               <div className="flex flex-col items-center justify-center py-12 text-ink-tertiary">
                 <p className="text-sm">Belum ada dokumen {activeTab === 'customer' ? 'customer' : 'vendor'} untuk periode <strong>{reportMonthLabel(selectedMonth)}</strong>.</p>
-                {!isEngineerOS && !isKadepParaf && !isKadiv && (
+                {!isEngineerOS && !isKadepParaf && !isKadiv && !isSOM && (
                   <Button
                     size="sm" className="mt-3"
                     onClick={() => openModal({ type: 'monitoring-report-document-create', projectId: project.id, docType: activeTab as 'customer' | 'vendor' })}
@@ -823,8 +797,8 @@ export function MonitoringReportDetailPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
                           <button onClick={() => openModal({ type: 'monitoring-billing-detail', billingId: b.id })} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Detail"><Eye size={13} /></button>
-                          {!isKadepParaf && !isKadiv && <button onClick={() => openModal({ type: 'monitoring-billing-edit', billingId: b.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>}
-                          {(canDeleteMonitoring || isDoccon) && !isKadiv && <button onClick={() => setConfirmDeleteBillingId(b.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>}
+                          {!isKadepParaf && !isKadiv && !isSOM && <button onClick={() => openModal({ type: 'monitoring-billing-edit', billingId: b.id })} className="rounded p-1 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.04] transition" title="Edit"><Pencil size={13} /></button>}
+                          {(canDeleteMonitoring || isDoccon) && !isKadiv && !isSOM && <button onClick={() => setConfirmDeleteBillingId(b.id)} className="rounded p-1 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition" title="Hapus"><Trash2 size={13} /></button>}
                         </div>
                       </td>
                     </tr>
@@ -835,7 +809,7 @@ export function MonitoringReportDetailPage() {
             {billingDocs.length === 0 && (
               <div className="flex flex-col items-center justify-center py-12 text-ink-tertiary">
                 <p className="text-sm">Belum ada billing document untuk project ini.</p>
-                {!isEngineerOS && !isKadepParaf && !isKadiv && (
+                {!isEngineerOS && !isKadepParaf && !isKadiv && !isSOM && (
                   <Button
                     size="sm" className="mt-3"
                     onClick={() => openModal({ type: 'monitoring-billing-create', projectId: project.id })}

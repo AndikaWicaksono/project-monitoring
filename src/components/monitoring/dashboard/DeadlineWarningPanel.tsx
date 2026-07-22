@@ -7,7 +7,8 @@ import { isDocCompleted, type DocPhase } from '../../../types/monitoring'
 const PHASE_LABELS: Record<DocPhase, string> = {
   engineer:        'Engineer',
   doccon:          'Doccon',
-  kadep:           'Paraf Kadep',
+  som:             'Site Ops Manager',
+  kadep:           'Kadep',
   kadiv:           'Kadiv',
   customer_email:  'Customer',
   vendor_confirm:  'Vendor',

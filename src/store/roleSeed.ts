@@ -255,6 +255,19 @@ export const SEED_ROLES: MasterRole[] = [
     },
   },
   {
+    id: 'site_ops_manager',
+    name: 'Site Operation Manager',
+    description: 'Site Operation Manager — approve dokumen pengerjaan Report Customer setelah QC Review Doccon, sebelum diteruskan ke Kadep. Dapat mengembalikan dokumen ke Doccon untuk revisi. Di-assign per-project oleh Nurlaela (kadep), bisa lebih dari satu orang. Read-only untuk SLA, Report, dan Cost di luar dokumen yang perlu approval-nya.',
+    color: '#0D9488',
+    rank: 26,
+    isSystem: true,
+    scopeRestriction: 'any',
+    permissions: {
+      ...none(),
+      canApproveHandoff: true,
+    },
+  },
+  {
     id: 'engineer_os',
     name: 'Engineer On Site',
     description: 'Engineer On Site (EOS). Akses read-only ke modul SLA Monitoring. Dapat memantau status reconfirm SLA. Tidak dapat mengakses Board Management.',

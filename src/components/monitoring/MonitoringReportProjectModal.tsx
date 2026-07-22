@@ -42,6 +42,7 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
   const existing        = projectId ? reportStore.getProjectById(projectId) : undefined
   const docconUsers     = users.filter((u) => u.role === 'doccon_osm' && u.active)
   const adminOsmUsers   = users.filter((u) => u.role === 'admin_osm' && u.active)
+  const somUsers        = users.filter((u) => u.role === 'site_ops_manager' && u.active)
 
   // ── Shared ──────────────────────────────────────────────────────────────
   const [kodeProject,   setKodeProject]   = useState('')
@@ -84,6 +85,7 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
   const [deliverablePlan, setDeliverablePlan] = useState<DeliverablePlanItem[]>([])
   const [assignDocconId,  setAssignDocconId]  = useState('')
   const [assignAdminOsmId, setAssignAdminOsmId] = useState('')
+  const [assignSOMId, setAssignSOMId] = useState('')
 
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -115,6 +117,7 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
       setDeliverablePlan(existing.deliverablePlan ?? [])
       setAssignDocconId('')
       setAssignAdminOsmId('')
+      setAssignSOMId('')
     } else {
       setKodeProject(''); setNamaKontrak(''); setDepartment(''); setCatatan('')
       setClient(''); setContractNumber(''); setCategoryContract(''); setDateOfContract('')
@@ -122,7 +125,7 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
       setPicLaporan(''); setSalesCustomer(''); setEmailTujuan('')
       setTargetSLA('99')
       setProjectValue(0); setCostBased(0); setDisplayProjectValue(''); setDisplayCostBased('')
-      setDeliverablePlan([]); setAssignDocconId(''); setAssignAdminOsmId('')
+      setDeliverablePlan([]); setAssignDocconId(''); setAssignAdminOsmId(''); setAssignSOMId('')
     }
     setErrors({})
   }, [open, mode, projectId])
@@ -256,6 +259,11 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
       if (assignAdminOsmId) {
         const adminOsm = adminOsmUsers.find((u) => u.id === assignAdminOsmId)
         assignmentStore.assignAdminOsm(createdProject.kodeProject, assignAdminOsmId, adminOsm?.name ?? '', byId, byName)
+      }
+      // ── Assign Site Operation Manager (opsional) ──
+      if (assignSOMId) {
+        const som = somUsers.find((u) => u.id === assignSOMId)
+        assignmentStore.assignSOM(createdProject.kodeProject, assignSOMId, som?.name ?? '', byId, byName)
       }
     } else if (mode === 'edit' && projectId) {
       reportStore.updateProject(projectId, reportPayload)
@@ -574,6 +582,19 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
                       </div>
                     )}
                   </div>
+                  {(item.targetType === 'report_customer' || item.targetType === 'report_vendor') && (
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] text-ink-tertiary">Approval:</span>
+                      <label className="flex items-center gap-1.5 text-[11px] text-ink-secondary cursor-pointer">
+                        <input type="radio" name={`requiresKadiv-${item.id}`} checked={item.requiresKadiv !== false} onChange={() => updateDeliverableItem(item.id, { requiresKadiv: true })} className="accent-pertamina-red" />
+                        Perlu approval Kadiv
+                      </label>
+                      <label className="flex items-center gap-1.5 text-[11px] text-ink-secondary cursor-pointer">
+                        <input type="radio" name={`requiresKadiv-${item.id}`} checked={item.requiresKadiv === false} onChange={() => updateDeliverableItem(item.id, { requiresKadiv: false })} className="accent-pertamina-red" />
+                        Cukup Kadep saja
+                      </label>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -604,6 +625,16 @@ export function MonitoringReportProjectModal({ open, onClose, mode, projectId }:
                   value={assignAdminOsmId}
                   onChange={(e) => setAssignAdminOsmId(e.target.value)}
                   options={[{ value: '', label: '— Belum diassign —' }, ...adminOsmUsers.map((u) => ({ value: u.id, label: u.name }))]}
+                  className="text-xs py-1.5"
+                />
+                <p className="text-[10px] text-ink-tertiary mt-1">Bisa juga diassign nanti dari halaman "Penugasan Project · Doccon".</p>
+              </div>
+              <div>
+                <Select
+                  label="Assign Site Operation Manager (opsional)"
+                  value={assignSOMId}
+                  onChange={(e) => setAssignSOMId(e.target.value)}
+                  options={[{ value: '', label: '— Belum diassign —' }, ...somUsers.map((u) => ({ value: u.id, label: u.name }))]}
                   className="text-xs py-1.5"
                 />
                 <p className="text-[10px] text-ink-tertiary mt-1">Bisa juga diassign nanti dari halaman "Penugasan Project · Doccon".</p>

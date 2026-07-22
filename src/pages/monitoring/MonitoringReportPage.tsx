@@ -209,7 +209,7 @@ export function MonitoringReportPage() {
   const setReportDetailProjectId = useUIStore((s) => s.setReportDetailProjectId)
   const selectedMonth = useUIStore((s) => s.selectedReportMonth)
   const setSelectedMonth = useUIStore((s) => s.setSelectedReportMonth)
-  const { canDeleteMonitoring, canManageProjectPeriod, isDoccon, isEngineerOS, isKadiv, isKadepParaf, currentUserId } = useMonitoringRole()
+  const { canDeleteMonitoring, canManageProjectPeriod, isDoccon, isEngineerOS, isKadiv, isKadepParaf, isSOM, currentUserId } = useMonitoringRole()
   const assignments = useMonitoringAssignmentStore((s) => s.assignments)
   const users       = useAuthStore((s) => s.users)
 
@@ -247,9 +247,14 @@ export function MonitoringReportPage() {
         const asgn = assignments.find((a) => a.kodeProject === p.kodeProject)
         if (!asgn || asgn.assignedDocconId !== currentUserId) return false
       }
+      // SOM juga di-assign per-project (kayak Doccon) — cuma lihat project yang diassign ke dia
+      if (isSOM && currentUserId) {
+        const asgn = assignments.find((a) => a.kodeProject === p.kodeProject)
+        if (!asgn || asgn.assignedSOMId !== currentUserId) return false
+      }
       return true
     })
-  }, [projects, selectedMonth, assignments, isDoccon, currentUserId])
+  }, [projects, selectedMonth, assignments, isDoccon, isSOM, currentUserId])
 
   const uniqueClients = useMemo(
     () => [...new Set(periodVisibleProjects.map((p) => p.client).filter(Boolean))].sort(),
@@ -296,6 +301,16 @@ export function MonitoringReportPage() {
     return new Set([...fromDocs, ...fromBilling])
   }, [documents, billingDocuments, selectedMonth, isKadepParaf])
 
+  // Sama seperti di atas tapi buat SOM (PENDING_SOM) — SOM cuma pernah ada di flow Report Customer,
+  // gak ada di Event-Based Report/Billing, jadi cukup dari documents aja.
+  const pendingSomProjectIds = useMemo(() => {
+    if (!isSOM) return new Set<string>()
+    const fromDocs = documents
+      .filter((d) => d.status === 'PENDING_SOM' && d.currentPhase === 'som' && d.period === selectedMonth)
+      .map((d) => d.projectId)
+    return new Set(fromDocs)
+  }, [documents, selectedMonth, isSOM])
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     const list = projects.filter((p) => {
@@ -307,6 +322,11 @@ export function MonitoringReportPage() {
       if (isDoccon && currentUserId) {
         const asgn = assignments.find((a) => a.kodeProject === p.kodeProject)
         if (!asgn || asgn.assignedDocconId !== currentUserId) return false
+      }
+      // SOM juga di-assign per-project — cuma lihat project yang diassign ke dia
+      if (isSOM && currentUserId) {
+        const asgn = assignments.find((a) => a.kodeProject === p.kodeProject)
+        if (!asgn || asgn.assignedSOMId !== currentUserId) return false
       }
       if (clientFilter && p.client !== clientFilter) return false
       if (picFilter) {
@@ -330,13 +350,19 @@ export function MonitoringReportPage() {
         const bPending = pendingKadivProjectIds.has(b.id) ? 0 : 1
         if (aPending !== bPending) return aPending - bPending
       }
+      // SOM: projects with pending approval float to top
+      if (isSOM) {
+        const aPending = pendingSomProjectIds.has(a.id) ? 0 : 1
+        const bPending = pendingSomProjectIds.has(b.id) ? 0 : 1
+        if (aPending !== bPending) return aPending - bPending
+      }
       if (sortBy === 'kode-asc')  return a.kodeProject.localeCompare(b.kodeProject)
       if (sortBy === 'kode-desc') return b.kodeProject.localeCompare(a.kodeProject)
       if (sortBy === 'nama-asc')  return a.namaKontrak.localeCompare(b.namaKontrak)
       if (sortBy === 'nama-desc') return b.namaKontrak.localeCompare(a.namaKontrak)
       return 0
     })
-  }, [projects, search, deptFilter, clientFilter, picFilter, selectedMonth, sortBy, assignments, isDoccon, isKadiv, isKadepParaf, pendingKadivProjectIds, pendingKadepProjectIds, currentUserId, users])
+  }, [projects, search, deptFilter, clientFilter, picFilter, selectedMonth, sortBy, assignments, isDoccon, isKadiv, isKadepParaf, isSOM, pendingKadivProjectIds, pendingKadepProjectIds, pendingSomProjectIds, currentUserId, users])
 
   const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -591,13 +617,16 @@ export function MonitoringReportPage() {
                       ? documents.filter((d) => d.projectId === p.id && d.status === 'PENDING_KADEP_PARAF' && d.currentPhase === 'kadep' && d.period === selectedMonth).length
                         + billingDocs.filter((b) => b.status === 'PENDING_KADEP_PARAF' && b.currentPhase === 'kadep').length
                       : 0
+                    const pendingSomCount = isSOM
+                      ? documents.filter((d) => d.projectId === p.id && d.status === 'PENDING_SOM' && d.currentPhase === 'som' && d.period === selectedMonth).length
+                      : 0
 
                     return (
                       <tr
                         key={p.id}
                         className={classNames(
                           'hover:bg-black/[0.02] transition-colors cursor-pointer group',
-                          pendingKadivCount > 0 ? 'bg-blue-50/50' : pendingKadepCount > 0 ? 'bg-cyan-50/50' : '',
+                          pendingKadivCount > 0 ? 'bg-blue-50/50' : pendingKadepCount > 0 ? 'bg-cyan-50/50' : pendingSomCount > 0 ? 'bg-teal-50/50' : '',
                         )}
                         onClick={() => openDetail(p.id)}
                       >
@@ -615,7 +644,12 @@ export function MonitoringReportPage() {
                               )}
                               {pendingKadepCount > 0 && (
                                 <span className="flex items-center gap-0.5 chip bg-cyan-100 text-cyan-700 text-[9px] font-semibold">
-                                  <Stamp size={8} /> {pendingKadepCount} Perlu Paraf
+                                  <Stamp size={8} /> {pendingKadepCount} Perlu TTD
+                                </span>
+                              )}
+                              {pendingSomCount > 0 && (
+                                <span className="flex items-center gap-0.5 chip bg-teal-100 text-teal-700 text-[9px] font-semibold">
+                                  <Stamp size={8} /> {pendingSomCount} Perlu Approval
                                 </span>
                               )}
                             </div>
@@ -739,7 +773,7 @@ export function MonitoringReportPage() {
                             >
                               <Eye size={13} />
                             </button>
-                            {!isDoccon && !isKadepParaf && !isKadiv && (
+                            {!isDoccon && !isKadepParaf && !isKadiv && !isSOM && (
                               <button
                                 onClick={() => openModal({ type: 'monitoring-report-project-edit', projectId: p.id })}
                                 className="rounded p-1.5 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.05] transition"
@@ -748,7 +782,7 @@ export function MonitoringReportPage() {
                                 <Pencil size={13} />
                               </button>
                             )}
-                            {canManageProjectPeriod && !isKadiv && (
+                            {canManageProjectPeriod && !isKadiv && !isSOM && (
                               <>
                                 <button
                                   onClick={() => setConfirmExcludeMonthId(p.id)}
@@ -766,7 +800,7 @@ export function MonitoringReportPage() {
                                 </button>
                               </>
                             )}
-                            {canDeleteMonitoring && !isKadiv && (
+                            {canDeleteMonitoring && !isKadiv && !isSOM && (
                               <button
                                 onClick={() => setConfirmDeleteId(p.id)}
                                 className="rounded p-1.5 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition"
@@ -868,6 +902,9 @@ export function MonitoringReportPage() {
                     ? documents.filter((d) => d.projectId === p.id && d.status === 'PENDING_KADEP_PARAF' && d.currentPhase === 'kadep' && d.period === selectedMonth).length
                       + billingDocs.filter((b) => b.status === 'PENDING_KADEP_PARAF' && b.currentPhase === 'kadep').length
                     : 0
+                  const pendingSomCount = isSOM
+                    ? documents.filter((d) => d.projectId === p.id && d.status === 'PENDING_SOM' && d.currentPhase === 'som' && d.period === selectedMonth).length
+                    : 0
 
                   return (
                     <div
@@ -875,7 +912,7 @@ export function MonitoringReportPage() {
                       onClick={() => openDetail(p.id)}
                       className={classNames(
                         'group relative rounded-xl border bg-white hover:border-pertamina-red/30 hover:shadow-md transition-all cursor-pointer overflow-hidden flex flex-col',
-                        pendingKadivCount > 0 ? 'border-blue-200 bg-blue-50/30' : pendingKadepCount > 0 ? 'border-cyan-200 bg-cyan-50/30' : 'border-border-subtle',
+                        pendingKadivCount > 0 ? 'border-blue-200 bg-blue-50/30' : pendingKadepCount > 0 ? 'border-cyan-200 bg-cyan-50/30' : pendingSomCount > 0 ? 'border-teal-200 bg-teal-50/30' : 'border-border-subtle',
                       )}
                     >
                       {/* Top accent bar */}
@@ -889,7 +926,7 @@ export function MonitoringReportPage() {
                           </span>
                           <WarningBadge docs={projDocs} />
                         </div>
-                        {(pendingKadivCount > 0 || pendingKadepCount > 0) && (
+                        {(pendingKadivCount > 0 || pendingKadepCount > 0 || pendingSomCount > 0) && (
                           <div className="flex items-center gap-1.5 flex-wrap -mt-1">
                             {pendingKadivCount > 0 && (
                               <span className="flex items-center gap-0.5 chip bg-red-100 text-red-700 text-[9px] font-semibold">
@@ -898,7 +935,12 @@ export function MonitoringReportPage() {
                             )}
                             {pendingKadepCount > 0 && (
                               <span className="flex items-center gap-0.5 chip bg-cyan-100 text-cyan-700 text-[9px] font-semibold">
-                                <Stamp size={8} /> {pendingKadepCount} Perlu Paraf
+                                <Stamp size={8} /> {pendingKadepCount} Perlu TTD
+                              </span>
+                            )}
+                            {pendingSomCount > 0 && (
+                              <span className="flex items-center gap-0.5 chip bg-teal-100 text-teal-700 text-[9px] font-semibold">
+                                <Stamp size={8} /> {pendingSomCount} Perlu Approval
                               </span>
                             )}
                           </div>
@@ -982,7 +1024,7 @@ export function MonitoringReportPage() {
                         >
                           <Eye size={12} />
                         </button>
-                        {!isDoccon && !isKadepParaf && !isKadiv && (
+                        {!isDoccon && !isKadepParaf && !isKadiv && !isSOM && (
                           <button
                             onClick={() => openModal({ type: 'monitoring-report-project-edit', projectId: p.id })}
                             className="rounded p-1.5 text-ink-tertiary hover:text-ink-primary hover:bg-black/[0.05] transition bg-white/80 shadow-sm"
@@ -991,7 +1033,7 @@ export function MonitoringReportPage() {
                             <Pencil size={12} />
                           </button>
                         )}
-                        {canManageProjectPeriod && !isKadiv && (
+                        {canManageProjectPeriod && !isKadiv && !isSOM && (
                           <>
                             <button
                               onClick={() => setConfirmExcludeMonthId(p.id)}
@@ -1009,7 +1051,7 @@ export function MonitoringReportPage() {
                             </button>
                           </>
                         )}
-                        {canDeleteMonitoring && !isKadiv && (
+                        {canDeleteMonitoring && !isKadiv && !isSOM && (
                           <button
                             onClick={() => setConfirmDeleteId(p.id)}
                             className="rounded p-1.5 text-ink-tertiary hover:text-pertamina-red hover:bg-pertamina-red-50 transition bg-white/80 shadow-sm"

@@ -11,16 +11,20 @@ export type ReportDocumentStatus =
   | 'UNDER_REVIEW'       // Keep backward compat
   | 'COMPILING'          // Doccon sedang susun customer report
   | 'QC_REVIEW'          // Doccon melakukan QC review sebelum ke Kadep
+  | 'PENDING_SOM'        // Customer doc: menunggu approval Site Operation Manager sebelum ke Kadep
   | 'PENDING_KADEP_PARAF'// Menunggu paraf Kadep sebelum ke Kadiv
   | 'PENDING_KADIV'      // Menunggu approval Kadiv
   | 'REVISION_REQUIRED'
-  | 'KADIV_APPROVED'     // Kadiv sudah approve
+  | 'KADIV_APPROVED'     // Kadiv sudah approve — juga dipakai saat Kadiv dilewati (lihat requiresKadiv)
   | 'APPROVED'           // Fully done
 export type ReportDocumentRevision = 'R0' | 'R1' | 'R2' | 'R3' | 'R4'
 export type ReportDocumentActionType =
   | 'CREATE' | 'SUBMIT' | 'START_REVIEW' | 'APPROVE' | 'REQUEST_REVISION' | 'RESUBMIT'  // keep existing
   | 'DOCCON_COMPILE'      // Doccon mulai kompilasi
   | 'DOCCON_QC_REVIEW'    // Doccon mulai QC review
+  | 'DOCCON_SUBMIT_SOM'   // Doccon kirim dokumen customer ke Site Operation Manager
+  | 'SOM_APPROVE'         // Site Operation Manager approve, teruskan ke Kadep
+  | 'SOM_REJECT'          // Site Operation Manager minta revisi balik ke Doccon
   | 'DOCCON_SUBMIT_KADEP' // Doccon kirim ke Kadep untuk paraf
   | 'KADEP_PARAF'         // Kadep paraf dokumen
   | 'KADEP_REJECT'        // Kadep minta revisi balik ke Doccon
@@ -29,16 +33,19 @@ export type ReportDocumentActionType =
   | 'KADIV_REJECT'        // Kadiv minta revisi
   | 'CUSTOMER_NOTIFIED'   // Doccon catat email ke customer dikirim
   | 'CUSTOMER_CONFIRMED'  // Doccon catat customer konfirmasi via email
+  | 'CUSTOMER_REJECT'     // Doccon catat customer minta revisi via email
   | 'VENDOR_CONFIRMED'    // Doccon catat vendor konfirmasi via email
   | 'SUBMIT_SALES'        // Doccon kirim ke Sales
   | 'ESCALATE_ENGINEER'   // Doccon eskalasi dokumen ke Engineer untuk perbaikan
+  | 'DOCCON_RESUBMIT_CUSTOMER' // Doccon perbaiki revisi Customer & kirim langsung balik ke Customer (skip SOM/Kadep/Kadiv)
 
 // E2E phase tracking (feature: end-to-end document pipeline)
 export type DocPhase =
   | 'engineer'        // Customer doc: Engineer drafting
   | 'doccon'          // Customer doc: Doccon assembling | Vendor doc: Doccon inputting
+  | 'som'             // Customer doc only: menunggu approval Site Operation Manager (antara Doccon dan Kadep)
   | 'kadep'           // Both: menunggu paraf Kadep
-  | 'kadiv'           // Both: Kadiv approval
+  | 'kadiv'           // Both: Kadiv approval — dilewati kalau requiresKadiv === false
   | 'customer_email'  // Customer doc: menunggu konfirmasi customer (via email)
   | 'vendor_confirm'  // Vendor doc: menunggu konfirmasi vendor (via email)
   | 'sales'           // Customer doc: sudah dikirim ke Sales
@@ -76,6 +83,7 @@ export interface DeliverablePlanItem {
   targetType: DeliverablePlanTargetType
   cadenceMonths: number                // tiap N bulan, dihitung dari kontrakMulai (1 = tiap bulan)
   startPhase?: 'engineer' | 'doccon'   // hanya dipakai kalau targetType === 'report_customer'
+  requiresKadiv?: boolean              // default (undefined) = true. false = dokumen yang di-generate skip approval Kadiv, cukup Kadep. Hanya report_customer/report_vendor.
   active: boolean                      // false = berhenti generate periode baru, histori tetap ada
 }
 
@@ -133,8 +141,8 @@ export interface ReportDocument {
   updatedAt: string
   createdByUserId: string
   createdByName: string
-  // Pipeline type: 'engineer' = Engineer → Doccon → Paraf Kadep → Kadiv → Customer → Sales
-  //                'doccon'   = Doccon langsung → Paraf Kadep → Kadiv → Customer → Sales
+  // Pipeline type: 'engineer' = Engineer → Doccon → SOM → TTD Kadep → Kadiv → Customer → Sales
+  //                'doccon'   = Doccon langsung → SOM → TTD Kadep → Kadiv → Customer → Sales
   startPhase?: 'engineer' | 'doccon'
   // Per-document Doccon assignment (Kadep assigns)
   assignedDocconUserId?: string | null
@@ -166,6 +174,8 @@ export interface ReportDocument {
   salesFlagIssue?: boolean
   salesIssueNote?: string
   // New workflow timestamps
+  somApprovedAt?: string | null
+  somApprovedByName?: string | null
   kadepParafAt?: string | null
   kadepParafByName?: string | null
   kadivApprovedAt?: string | null
@@ -173,6 +183,13 @@ export interface ReportDocument {
   customerConfirmedAt?: string | null
   vendorConfirmedAt?: string | null
   salesSubmittedAt?: string | null
+  // Skip approval Kadiv untuk dokumen ini — default (undefined) = true (perlu Kadiv), diturunkan dari
+  // DeliverablePlanItem.requiresKadiv saat generate, bisa di-override manual per dokumen.
+  requiresKadiv?: boolean
+  // true = dokumen lagi dikembalikan gara-gara Customer minta revisi (bukan SOM/Kadep/Kadiv) — dipakai
+  // buat nampilin opsi "kirim langsung balik ke Customer" (skip SOM/Kadep/Kadiv) di panel Doccon.
+  // Di-clear begitu Doccon resubmit lewat jalur manapun.
+  pendingCustomerRevision?: boolean
   // Deliverable Plan — diisi kalau dokumen ini di-generate otomatis dari rencana deliverable project
   deliverablePlanItemId?: string | null
   autoGenerated?: boolean

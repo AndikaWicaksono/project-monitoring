@@ -72,6 +72,8 @@ function phaseDefaults(
       return { ...base, currentPhase: 'doccon', engineerSubStatus: 'submitted', ...overrides }
     case 'QC_REVIEW':
       return { ...base, currentPhase: 'doccon', engineerSubStatus: 'submitted', ...overrides }
+    case 'PENDING_SOM':
+      return { ...base, currentPhase: 'som', engineerSubStatus: 'submitted', ...overrides }
     case 'PENDING_KADEP_PARAF':
       return { ...base, currentPhase: 'kadep', engineerSubStatus: 'submitted', ...overrides }
     case 'PENDING_KADIV':
@@ -1070,6 +1072,9 @@ interface MonitoringReportState {
   docconCompile: (id: string, byUserId: string, byName: string) => void
   docconStartQCReview: (id: string, byUserId: string, byName: string) => void
   docconSubmitToKadep: (id: string, byUserId: string, byName: string) => void
+  docconSubmitToSOM: (id: string, byUserId: string, byName: string) => void
+  somApprove: (id: string, byUserId: string, byName: string, comment?: string) => void
+  somReject: (id: string, byUserId: string, byName: string, comment: string) => void
   kadepParaf: (id: string, byUserId: string, byName: string) => void
   kadepReject: (id: string, byUserId: string, byName: string, comment: string) => void
   kadivApprove: (id: string, byUserId: string, byName: string, comment?: string) => void
@@ -1077,6 +1082,8 @@ interface MonitoringReportState {
   docconResubmitAfterRevision: (id: string, byUserId: string, byName: string) => void
   docconEscalateToEngineer: (id: string, byUserId: string, byName: string, comment: string) => void
   recordCustomerConfirmed: (id: string, byUserId: string, byName: string) => void
+  recordCustomerRevision: (id: string, byUserId: string, byName: string, comment: string) => void
+  docconResubmitDirectToCustomer: (id: string, byUserId: string, byName: string) => void
   recordVendorConfirmed: (id: string, byUserId: string, byName: string, comment?: string) => void
   submitToSales: (id: string, byUserId: string, byName: string) => void
 }
@@ -1459,21 +1466,95 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
         useLogStore.getState().addLog({ type: 'monitoring_report_submitted', message: `Dokumen dikirim ke Kadep untuk paraf`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
       },
 
-      kadepParaf: (id, byUserId, byName) => {
-        const activity = makeActivity('KADEP_PARAF', byUserId, byName, '')
+      docconSubmitToSOM: (id, byUserId, byName) => {
+        const activity = makeActivity('DOCCON_SUBMIT_SOM', byUserId, byName, '')
         const now = nowIso()
         set((s) => ({
           documents: s.documents.map((d) => d.id !== id ? d : {
             ...d,
-            status: 'PENDING_KADIV' as ReportDocumentStatus,
-            currentPhase: 'kadiv' as DocPhase,
-            kadepParafAt: now,
-            kadepParafByName: byName,
+            status: 'PENDING_SOM' as ReportDocumentStatus,
+            currentPhase: 'som' as DocPhase,
             activities: [...d.activities, activity],
             updatedAt: now,
           }),
         }))
-        useLogStore.getState().addLog({ type: 'monitoring_report_approved', message: `Kadep memberi paraf, dokumen dikirim ke Kadiv`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+        useLogStore.getState().addLog({ type: 'monitoring_report_submitted', message: `Dokumen dikirim ke Site Operation Manager`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+
+      somApprove: (id, byUserId, byName, comment = '') => {
+        const activity = makeActivity('SOM_APPROVE', byUserId, byName, comment)
+        const now = nowIso()
+        set((s) => ({
+          documents: s.documents.map((d) => d.id !== id ? d : {
+            ...d,
+            status: 'PENDING_KADEP_PARAF' as ReportDocumentStatus,
+            currentPhase: 'kadep' as DocPhase,
+            somApprovedAt: now,
+            somApprovedByName: byName,
+            activities: [...d.activities, activity],
+            updatedAt: now,
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_approved', message: `Site Operation Manager menyetujui, dokumen dikirim ke Kadep`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+
+      somReject: (id, byUserId, byName, comment) => {
+        const activity = makeActivity('SOM_REJECT', byUserId, byName, comment)
+        const now = nowIso()
+        set((s) => ({
+          documents: s.documents.map((d) => {
+            if (d.id !== id) return d
+            const newRevision = bumpRevision(d.revision)
+            const revEntry: RevisionHistoryEntry = {
+              revision: newRevision,
+              status: 'REVISION_REQUIRED',
+              changedAt: now,
+              changedByName: byName,
+              note: comment,
+              type: 'revision',
+            }
+            return {
+              ...d,
+              status: 'REVISION_REQUIRED' as ReportDocumentStatus,
+              revision: newRevision,
+              currentPhase: 'doccon' as DocPhase,
+              revisionHistory: [...(d.revisionHistory ?? []), revEntry],
+              activities: [...d.activities, activity],
+              updatedAt: now,
+            }
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_revision', message: `Site Operation Manager meminta revisi, dokumen dikembalikan ke Doccon`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+
+      kadepParaf: (id, byUserId, byName) => {
+        const activity = makeActivity('KADEP_PARAF', byUserId, byName, '')
+        const now = nowIso()
+        set((s) => ({
+          documents: s.documents.map((d) => {
+            if (d.id !== id) return d
+            // requiresKadiv === false: skip approval Kadiv, langsung ke fase konfirmasi Customer/Vendor.
+            // Sengaja TIDAK ngisi kadivApprovedAt/kadivApprovedByName di sini — itu bakal salah atribusi
+            // aksi Kadiv ke Kadep. Konsumen yang perlu tahu "kapan lolos dari Kadep" pakai kadepParafAt
+            // sebagai fallback kalau requiresKadiv === false (lihat MonitoringReportDetailPage & modal).
+            const skipKadiv = d.requiresKadiv === false
+            const nextPhase: DocPhase = skipKadiv ? (d.docType === 'vendor' ? 'vendor_confirm' : 'customer_email') : 'kadiv'
+            const nextStatus: ReportDocumentStatus = skipKadiv ? 'KADIV_APPROVED' : 'PENDING_KADIV'
+            return {
+              ...d,
+              status: nextStatus,
+              currentPhase: nextPhase,
+              kadepParafAt: now,
+              kadepParafByName: byName,
+              activities: [...d.activities, activity],
+              updatedAt: now,
+            }
+          }),
+        }))
+        const doc = get().documents.find((d) => d.id === id)
+        const skipKadivLog = doc?.requiresKadiv === false
+        const targetLabelLog = skipKadivLog ? (doc?.docType === 'vendor' ? 'Vendor' : 'Customer') : 'Kadiv'
+        useLogStore.getState().addLog({ type: 'monitoring_report_approved', message: `Kadep memberi paraf, dokumen dikirim ke ${targetLabelLog}`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
       },
 
       kadepReject: (id, byUserId, byName, comment) => {
@@ -1563,6 +1644,7 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
             ...d,
             status: 'QC_REVIEW' as ReportDocumentStatus,
             currentPhase: 'doccon' as DocPhase,
+            pendingCustomerRevision: false,
             activities: [...d.activities, activity],
             updatedAt: now,
           }),
@@ -1588,6 +1670,7 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
               ...d,
               status: 'REVISION_REQUIRED' as ReportDocumentStatus,
               currentPhase: 'engineer' as DocPhase,
+              pendingCustomerRevision: false,
               revisionHistory: [...(d.revisionHistory ?? []), escEntry],
               activities: [...d.activities, activity],
               updatedAt: now,
@@ -1611,6 +1694,57 @@ export const useMonitoringReportStore = create<MonitoringReportState>()(
           }),
         }))
         useLogStore.getState().addLog({ type: 'monitoring_report_approved', message: `Customer konfirmasi — dokumen disetujui`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+
+      // Doccon mencatat bahwa Customer minta revisi (via balasan email) — dokumen balik ke Doccon,
+      // ditandai pendingCustomerRevision biar Doccon nanti bisa milih: proses approval ulang penuh
+      // (lewat SOM/Kadep/Kadiv lagi) atau kirim langsung balik ke Customer setelah diperbaiki.
+      recordCustomerRevision: (id, byUserId, byName, comment) => {
+        const activity = makeActivity('CUSTOMER_REJECT', byUserId, byName, comment)
+        const now = nowIso()
+        set((s) => ({
+          documents: s.documents.map((d) => {
+            if (d.id !== id) return d
+            const newRevision = bumpRevision(d.revision)
+            const revEntry: RevisionHistoryEntry = {
+              revision: newRevision,
+              status: 'REVISION_REQUIRED',
+              changedAt: now,
+              changedByName: 'Customer',
+              note: comment,
+              type: 'revision',
+            }
+            return {
+              ...d,
+              status: 'REVISION_REQUIRED' as ReportDocumentStatus,
+              revision: newRevision,
+              currentPhase: 'doccon' as DocPhase,
+              pendingCustomerRevision: true,
+              revisionHistory: [...(d.revisionHistory ?? []), revEntry],
+              activities: [...d.activities, activity],
+              updatedAt: now,
+            }
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_revision', message: `Customer minta revisi, dokumen dikembalikan ke Doccon`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
+      },
+
+      // Fast lane — Doccon udah perbaiki revisi dari Customer, kirim langsung balik ke tahap
+      // konfirmasi Customer tanpa lewat SOM/Kadep/Kadiv lagi.
+      docconResubmitDirectToCustomer: (id, byUserId, byName) => {
+        const activity = makeActivity('DOCCON_RESUBMIT_CUSTOMER', byUserId, byName, 'Perbaikan revisi Customer, dikirim langsung balik ke Customer')
+        const now = nowIso()
+        set((s) => ({
+          documents: s.documents.map((d) => d.id !== id ? d : {
+            ...d,
+            status: 'KADIV_APPROVED' as ReportDocumentStatus,
+            currentPhase: 'customer_email' as DocPhase,
+            pendingCustomerRevision: false,
+            activities: [...d.activities, activity],
+            updatedAt: now,
+          }),
+        }))
+        useLogStore.getState().addLog({ type: 'monitoring_report_submitted', message: `Doccon kirim ulang dokumen langsung ke Customer setelah revisi`, taskId: null, taskTitle: null, fromTeamId: null, toTeamId: null })
       },
 
       recordVendorConfirmed: (id, byUserId, byName, comment = '') => {
